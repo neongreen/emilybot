@@ -1,0 +1,8 @@
+# This file defines encryption rules
+
+creation_rules:
+  - path_regex: ^\.env\.yaml$
+    key_groups:
+      - age:
+          # emily
+          - age1ejkeqvu8cmsvtrphrf3fexfdqrh97v48nq86u3k8untpv226ayqsxz6tu0
