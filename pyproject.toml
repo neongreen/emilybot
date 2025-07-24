@@ -4,12 +4,39 @@ version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
   "discord-py>=2.5.2",
+  "typed-json-db>=0.2.2",
 ]
+
+[project.scripts]
+emilybot = "emilybot.main:main"
 
 [dependency-groups]
 dev = [
   "pyright>=1.1.403",
+  "pytest>=8.0.0",
+  "pytest-timeout>=2.4.0",
+  "pytest-asyncio>=0.24.0",
 ]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv]
+package = true
 
 [tool.pyright]
 typeCheckingMode = "strict"
+include = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+timeout = 3
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 88
+indent-width = 4

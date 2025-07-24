@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Run and Fix Tests",
+  "description": "Automatically runs the test suite when test files or source code changes, and attempts to fix any failing tests",
+  "version": "1",
+  "when": {
+    "type": "userTriggered",
+    "patterns": [
+      "tests/*.py",
+      "src/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Test files or source code has been modified. Please run the test suite using `uv run pytest` and analyze any failures. If tests are failing, examine the error messages and fix the issues in the code. Make sure to follow the Python development guidelines from python.md."
+  }
+}

@@ -6,4 +6,4 @@ nixPkgs = ["...", "sops", "age"]
 
 [start]
 # Run the app with the decrypted secrets
-cmd = "sops exec-env .env.yaml 'uv run main.py'"
+cmd = "sops exec-env .env.yaml 'uv run emilybot'"

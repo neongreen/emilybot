@@ -5,6 +5,7 @@ python.uv_venv_auto = true
 age = "latest"
 uv = "latest"
 sops = "latest"
+dprint = "0.50.1"
 
 [env]
 '_'.file.path = ".env.yaml"
@@ -15,4 +16,16 @@ run = "uv run pyright --project=."
 
 [tasks.start]
 description = "Start the bot"
-run = "uv run main.py"
+run = "uv run emilybot"
+
+[tasks.test]
+description = "Run database tests"
+run = "uv run pytest"
+
+[tasks.fmt]
+description = "Format code"
+run = "dprint fmt"
+
+[tasks.check]
+description = "Check formatting"
+run = "dprint check"

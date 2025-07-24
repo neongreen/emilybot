@@ -1,19 +1,54 @@
 # emilybot
 
-It's a bot.
+## Commands
 
-## notes to self
+- `.remember <key> <value>` - Remember something
+- `.find <key>` or `.where <key>` - Find a remembered value
+- `.list` - List all remembered entries
+- `.forget <key>` - Forget a remembered entry, can only be done by the same user who added it
+- `.help` - Show help message
 
-### how this was added to discord
+## Usage Examples
 
-<https://discordpy.readthedocs.io/en/stable/discord.html>
+```
+.remember docs https://example.com/docs
+.find docs
+.list
+.forget docs
+```
 
-in the bot settings enable 'message content intent'
+## Development
 
-add the bot to any server (my server): <https://discord.com/oauth2/authorize?client_id=1397835166906323085&scope=bot> (grab the client id from <https://discord.dev>)
+### Setup
 
-then find the bot in the server members list and DM it and now you can DM it
+```bash
+# Install dependencies
+uv sync
 
-### sops
+# Run type checking
+uv run pyright
 
-created a key for the server with `age-keygen`, added to the server as `AGE_SECRET_KEY`
+# Start the bot (requires TOKEN environment variable)
+uv run main.py
+```
+
+### Configuration
+
+The bot uses SOPS for secret management. The Discord bot token is encrypted in `.env.yaml`.
+
+### Deployment
+
+Configured for deployment with Coolify using nixpacks. The `nixpacks.toml` handles SOPS decryption and app startup.
+
+## Notes
+
+### Discord Setup
+
+1. Create bot at <https://discord.dev>
+2. Enable 'message content intent' in bot settings
+3. Add bot to server: `https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot`
+4. After that you can find the bot in server members list and DM it
+
+### SOPS
+
+Created encryption key with `age-keygen`, added to server as `AGE_SECRET_KEY` environment variable.
