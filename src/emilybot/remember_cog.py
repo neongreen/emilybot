@@ -1,5 +1,6 @@
 from datetime import datetime
 import re
+import random
 from typing import Literal, Optional, overload
 from dataclasses import dataclass
 from discord.ext import commands
@@ -440,3 +441,45 @@ class RememberCog(commands.Cog):
     async def add(self, ctx: Context[Bot], alias: str, *, content: str) -> None:
         """Add content to an existing entry or create a new one. Usage: .add <alias> <content>"""
         await self._add_implementation(ctx, alias, content)
+
+    async def _random_implementation(self, ctx: Context[Bot], alias: str) -> None:
+        """Shared implementation for getting a random non-blank line from an entry."""
+        try:
+            # Validate alias
+            AliasValidator.validate_alias(alias)
+
+            server_id = ctx.guild.id if ctx.guild else None
+
+            # Find existing entry
+            entry = first(
+                self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
+            )
+
+            if not entry:
+                await ctx.send(
+                    self.format_not_found_message(alias), suppress_embeds=True
+                )
+                return
+
+            # Split content into lines and filter out blank lines
+            lines = [line.strip() for line in entry.content.split("\n")]
+            non_blank_lines = [line for line in lines if line]
+
+            if not non_blank_lines:
+                await ctx.send(
+                    f"❓ Alias '{alias}' has no non-blank lines.",
+                    suppress_embeds=True,
+                )
+                return
+
+            # Select a random non-blank line
+            random_line = random.choice(non_blank_lines)
+            await ctx.send(random_line, suppress_embeds=True)
+
+        except ValidationError as e:
+            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
+
+    @commands.command()
+    async def random(self, ctx: Context[Bot], alias: str) -> None:
+        """Get a random non-blank line from an entry. Usage: .random <alias>"""
+        await self._random_implementation(ctx, alias)
