@@ -4,7 +4,7 @@ import uuid
 
 import emilybot.remember.db as db
 from emilybot.utils.list import first
-from emilybot.validation import AliasValidator, ContentValidator, ValidationError
+from emilybot.validation import AliasValidator, ValidationError
 
 
 class SaveCommands:
@@ -35,9 +35,9 @@ class SaveCommands:
     ) -> None:
         """Shared implementation for remember and learn commands."""
         try:
-            # Validate alias and content
             AliasValidator.validate_alias(alias)
-            ContentValidator.validate_content(content)
+            if not content.strip():
+                raise ValidationError("Text cannot be empty.")
 
             guild = ctx.guild
             server_id = guild.id if guild else None
@@ -89,7 +89,8 @@ class SaveCommands:
         try:
             # Validate alias and content
             AliasValidator.validate_alias(alias)
-            ContentValidator.validate_content(content)
+            if not content.strip():
+                raise ValidationError("Text to add cannot be empty.")
 
             server_id = ctx.guild.id if ctx.guild else None
 

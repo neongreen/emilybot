@@ -3,7 +3,7 @@ from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTy
 
 import emilybot.remember.db as db
 from emilybot.utils.list import first
-from emilybot.validation import AliasValidator, ContentValidator, ValidationError
+from emilybot.validation import AliasValidator, ValidationError
 
 
 class EditCommands:
@@ -34,9 +34,9 @@ class EditCommands:
     ) -> None:
         """Shared implementation for editing an existing alias."""
         try:
-            # Validate alias and content
             AliasValidator.validate_alias(alias)
-            ContentValidator.validate_content(new_content)
+            if not new_content.strip():
+                raise ValidationError("Text cannot be empty.")
 
             server_id = ctx.guild.id if ctx.guild else None
             user_id = ctx.author.id

@@ -31,6 +31,14 @@ class ShowCommands:
         """Format success message for remember operations."""
         return f"✅ Alias '{alias}' {action} successfully."
 
+    def format_show_content(self, content: str) -> str:
+        # trim if >1000char, *then* trim if >100 lines
+        if len(content) > 1000:
+            content = content[:1000] + "..."
+        if content.count("\n") > 100:
+            content = "\n".join(content.split("\n")[:100]) + "..."
+        return content
+
     async def _show_implementation(self, ctx: Context[Bot], alias: str) -> None:
         """Shared implementation for finding an alias."""
 
@@ -76,7 +84,9 @@ class ShowCommands:
                 self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
             )
             if entry:
-                await ctx.send(entry.content, suppress_embeds=True)
+                await ctx.send(
+                    self.format_show_content(entry.content), suppress_embeds=True
+                )
             else:
                 await ctx.send(
                     self.format_not_found_message(alias), suppress_embeds=True
