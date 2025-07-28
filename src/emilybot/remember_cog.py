@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 from typing import Literal, Optional, overload
 from dataclasses import dataclass
 from discord.ext import commands
@@ -6,8 +7,14 @@ from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTy
 from typed_json_db import JsonDB
 from pathlib import Path
 import uuid
+import inflect
 
 from emilybot.validation import AliasValidator, ContentValidator, ValidationError
+
+
+def first[T](iterable: list[T]) -> T | None:
+    """Return the first element of a list or None if empty."""
+    return iterable[0] if iterable else None
 
 
 @dataclass
@@ -76,35 +83,63 @@ class DB:
         )
 
     @overload
-    def find_alias(self, alias: str, *, server_id: int) -> Optional[RememberEntry]: ...
+    def find_alias(
+        self,
+        alias: str | re.Pattern[str],
+        *,
+        server_id: int,
+        user_id: int | None = None,
+    ) -> list[RememberEntry]: ...
 
     @overload
-    def find_alias(self, alias: str, *, user_id: int) -> Optional[RememberEntry]: ...
+    def find_alias(
+        self,
+        alias: str | re.Pattern[str],
+        *,
+        user_id: int,
+        server_id: int | None = None,
+    ) -> list[RememberEntry]: ...
 
     def find_alias(
-        self, alias: str, server_id: Optional[int] = None, user_id: Optional[int] = None
-    ) -> Optional[RememberEntry]:
+        self,
+        alias: str | re.Pattern[str],
+        *,
+        server_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+    ) -> list[RememberEntry]:
         """Find an alias in the database."""
         if server_id is not None:
-            results = self.remember.find(  # type: ignore
-                server_id=server_id, name=alias.lower()
-            )
+            if isinstance(alias, str):
+                results = self.remember.find(  # type: ignore
+                    server_id=server_id, name=alias.lower()
+                )
+            else:
+                results = self.remember.find(  # type: ignore
+                    server_id=server_id
+                )
+                results = [entry for entry in results if alias.match(entry.name)]
+
         elif user_id is not None:
-            results = self.remember.find(  # type: ignore
-                user_id=user_id, server_id=None, name=alias.lower()
-            )
+            if isinstance(alias, str):
+                results = self.remember.find(  # type: ignore
+                    user_id=user_id, server_id=None, name=alias.lower()
+                )
+            else:
+                results = self.remember.find(  # type: ignore
+                    user_id=user_id, server_id=None
+                )
+                results = [entry for entry in results if alias.match(entry.name)]
         else:
             raise ValueError("Either server_id or user_id must be provided")
 
-        if results:
-            return results[0]
-        return None
+        return results
 
 
 class RememberCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.db = DB()
+        self.inflect = inflect.engine()
 
     def format_not_found_message(self, alias: str) -> str:
         """Format a helpful error message when an alias is not found."""
@@ -196,9 +231,9 @@ class RememberCog(commands.Cog):
 
             # Find existing entry
             if server_id:
-                existing = self.db.find_alias(alias, server_id=server_id)
+                existing = first(self.db.find_alias(alias, server_id=server_id))
             else:
-                existing = self.db.find_alias(alias, user_id=ctx.author.id)
+                existing = first(self.db.find_alias(alias, user_id=ctx.author.id))
 
             if not existing:
                 await ctx.send(self.format_not_found_message(alias))
@@ -231,15 +266,29 @@ class RememberCog(commands.Cog):
 
         server_id = ctx.guild.id if ctx.guild else None
 
-        if server_id:
-            existing = self.db.find_alias(alias, server_id=server_id)
+        if alias.endswith("/"):
+            # list by prefix
+            results = self.db.find_alias(
+                re.compile("^" + re.escape(alias), re.IGNORECASE),
+                server_id=server_id,
+                user_id=ctx.author.id,
+            )
+            plural = self.inflect.plural_noun("entry", len(results))  # type: ignore
+            if not results:
+                await ctx.send(f"❓ No entries found for prefix '{alias}'.")
+            else:
+                await ctx.send(
+                    f"📜 Found {len(results)} {plural} for '{alias}':\n"
+                    + "\n".join(f"- {entry.name}" for entry in results)
+                )
         else:
-            existing = self.db.find_alias(alias, user_id=ctx.author.id)
-
-        if existing:
-            await ctx.send(self.format_retrieved_content(alias, existing.content))
-        else:
-            await ctx.send(self.format_not_found_message(alias))
+            existing = first(
+                self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
+            )
+            if existing:
+                await ctx.send(self.format_retrieved_content(alias, existing.content))
+            else:
+                await ctx.send(self.format_not_found_message(alias))
 
     @commands.command()
     async def save(self, ctx: Context[Bot], alias: str, *, content: str) -> None:

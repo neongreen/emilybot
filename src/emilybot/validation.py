@@ -46,8 +46,10 @@ class AliasValidator:
                 "Alias can only contain alphanumeric characters, underscores, dashes, dots, and slashes"
             )
 
-        if not re.match(r".*[\w-]$", alias):
-            raise ValidationError("Alias must end with a letter, number, or _")
+        if not re.match(r".*[\w-]$", alias) or not re.match(r"^[\w-].*", alias):
+            raise ValidationError(
+                "Alias must start and end with a letter, number, or _"
+            )
 
 
 class ContentValidator:

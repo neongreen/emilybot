@@ -1,5 +1,2 @@
-- [ ] does disabling mentions actually work?
 - [ ] can we create aliases that are a persons nick. that would be neat
 - [ ] .help is truncated
-- [x] set up persistent storage on Coolify
-- [x] dont allow aliases to end with `/`
