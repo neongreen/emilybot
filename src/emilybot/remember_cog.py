@@ -219,7 +219,9 @@ class RememberCog(commands.Cog):
             else:
                 existing = self.db.find_alias(alias, user_id=ctx.author.id)
             if existing:
-                await ctx.send(f"❌ Alias '{alias}' already exists")
+                await ctx.send(
+                    f"❌ Alias '{alias}' already exists", suppress_embeds=True
+                )
                 return
 
             # Add new entry
@@ -246,10 +248,10 @@ class RememberCog(commands.Cog):
             )
             self.db.log.add(action)
 
-            await ctx.send(self.format_success_message(alias))
+            await ctx.send(self.format_success_message(alias), suppress_embeds=True)
 
         except ValidationError as e:
-            await ctx.send(self.format_validation_error(str(e)))
+            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
 
     async def _edit_implementation(
         self, ctx: Context[Bot], alias: str, new_content: str
@@ -270,7 +272,9 @@ class RememberCog(commands.Cog):
                 existing = first(self.db.find_alias(alias, user_id=ctx.author.id))
 
             if not existing:
-                await ctx.send(self.format_not_found_message(alias))
+                await ctx.send(
+                    self.format_not_found_message(alias), suppress_embeds=True
+                )
                 return
 
             # Update entry
@@ -290,10 +294,12 @@ class RememberCog(commands.Cog):
             )
             self.db.log.add(action)
 
-            await ctx.send(self.format_success_message(alias, "updated"))
+            await ctx.send(
+                self.format_success_message(alias, "updated"), suppress_embeds=True
+            )
 
         except ValidationError as e:
-            await ctx.send(self.format_validation_error(str(e)))
+            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
 
     async def _find_implementation(self, ctx: Context[Bot], alias: str | None) -> None:
         """Shared implementation for finding an alias."""
@@ -307,11 +313,12 @@ class RememberCog(commands.Cog):
             )
             plural = self.inflect.plural_noun("entry", len(results))  # type: ignore
             if not results:
-                await ctx.send("❓ No aliases found.")
+                await ctx.send("❓ No aliases found.", suppress_embeds=True)
             else:
                 await ctx.send(
                     f"📜 Found {len(results)} {plural}:\n"
-                    + ", ".join(entry.name for entry in results)
+                    + ", ".join(entry.name for entry in results),
+                    suppress_embeds=True,
                 )
 
         # `.show foo/` - list all aliases starting with "foo/"
@@ -324,11 +331,15 @@ class RememberCog(commands.Cog):
             )
             plural = self.inflect.plural_noun("entry", len(results))  # type: ignore
             if not results:
-                await ctx.send(f"❓ No entries found for prefix '{alias}'.")
+                await ctx.send(
+                    f"❓ No entries found for prefix '{alias}'.",
+                    suppress_embeds=True,
+                )
             else:
                 await ctx.send(
                     f"📜 Found {len(results)} {plural} for '{alias}':\n"
-                    + "\n".join(f"- {entry.name}" for entry in results)
+                    + "\n".join(f"- {entry.name}" for entry in results),
+                    suppress_embeds=True,
                 )
 
         else:
@@ -336,9 +347,15 @@ class RememberCog(commands.Cog):
                 self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
             )
             if existing:
-                await ctx.send(self.format_retrieved_content(alias, existing.content))
+                await ctx.send(
+                    self.format_retrieved_content(alias, existing.content),
+                    suppress_embeds=True,
+                )
             else:
-                await ctx.send(self.format_not_found_message(alias))
+                await ctx.send(
+                    self.format_not_found_message(alias),
+                    suppress_embeds=True,
+                )
 
     @commands.command()
     async def save(self, ctx: Context[Bot], alias: str, *, content: str) -> None:
