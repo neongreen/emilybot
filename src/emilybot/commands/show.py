@@ -44,6 +44,12 @@ class ShowCommands:
 
         server_id = ctx.guild.id if ctx.guild else None
 
+        def format_entry_line(entry: db.Entry) -> str:
+            first_line = entry.content.split("\n")[0]
+            if len(first_line) > 100:
+                first_line = first_line[:100] + "..."
+            return f"- {entry.name}: {first_line}"
+
         # `.show all` - list all aliases
         if alias == "all" or alias == "/":
             results = self.db.find_alias(
@@ -54,7 +60,7 @@ class ShowCommands:
             else:
                 await ctx.send(
                     inflect(f"📜 Found no('entry', {len(results)}):\n")
-                    + ", ".join(entry.name for entry in results),
+                    + "\n".join(format_entry_line(entry) for entry in results),
                     suppress_embeds=True,
                 )
 
@@ -75,7 +81,7 @@ class ShowCommands:
                 await ctx.send(
                     inflect(f"📜 Found no('entry', {len(results)})")
                     + f" for '{alias}':\n"
-                    + "\n".join(f"- {entry.name}" for entry in results),
+                    + "\n".join(format_entry_line(entry) for entry in results),
                     suppress_embeds=True,
                 )
 

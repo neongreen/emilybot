@@ -9,14 +9,14 @@ dprint = "0.50.1"
 
 [env]
 '_'.file.path = ".env.yaml"
-DEV_MODE = "True" # makes the bot use .dev. instead of . as the command prefix; this way i can test the bot
 
 [tasks.pyright]
 description = "Typecheck"
 run = "uv run pyright --project=."
 
-[tasks.start]
+[tasks.dev]
 description = "Start the bot"
+env.DEV_MODE = "True"
 run = "uv run emilybot"
 
 [tasks.test]

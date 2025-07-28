@@ -1,2 +1,4 @@
 - [ ] can we create aliases that are a persons nick. that would be neat
 - [ ] .help is truncated
+- [ ] enforce that aliases are essentially a path
+- [ ] show toplevel aliases in help
