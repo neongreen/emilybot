@@ -8,18 +8,25 @@ from discord.ext.commands import Bot  # pyright: ignore[reportMissingTypeStubs]
 from emilybot.remember_cog import RememberCog
 
 
-async def init_bot() -> Bot:
+async def init_bot(dev: bool) -> Bot:
     intents = discord.Intents.default()
     intents.message_content = True
 
+    if dev:
+        logging.info("Running in development mode. Using `.dev.` as command prefix.")
+        command_prefix = ".dev."
+    else:
+        logging.info("Running in production mode. Using `.` as command prefix.")
+        command_prefix = "."
+
     bot = Bot(
-        command_prefix=".",
+        command_prefix=command_prefix,
         intents=intents,
         allowed_mentions=discord.AllowedMentions.none(),
     )
 
     async def on_ready() -> None:
-        print(f"We have logged in as {bot.user}")
+        logging.info(f"We have logged in as {bot.user}")
 
     bot.add_listener(on_ready)
 
@@ -28,7 +35,12 @@ async def init_bot() -> Bot:
     ) -> None:
         """Handle command errors gracefully"""
         if isinstance(error, commands.CommandNotFound):
-            await ctx.send("❓ Unknown command. Use `.help` to see available commands.")
+            # skip .dev. because it's meant for the dev bot
+            if not dev and ctx.command and ctx.command.name.startswith("dev."):
+                return
+            await ctx.send(
+                f"❓ Unknown command. Use `{command_prefix}help` to see available commands."
+            )
         elif isinstance(error, commands.MissingRequiredArgument):
             param_name = getattr(error, "param", None)
             if param_name:
@@ -56,7 +68,8 @@ async def main_async() -> None:
     if TOKEN is None:
         print("TOKEN is not set")
         exit(1)
-    bot = await init_bot()
+    dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
+    bot = await init_bot(dev_mode)
     await bot.start(TOKEN)
 
 
