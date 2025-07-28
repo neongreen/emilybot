@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, overload
 from dataclasses import dataclass
 from discord.ext import commands
 from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
@@ -75,18 +75,27 @@ class DB:
             RememberAction, data_dir / "remember_log.json"
         )
 
-    def find_alias_server(self, server_id: int, alias: str) -> Optional[RememberEntry]:
-        """Find an alias (server scope) in the database."""
-        results = self.remember.find(server_id=server_id, name=alias.lower())  # type: ignore
-        if results:
-            return results[0]
-        return None
+    @overload
+    def find_alias(self, alias: str, *, server_id: int) -> Optional[RememberEntry]: ...
 
-    def find_alias_personal(self, user_id: int, alias: str) -> Optional[RememberEntry]:
-        """Find an alias (personal scope) in the database."""
-        results = self.remember.find(  # type: ignore
-            user_id=user_id, server_id=None, name=alias.lower()
-        )
+    @overload
+    def find_alias(self, alias: str, *, user_id: int) -> Optional[RememberEntry]: ...
+
+    def find_alias(
+        self, alias: str, server_id: Optional[int] = None, user_id: Optional[int] = None
+    ) -> Optional[RememberEntry]:
+        """Find an alias in the database."""
+        if server_id is not None:
+            results = self.remember.find(  # type: ignore
+                server_id=server_id, name=alias.lower()
+            )
+        elif user_id is not None:
+            results = self.remember.find(  # type: ignore
+                user_id=user_id, server_id=None, name=alias.lower()
+            )
+        else:
+            raise ValueError("Either server_id or user_id must be provided")
+
         if results:
             return results[0]
         return None
@@ -137,9 +146,9 @@ class RememberCog(commands.Cog):
 
             # Check if entry already exists
             if server_id:
-                existing = self.db.find_alias_server(server_id, alias)
+                existing = self.db.find_alias(alias, server_id=server_id)
             else:
-                existing = self.db.find_alias_personal(ctx.author.id, alias)
+                existing = self.db.find_alias(alias, user_id=ctx.author.id)
             if existing:
                 await ctx.send(f"❌ Alias '{alias}' already exists")
                 return
@@ -187,9 +196,9 @@ class RememberCog(commands.Cog):
 
             # Find existing entry
             if server_id:
-                existing = self.db.find_alias_server(server_id, alias)
+                existing = self.db.find_alias(alias, server_id=server_id)
             else:
-                existing = self.db.find_alias_personal(ctx.author.id, alias)
+                existing = self.db.find_alias(alias, user_id=ctx.author.id)
 
             if not existing:
                 await ctx.send(self.format_not_found_message(alias))
@@ -217,21 +226,20 @@ class RememberCog(commands.Cog):
         except ValidationError as e:
             await ctx.send(self.format_validation_error(str(e)))
 
-    async def _find_implementation(self, ctx: Context[Bot], key: str) -> None:
+    async def _find_implementation(self, ctx: Context[Bot], alias: str) -> None:
         """Shared implementation for finding an alias."""
 
-        guild = ctx.guild
-        server_id = guild.id if guild else None
+        server_id = ctx.guild.id if ctx.guild else None
 
         if server_id:
-            result = self.db.find_alias_server(server_id, key)
+            existing = self.db.find_alias(alias, server_id=server_id)
         else:
-            result = self.db.find_alias_personal(ctx.author.id, key)
+            existing = self.db.find_alias(alias, user_id=ctx.author.id)
 
-        if result:
-            await ctx.send(self.format_retrieved_content(key, result.content))
+        if existing:
+            await ctx.send(self.format_retrieved_content(alias, existing.content))
         else:
-            await ctx.send(self.format_not_found_message(key))
+            await ctx.send(self.format_not_found_message(alias))
 
     @commands.command()
     async def save(self, ctx: Context[Bot], alias: str, *, content: str) -> None:
@@ -239,9 +247,9 @@ class RememberCog(commands.Cog):
         await self._remember_implementation(ctx, alias, content)
 
     @commands.command()
-    async def show(self, ctx: Context[Bot], key: str) -> None:
-        """Find a remembered entry by key. Usage: .show <key>"""
-        await self._find_implementation(ctx, key)
+    async def show(self, ctx: Context[Bot], alias: str) -> None:
+        """Find a remembered entry by alias. Usage: .show <alias>"""
+        await self._find_implementation(ctx, alias)
 
     @commands.command()
     async def edit(self, ctx: Context[Bot], alias: str, *, new_content: str) -> None:
