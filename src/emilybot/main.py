@@ -54,7 +54,7 @@ async def init_bot(dev: bool) -> Bot:
         if isinstance(error, commands.CommandNotFound):
             # skip .dev. because it's meant for the dev bot
             if not dev and ctx.message.content.startswith(".dev."):
-                logging.info(f"Ignoring command meant for the dev bot.")
+                logging.info("Ignoring command meant for the dev bot.")
                 return
 
             # Bot should refuse to handle anything that can annoy people.
