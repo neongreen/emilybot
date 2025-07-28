@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from dataclasses import dataclass
 from discord.ext import commands
 from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
@@ -8,6 +8,33 @@ from pathlib import Path
 import uuid
 
 from emilybot.validation import AliasValidator, ContentValidator, ValidationError
+
+
+@dataclass
+class RememberEditAction:
+    """Represents an edit action on a remember entry."""
+
+    kind: Literal["edit"]
+    entry_id: uuid.UUID
+    old_content: str
+    new_content: str
+
+
+@dataclass
+class RememberCreateAction:
+    """Represents a create action on a remember entry."""
+
+    kind: Literal["create"]
+    server_id: Optional[int]
+    name: str
+    content: str
+
+
+@dataclass
+class RememberAction:
+    timestamp: datetime
+    user_id: int
+    action: RememberCreateAction | RememberEditAction
 
 
 @dataclass
@@ -42,6 +69,9 @@ class DB:
         # Initialize JsonDB with type annotation
         self.remember = JsonDB[RememberEntry](
             RememberEntry, data_dir / "remember.json", primary_key="id"
+        )
+        self.log = JsonDB[RememberAction](
+            RememberAction, data_dir / "remember_log.json"
         )
 
     def find_alias_server(self, server_id: int, alias: str) -> Optional[RememberEntry]:
@@ -122,8 +152,20 @@ class RememberCog(commands.Cog):
                 name=alias.lower(),
                 content=content,
             )
-
             self.db.remember.add(doc)
+
+            action = RememberAction(
+                user_id=ctx.author.id,
+                timestamp=datetime.now(),
+                action=RememberCreateAction(
+                    kind="create",
+                    server_id=server_id,
+                    name=alias.lower(),
+                    content=content,
+                ),
+            )
+            self.db.log.add(action)
+
             await ctx.send(self.format_success_message(alias))
 
         except ValidationError as e:
