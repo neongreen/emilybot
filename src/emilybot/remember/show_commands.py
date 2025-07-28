@@ -74,7 +74,7 @@ class ShowCommands:
             else:
                 await ctx.send(
                     inflect(f"📜 Found no('entry', {len(results)})")
-                    + " for '{alias}':\n"
+                    + f" for '{alias}':\n"
                     + "\n".join(f"- {entry.name}" for entry in results),
                     suppress_embeds=True,
                 )
