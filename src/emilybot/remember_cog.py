@@ -28,6 +28,7 @@ class RememberCreateAction:
     server_id: Optional[int]
     name: str
     content: str
+    entry_id: uuid.UUID
 
 
 @dataclass
@@ -159,6 +160,7 @@ class RememberCog(commands.Cog):
                 timestamp=datetime.now(),
                 action=RememberCreateAction(
                     kind="create",
+                    entry_id=doc.id,
                     server_id=server_id,
                     name=alias.lower(),
                     content=content,
