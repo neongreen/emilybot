@@ -171,6 +171,50 @@ class RememberCog(commands.Cog):
         except ValidationError as e:
             await ctx.send(self.format_validation_error(str(e)))
 
+    async def _edit_implementation(
+        self, ctx: Context[Bot], alias: str, new_content: str
+    ) -> None:
+        """Shared implementation for editing an existing alias."""
+        try:
+            # Validate alias and content
+            AliasValidator.validate_alias(alias)
+            ContentValidator.validate_content(new_content)
+
+            guild = ctx.guild
+            server_id = guild.id if guild else None
+
+            # Find existing entry
+            if server_id:
+                existing = self.db.find_alias_server(server_id, alias)
+            else:
+                existing = self.db.find_alias_personal(ctx.author.id, alias)
+
+            if not existing:
+                await ctx.send(self.format_not_found_message(alias))
+                return
+
+            # Update entry
+            old_content = existing.content
+            existing.content = new_content
+            self.db.remember.update(existing)
+
+            action = RememberAction(
+                user_id=ctx.author.id,
+                timestamp=datetime.now(),
+                action=RememberEditAction(
+                    kind="edit",
+                    entry_id=existing.id,
+                    old_content=old_content,
+                    new_content=new_content,
+                ),
+            )
+            self.db.log.add(action)
+
+            await ctx.send(self.format_success_message(alias, "updated"))
+
+        except ValidationError as e:
+            await ctx.send(self.format_validation_error(str(e)))
+
     async def _find_implementation(self, ctx: Context[Bot], key: str) -> None:
         """Shared implementation for finding an alias."""
 
@@ -199,8 +243,13 @@ class RememberCog(commands.Cog):
 
     @commands.command()
     async def find(self, ctx: Context[Bot], key: str) -> None:
-        """Find a remembered value by key. Usage: .find <key>"""
+        """Find a remembered entry by key. Usage: .find <key>"""
         await self._find_implementation(ctx, key)
+
+    @commands.command()
+    async def edit(self, ctx: Context[Bot], alias: str, *, new_content: str) -> None:
+        """Edit an existing remembered entry. Usage: .edit <alias> <new_content>"""
+        await self._edit_implementation(ctx, alias, new_content)
 
 
 async def setup(bot: Bot) -> None:
