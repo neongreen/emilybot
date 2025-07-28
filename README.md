@@ -1,5 +1,13 @@
 # emilybot
 
+## Behavior
+
+- `.foo` is treated as an alias lookup
+- `.save`, `.show`, etc are commands and take priority
+- you can create an alias called "save" but still the commands will take priority
+- `..`, `...`, or any `.[not a-zA-Z/]` are not handled by the bot at all, it doesn't reply
+- `.[1 char]` is ignored
+
 ## Development
 
 ### Setup

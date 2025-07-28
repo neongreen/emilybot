@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import discord
+import re
 from discord.ext import commands
 from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
 
@@ -54,10 +55,18 @@ async def init_bot(dev: bool) -> Bot:
                 logging.info(f"Ignoring command meant for the dev bot.")
                 return
 
+            # Bot should refuse to handle anything that can annoy people.
+            # Allowed things are: .ab<anything>
+            msg_without_prefix = ctx.message.content[len(command_prefix) :]
+            if not re.match(r"^[a-zA-Z][a-zA-Z0-9_/]", msg_without_prefix):
+                logging.info(f"Not treating {msg_without_prefix} as a command.")
+                return
+
             # Extract the command part (everything after prefix, before first space)
-            potential_alias = ctx.message.content[len(command_prefix) :].split()[0]
+            potential_alias = msg_without_prefix.split(" ")[0].strip()
 
             try:
+                # If it can be an alias, try looking it up
                 AliasValidator.validate_alias(potential_alias, "lookup")
                 await show_commands.show(ctx, potential_alias)
                 return
