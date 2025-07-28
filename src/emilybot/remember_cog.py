@@ -301,13 +301,13 @@ class RememberCog(commands.Cog):
         except ValidationError as e:
             await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
 
-    async def _find_implementation(self, ctx: Context[Bot], alias: str | None) -> None:
+    async def _show_implementation(self, ctx: Context[Bot], alias: str) -> None:
         """Shared implementation for finding an alias."""
 
         server_id = ctx.guild.id if ctx.guild else None
 
         # `.show all` - list all aliases
-        if alias == "all" or alias == "/" or alias == "" or alias is None:
+        if alias == "all" or alias == "/":
             results = self.db.find_alias(
                 re.compile(".*"), server_id=server_id, user_id=ctx.author.id
             )
@@ -363,9 +363,14 @@ class RememberCog(commands.Cog):
         await self._remember_implementation(ctx, alias, content)
 
     @commands.command()
-    async def show(self, ctx: Context[Bot], alias: str | None) -> None:
-        """Find a remembered entry by alias. Usage: .show <alias> or just .show to list all"""
-        await self._find_implementation(ctx, alias)
+    async def show(self, ctx: Context[Bot], alias: str) -> None:
+        """Find a remembered entry by alias. Usage: .show <alias>, or list with .show dir/"""
+        await self._show_implementation(ctx, alias)
+
+    @commands.command()
+    async def all(self, ctx: Context[Bot]) -> None:
+        """List all remembered entries."""
+        await self._show_implementation(ctx, "all")
 
     @commands.command()
     async def edit(self, ctx: Context[Bot], alias: str, *, new_content: str) -> None:
