@@ -37,7 +37,13 @@ async def init_bot(dev: bool) -> Bot:
         if isinstance(error, commands.CommandNotFound):
             # skip .dev. because it's meant for the dev bot
             if not dev and ctx.command and ctx.command.name.startswith("dev."):
+                logging.info(
+                    f"Ignoring command {ctx.command.name} meant for the dev bot."
+                )
                 return
+            logging.info(
+                f"Command not found: {ctx.command.name if ctx.command else '<unknown>'}"
+            )
             await ctx.send(
                 f"❓ Unknown command. Use `{command_prefix}help` to see available commands."
             )
