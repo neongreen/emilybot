@@ -368,3 +368,75 @@ class RememberCog(commands.Cog):
     async def edit(self, ctx: Context[Bot], alias: str, *, new_content: str) -> None:
         """Edit an existing remembered entry. Usage: .edit <alias> <new_content>"""
         await self._edit_implementation(ctx, alias, new_content)
+
+    async def _add_implementation(
+        self, ctx: Context[Bot], alias: str, content: str
+    ) -> None:
+        """Shared implementation for adding content to an existing alias or creating a new one."""
+        try:
+            # Validate alias and content
+            AliasValidator.validate_alias(alias)
+            ContentValidator.validate_content(content)
+
+            server_id = ctx.guild.id if ctx.guild else None
+
+            # Find existing entry
+            entry = first(
+                self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
+            )
+
+            if entry:
+                # Entry exists - append content with blank line
+                old_content = entry.content
+                entry.content = f"{old_content}\n\n{content}"
+                self.db.remember.update(entry)
+
+                action = RememberAction(
+                    user_id=ctx.author.id,
+                    timestamp=datetime.now(),
+                    action=RememberEditAction(
+                        kind="edit",
+                        entry_id=entry.id,
+                        old_content=old_content,
+                        new_content=entry.content,
+                    ),
+                )
+                self.db.log.add(action)
+
+                await ctx.send(
+                    self.format_success_message(alias, "updated"), suppress_embeds=True
+                )
+            else:
+                # Entry doesn't exist - create new one
+                doc = RememberEntry(
+                    id=uuid.uuid4(),
+                    server_id=server_id,
+                    user_id=ctx.author.id,
+                    created_at=datetime.now().isoformat(),
+                    name=alias.lower(),
+                    content=content,
+                )
+                self.db.remember.add(doc)
+
+                action = RememberAction(
+                    user_id=ctx.author.id,
+                    timestamp=datetime.now(),
+                    action=RememberCreateAction(
+                        kind="create",
+                        entry_id=doc.id,
+                        server_id=server_id,
+                        name=alias.lower(),
+                        content=content,
+                    ),
+                )
+                self.db.log.add(action)
+
+                await ctx.send(self.format_success_message(alias), suppress_embeds=True)
+
+        except ValidationError as e:
+            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
+
+    @commands.command()
+    async def add(self, ctx: Context[Bot], alias: str, *, content: str) -> None:
+        """Add content to an existing entry or create a new one. Usage: .add <alias> <content>"""
+        await self._add_implementation(ctx, alias, content)
