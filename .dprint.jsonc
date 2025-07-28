@@ -18,6 +18,7 @@
     "**/node_modules",
     "uv.lock",
     ".kiro/",
+    ".env.yaml",
   ],
   "plugins": [
     "https://plugins.dprint.dev/json-0.20.0.wasm",

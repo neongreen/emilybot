@@ -1,26 +1,22 @@
-from datetime import datetime
-import re
-import random
 from discord.ext import commands
 from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
-import uuid
-import inflect
 
 import emilybot.remember.db as db
-from emilybot.validation import AliasValidator, ContentValidator, ValidationError
-
-
-def first[T](iterable: list[T]) -> T | None:
-    """Return the first element of a list or None if empty."""
-    return iterable[0] if iterable else None
+from emilybot.validation import AliasValidator, ValidationError
+from emilybot.remember.save_commands import SaveCommands
+from emilybot.remember.show_commands import ShowCommands
+from emilybot.remember.edit_commands import EditCommands
 
 
 class RememberCog(commands.Cog):
     def __init__(self, bot: commands.Bot, command_prefix: str) -> None:
         self.bot = bot
         self.db = db.DB()
-        self.inflect = inflect.engine()
         self.command_prefix = command_prefix
+
+        self.save_commands = SaveCommands(self.bot, self.db, self.command_prefix)
+        self.show_commands = ShowCommands(self.bot, self.db, self.command_prefix)
+        self.edit_commands = EditCommands(self.bot, self.db, self.command_prefix)
 
     def format_not_found_message(self, alias: str) -> str:
         """Format a helpful error message when an alias is not found."""
@@ -60,7 +56,6 @@ class RememberCog(commands.Cog):
             return True
         return False
 
-    # Listen for messages to handle implicit commands like `.foo?` which should trigger `.show foo`
     @commands.Cog.listener()
     async def on_command_error(
         self, ctx: commands.Context[commands.Bot], error: commands.CommandError
@@ -73,292 +68,36 @@ class RememberCog(commands.Cog):
 
         # Check if message starts with command prefix, ends with '?', and is not just '?'
         if self.can_handle(content):
-            # Call show
+            # Call show method through the show_commands component
             alias = content[len(self.command_prefix) : -1].strip()
-            await self.show.callback(self, ctx, alias)  # type: ignore
-
-    async def _remember_implementation(
-        self, ctx: Context[Bot], alias: str, content: str
-    ) -> None:
-        """Shared implementation for remember and learn commands."""
-        try:
-            # Validate alias and content
-            AliasValidator.validate_alias(alias)
-            ContentValidator.validate_content(content)
-
-            guild = ctx.guild
-            server_id = guild.id if guild else None
-
-            # Check if entry already exists
-            if server_id:
-                entry = self.db.find_alias(alias, server_id=server_id)
-            else:
-                entry = self.db.find_alias(alias, user_id=ctx.author.id)
-            if entry:
-                await ctx.send(
-                    f"❌ Alias '{alias}' already exists", suppress_embeds=True
-                )
-                return
-
-            # Add new entry
-            doc = db.Entry(
-                id=uuid.uuid4(),
-                server_id=server_id,
-                user_id=ctx.author.id,
-                created_at=datetime.now().isoformat(),
-                name=alias.lower(),
-                content=content,
-            )
-            self.db.remember.add(doc)
-
-            action = db.Action(
-                user_id=ctx.author.id,
-                timestamp=datetime.now(),
-                action=db.ActionCreate(
-                    kind="create",
-                    entry_id=doc.id,
-                    server_id=server_id,
-                    name=alias.lower(),
-                    content=content,
-                ),
-            )
-            self.db.log.add(action)
-
-            await ctx.send(self.format_success_message(alias), suppress_embeds=True)
-
-        except ValidationError as e:
-            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
-
-    async def _edit_implementation(
-        self, ctx: Context[Bot], alias: str, new_content: str
-    ) -> None:
-        """Shared implementation for editing an existing alias."""
-        try:
-            # Validate alias and content
-            AliasValidator.validate_alias(alias)
-            ContentValidator.validate_content(new_content)
-
-            guild = ctx.guild
-            server_id = guild.id if guild else None
-
-            # Find existing entry
-            if server_id:
-                entry = first(self.db.find_alias(alias, server_id=server_id))
-            else:
-                entry = first(self.db.find_alias(alias, user_id=ctx.author.id))
-
-            if not entry:
-                await ctx.send(
-                    self.format_not_found_message(alias), suppress_embeds=True
-                )
-                return
-
-            # Update entry
-            old_content = entry.content
-            entry.content = new_content
-            self.db.remember.update(entry)
-
-            action = db.Action(
-                user_id=ctx.author.id,
-                timestamp=datetime.now(),
-                action=db.ActionEdit(
-                    kind="edit",
-                    entry_id=entry.id,
-                    old_content=old_content,
-                    new_content=new_content,
-                ),
-            )
-            self.db.log.add(action)
-
-            await ctx.send(
-                self.format_success_message(alias, "updated"), suppress_embeds=True
-            )
-
-        except ValidationError as e:
-            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
-
-    async def _show_implementation(self, ctx: Context[Bot], alias: str) -> None:
-        """Shared implementation for finding an alias."""
-
-        server_id = ctx.guild.id if ctx.guild else None
-
-        # `.show all` - list all aliases
-        if alias == "all" or alias == "/":
-            results = self.db.find_alias(
-                re.compile(".*"), server_id=server_id, user_id=ctx.author.id
-            )
-            plural = self.inflect.plural_noun("entry", len(results))  # type: ignore
-            if not results:
-                await ctx.send("❓ No aliases found.", suppress_embeds=True)
-            else:
-                await ctx.send(
-                    f"📜 Found {len(results)} {plural}:\n"
-                    + ", ".join(entry.name for entry in results),
-                    suppress_embeds=True,
-                )
-
-        # `.show foo/` - list all aliases starting with "foo/"
-        elif alias.endswith("/"):
-            # list by prefix
-            results = self.db.find_alias(
-                re.compile("^" + re.escape(alias), re.IGNORECASE),
-                server_id=server_id,
-                user_id=ctx.author.id,
-            )
-            plural = self.inflect.plural_noun("entry", len(results))  # type: ignore
-            if not results:
-                await ctx.send(
-                    f"❓ No entries found for prefix '{alias}'.",
-                    suppress_embeds=True,
-                )
-            else:
-                await ctx.send(
-                    f"📜 Found {len(results)} {plural} for '{alias}':\n"
-                    + "\n".join(f"- {entry.name}" for entry in results),
-                    suppress_embeds=True,
-                )
-
-        else:
-            entry = first(
-                self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
-            )
-            if entry:
-                await ctx.send(entry.content, suppress_embeds=True)
-            else:
-                await ctx.send(
-                    self.format_not_found_message(alias), suppress_embeds=True
-                )
+            await self.show_commands.show(ctx, alias)
 
     @commands.command()
     async def save(self, ctx: Context[Bot], alias: str, *, content: str) -> None:
         """Remember content with an alias. Usage: .save <alias> <content>"""
-        await self._remember_implementation(ctx, alias, content)
-
-    @commands.command()
-    async def show(self, ctx: Context[Bot], alias: str) -> None:
-        """Find a remembered entry by alias. Usage: .show <alias>, or list with .show dir/"""
-        await self._show_implementation(ctx, alias)
-
-    @commands.command()
-    async def all(self, ctx: Context[Bot]) -> None:
-        """List all remembered entries."""
-        await self._show_implementation(ctx, "all")
-
-    @commands.command()
-    async def edit(self, ctx: Context[Bot], alias: str, *, new_content: str) -> None:
-        """Edit an existing remembered entry. Usage: .edit <alias> <new_content>"""
-        await self._edit_implementation(ctx, alias, new_content)
-
-    async def _add_implementation(
-        self, ctx: Context[Bot], alias: str, content: str
-    ) -> None:
-        """Shared implementation for adding content to an existing alias or creating a new one."""
-        try:
-            # Validate alias and content
-            AliasValidator.validate_alias(alias)
-            ContentValidator.validate_content(content)
-
-            server_id = ctx.guild.id if ctx.guild else None
-
-            # Find existing entry
-            entry = first(
-                self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
-            )
-
-            if entry:
-                # Entry exists - append content with blank line
-                old_content = entry.content
-                entry.content = f"{old_content}\n\n{content}"
-                self.db.remember.update(entry)
-
-                action = db.Action(
-                    user_id=ctx.author.id,
-                    timestamp=datetime.now(),
-                    action=db.ActionEdit(
-                        kind="edit",
-                        entry_id=entry.id,
-                        old_content=old_content,
-                        new_content=entry.content,
-                    ),
-                )
-                self.db.log.add(action)
-
-                await ctx.send(
-                    self.format_success_message(alias, "updated"), suppress_embeds=True
-                )
-            else:
-                # Entry doesn't exist - create new one
-                doc = db.Entry(
-                    id=uuid.uuid4(),
-                    server_id=server_id,
-                    user_id=ctx.author.id,
-                    created_at=datetime.now().isoformat(),
-                    name=alias.lower(),
-                    content=content,
-                )
-                self.db.remember.add(doc)
-
-                action = db.Action(
-                    user_id=ctx.author.id,
-                    timestamp=datetime.now(),
-                    action=db.ActionCreate(
-                        kind="create",
-                        entry_id=doc.id,
-                        server_id=server_id,
-                        name=alias.lower(),
-                        content=content,
-                    ),
-                )
-                self.db.log.add(action)
-
-                await ctx.send(self.format_success_message(alias), suppress_embeds=True)
-
-        except ValidationError as e:
-            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
+        await self.save_commands.save(ctx, alias, content=content)
 
     @commands.command()
     async def add(self, ctx: Context[Bot], alias: str, *, content: str) -> None:
         """Add content to an existing entry or create a new one. Usage: .add <alias> <content>"""
-        await self._add_implementation(ctx, alias, content)
+        await self.save_commands.add(ctx, alias, content=content)
 
-    async def _random_implementation(self, ctx: Context[Bot], alias: str) -> None:
-        """Shared implementation for getting a random non-blank line from an entry."""
-        try:
-            # Validate alias
-            AliasValidator.validate_alias(alias)
+    @commands.command()
+    async def show(self, ctx: Context[Bot], alias: str) -> None:
+        """Find a remembered entry by alias. Usage: .show <alias>, or list with .show dir/"""
+        await self.show_commands.show(ctx, alias)
 
-            server_id = ctx.guild.id if ctx.guild else None
-
-            # Find existing entry
-            entry = first(
-                self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
-            )
-
-            if not entry:
-                await ctx.send(
-                    self.format_not_found_message(alias), suppress_embeds=True
-                )
-                return
-
-            # Split content into lines and filter out blank lines
-            lines = [line.strip() for line in entry.content.split("\n")]
-            non_blank_lines = [line for line in lines if line]
-
-            if not non_blank_lines:
-                await ctx.send(
-                    f"❓ Alias '{alias}' has no non-blank lines.",
-                    suppress_embeds=True,
-                )
-                return
-
-            # Select a random non-blank line
-            random_line = random.choice(non_blank_lines)
-            await ctx.send(random_line, suppress_embeds=True)
-
-        except ValidationError as e:
-            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
+    @commands.command()
+    async def all(self, ctx: Context[Bot]) -> None:
+        """List all remembered entries."""
+        await self.show_commands.all(ctx)
 
     @commands.command()
     async def random(self, ctx: Context[Bot], alias: str) -> None:
         """Get a random non-blank line from an entry. Usage: .random <alias>"""
-        await self._random_implementation(ctx, alias)
+        await self.show_commands.random(ctx, alias)
+
+    @commands.command()
+    async def edit(self, ctx: Context[Bot], alias: str, *, new_content: str) -> None:
+        """Edit an existing remembered entry. Usage: .edit <alias> <new_content>"""
+        await self.edit_commands.edit(ctx, alias, new_content=new_content)
