@@ -1,7 +1,9 @@
 """Validation utilities for Discord memory bot."""
 
-from typing import Literal
+from typing import Literal, assert_never
 import re
+
+from emilybot.utils.inflect import inflect
 
 
 class ValidationError(Exception):
@@ -14,7 +16,7 @@ class AliasValidator:
     """Validator for alias format and constraints."""
 
     # Alias constraints from requirements
-    MIN_LENGTH = 5
+    MIN_LENGTH = 2
     MAX_LENGTH = 100
     VALID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-./]+$")
 
@@ -38,7 +40,9 @@ class AliasValidator:
 
         if len(alias) < AliasValidator.MIN_LENGTH:
             raise ValidationError(
-                f"Alias must be at least {AliasValidator.MIN_LENGTH} characters long"
+                inflect(
+                    f"Alias must be at least no('character', {AliasValidator.MIN_LENGTH}) long"
+                )
             )
 
         if len(alias) > AliasValidator.MAX_LENGTH:

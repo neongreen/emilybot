@@ -41,18 +41,13 @@ class RememberCog(commands.Cog, name="remember"):
             print("RememberCog loaded, but bot user is not available yet.")
 
     def can_handle(self, content: str) -> bool:
-        """An extra check to see if the message can be handled by this cog. This will grab messages with commands longer than 4 characters."""
+        """Check if the message can be handled as an alias lookup. Known commands take priority, everything else tries alias lookup."""
         if not content.startswith(self.command_prefix):
             return False
 
         # Extract the command part (everything after prefix, before first space)
         command_part = content[len(self.command_prefix) :].split()[0]
 
-        # If it's 4 characters or shorter, don't handle here
-        if len(command_part) <= 4:
-            return False
-
-        # If longer than 4 characters and not a known command, treat as alias
         try:
             AliasValidator.validate_alias(command_part, "lookup")
         except ValidationError:
