@@ -29,3 +29,7 @@ run = "dprint fmt"
 [tasks.check]
 description = "Check formatting"
 run = "dprint check"
+
+[tasks."secrets:updatekeys"]
+description = "Update secret keys"
+run = "sops updatekeys .env.yaml"
