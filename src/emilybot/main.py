@@ -3,9 +3,13 @@ import logging
 import os
 import discord
 from discord.ext import commands
-from discord.ext.commands import Bot  # pyright: ignore[reportMissingTypeStubs]
+from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
 
-from emilybot.remember.cog import RememberCog
+import emilybot.remember.db as db
+from emilybot.validation import AliasValidator, ValidationError
+from emilybot.remember.save_commands import SaveCommands
+from emilybot.remember.show_commands import ShowCommands
+from emilybot.remember.edit_commands import EditCommands
 
 
 async def init_bot(dev: bool) -> Bot:
@@ -25,13 +29,20 @@ async def init_bot(dev: bool) -> Bot:
         allowed_mentions=discord.AllowedMentions.none(),
     )
 
-    async def on_ready() -> None:
+    database = db.DB()
+
+    save_commands = SaveCommands(bot, database, command_prefix)
+    show_commands = ShowCommands(bot, database, command_prefix)
+    edit_commands = EditCommands(bot, database, command_prefix)
+
+    @bot.listen()
+    async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]
         logging.info(f"We have logged in as {bot.user}")
 
-    bot.add_listener(on_ready)
-
-    async def on_command_error(
-        ctx: commands.Context[commands.Bot], error: commands.CommandError
+    @bot.listen()
+    async def on_command_error(  # pyright: ignore[reportUnusedFunction]
+        ctx: Context[commands.Bot],
+        error: commands.CommandError,
     ) -> None:
         """Handle command errors gracefully"""
         logging.info(
@@ -42,21 +53,22 @@ async def init_bot(dev: bool) -> Bot:
             if not dev and ctx.message.content.startswith(".dev."):
                 logging.info(f"Ignoring command meant for the dev bot.")
                 return
-            else:
-                # Try asking cogs if they want to handle the command
-                for cog in bot.cogs.values():
-                    logging.info(
-                        f"Checking if cog {cog.__class__.__name__} will handle this message"
-                    )
-                    if hasattr(cog, "can_handle"):
-                        logging.info(f"Calling can_handle for {cog.__class__.__name__}")
-                        handled = cog.can_handle(ctx.message.content)  # type: ignore
-                        if handled:
-                            return
-                # No takers
-                await ctx.send(
-                    f"❓ Unknown command. Use `{command_prefix}help` to see available commands."
-                )
+
+            # Extract the command part (everything after prefix, before first space)
+            potential_alias = ctx.message.content[len(command_prefix) :].split()[0]
+
+            try:
+                AliasValidator.validate_alias(potential_alias, "lookup")
+                await show_commands.show(ctx, potential_alias)
+                return
+            except ValidationError:
+                pass
+
+            # ok it's not an alias so it's an unknown command then
+            await ctx.send(
+                f"❓ Unknown command. Use `{command_prefix}help` to see available commands."
+            )
+
         elif isinstance(error, commands.MissingRequiredArgument):
             param_name = getattr(error, "param", None)
             if param_name:
@@ -67,9 +79,35 @@ async def init_bot(dev: bool) -> Bot:
             await ctx.send(f"❌ An error occurred: {str(error)}")
             logging.error("An error occurred", exc_info=error)
 
-    bot.add_listener(on_command_error)
+    @bot.command()
+    async def save(ctx: Context[Bot], alias: str, *, content: str) -> None:  # pyright: ignore[reportUnusedFunction]
+        """Remember content with an alias. Usage: .save <alias> <content>"""
+        await save_commands.save(ctx, alias, content=content)
 
-    await bot.add_cog(RememberCog(bot, command_prefix=command_prefix))
+    @bot.command()
+    async def add(ctx: Context[Bot], alias: str, *, content: str) -> None:  # pyright: ignore[reportUnusedFunction]
+        """Add content to an existing entry or create a new one. Usage: .add <alias> <content>"""
+        await save_commands.add(ctx, alias, content=content)
+
+    @bot.command()
+    async def show(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
+        """Find a remembered entry by alias. Usage: .show <alias>, or list with .show dir/"""
+        await show_commands.show(ctx, alias)
+
+    @bot.command()
+    async def all(ctx: Context[Bot]) -> None:  # pyright: ignore[reportUnusedFunction]
+        """List all remembered entries."""
+        await show_commands.all(ctx)
+
+    @bot.command()
+    async def random(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
+        """Get a random non-blank line from an entry. Usage: .random <alias>"""
+        await show_commands.random(ctx, alias)
+
+    @bot.command()
+    async def edit(ctx: Context[Bot], alias: str, *, new_content: str) -> None:  # pyright: ignore[reportUnusedFunction]
+        """Edit an existing remembered entry. Usage: .edit <alias> <new_content>"""
+        await edit_commands.edit(ctx, alias, new_content=new_content)
 
     return bot
 
