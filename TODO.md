@@ -1,3 +1,4 @@
 - [ ] does disabling mentions actually work?
 - [ ] can we create aliases that are a persons nick. that would be neat
 - [ ] .help is truncated
+- [ ] set up persistent storage on Coolify

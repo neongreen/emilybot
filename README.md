@@ -51,4 +51,4 @@ Configured for deployment with Coolify using nixpacks. The `nixpacks.toml` handl
 
 ### SOPS
 
-Created encryption key with `age-keygen`, added to server as `AGE_SECRET_KEY` environment variable.
+Created encryption key with `age-keygen`, added to server as `SOPS_AGE_KEY` environment variable.
