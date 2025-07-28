@@ -234,18 +234,13 @@ class RememberCog(commands.Cog):
             await ctx.send(self.format_not_found_message(key))
 
     @commands.command()
-    async def remember(self, ctx: Context[Bot], alias: str, *, content: str) -> None:
-        """Remember content with an alias. Usage: .remember <alias> <content>"""
+    async def save(self, ctx: Context[Bot], alias: str, *, content: str) -> None:
+        """Remember content with an alias. Usage: .save <alias> <content>"""
         await self._remember_implementation(ctx, alias, content)
 
     @commands.command()
-    async def learn(self, ctx: Context[Bot], alias: str, *, content: str) -> None:
-        """Learn content with an alias (same as remember). Usage: .learn <alias> <content>"""
-        await self._remember_implementation(ctx, alias, content)
-
-    @commands.command()
-    async def find(self, ctx: Context[Bot], key: str) -> None:
-        """Find a remembered entry by key. Usage: .find <key>"""
+    async def show(self, ctx: Context[Bot], key: str) -> None:
+        """Find a remembered entry by key. Usage: .show <key>"""
         await self._find_implementation(ctx, key)
 
     @commands.command()
