@@ -8,6 +8,29 @@ from typed_json_db import JsonDB
 
 
 @dataclass
+class Entry:
+    """Rows in the `remember` table"""
+
+    id: uuid.UUID
+    """Unique ID"""
+
+    server_id: Optional[int]
+    """In which server was this entry added. `None` means it was in DMs with the bot"""
+
+    user_id: int
+    """Which user added this entry"""
+
+    created_at: str  # ISO format datetime string
+    """When"""
+
+    name: str
+    """E.g. "manual", will be normalized to lowercase"""
+
+    content: str
+    """E.g. link to that manual"""
+
+
+@dataclass
 class ActionEdit:
     """Represents an edit action on a remember entry."""
 
@@ -29,33 +52,19 @@ class ActionCreate:
 
 
 @dataclass
-class Action:
-    timestamp: datetime
-    user_id: int
-    action: ActionCreate | ActionEdit
+class ActionDelete:
+    """Represents a delete action on a remember entry."""
+
+    kind: Literal["delete"]
+    entry_id: uuid.UUID
+    entry: Entry
 
 
 @dataclass
-class Entry:
-    """Rows in the `remember` table"""
-
-    id: uuid.UUID
-    """Unique ID"""
-
-    server_id: Optional[int]
-    """In which server was this entry added. `None` means it was in DMs with the bot"""
-
+class Action:
+    timestamp: datetime
     user_id: int
-    """Which user added this entry"""
-
-    created_at: str  # ISO format datetime string
-    """When"""
-
-    name: str
-    """E.g. "manual", will be normalized to lowercase"""
-
-    content: str
-    """E.g. link to that manual"""
+    action: ActionCreate | ActionEdit | ActionDelete
 
 
 class DB:

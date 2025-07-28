@@ -11,6 +11,7 @@ from emilybot.validation import AliasValidator, ValidationError
 from emilybot.commands.save import SaveCommands
 from emilybot.commands.show import ShowCommands
 from emilybot.commands.edit import EditCommands
+from emilybot.commands.delete import DeleteCommands
 
 
 async def init_bot(dev: bool) -> Bot:
@@ -35,6 +36,7 @@ async def init_bot(dev: bool) -> Bot:
     save_commands = SaveCommands(bot, database, command_prefix)
     show_commands = ShowCommands(bot, database, command_prefix)
     edit_commands = EditCommands(bot, database, command_prefix)
+    delete_commands = DeleteCommands(bot, database, command_prefix)
 
     @bot.listen()
     async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]
@@ -117,6 +119,11 @@ async def init_bot(dev: bool) -> Bot:
     async def edit(ctx: Context[Bot], alias: str, *, new_content: str) -> None:  # pyright: ignore[reportUnusedFunction]
         """Edit an existing remembered entry. Usage: .edit <alias> <new_content>"""
         await edit_commands.edit(ctx, alias, new_content=new_content)
+
+    @bot.command()
+    async def rm(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
+        """Delete an alias. Usage: .rm <alias>. 'Children' (foo/bar, etc) will not be deleted."""
+        await delete_commands.rm(ctx, alias)
 
     return bot
 

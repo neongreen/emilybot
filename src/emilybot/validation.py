@@ -22,7 +22,7 @@ class AliasValidator:
 
     @staticmethod
     def validate_alias(
-        alias: str, purpose: Literal["create", "lookup", "lookup_no_endslash"]
+        alias: str, purpose: Literal["create", "lookup", "lookup_no_endslash", "delete"]
     ) -> None:
         """
         Validate alias format and length.
@@ -30,7 +30,7 @@ class AliasValidator:
         Args:
             alias: The alias to validate
             purpose: `create` allows only aliases that can be created; `lookup` also allows things like `dir/`;
-              `lookup_no_endslash` is for lookups that cannot handle dirs
+              `lookup_no_endslash` is for lookups that cannot handle dirs; `delete` is for deleting aliases.
 
         Raises:
             ValidationError: If alias is invalid
@@ -56,7 +56,7 @@ class AliasValidator:
             )
 
         match purpose:
-            case "create" | "lookup_no_endslash":
+            case "create" | "lookup_no_endslash" | "delete":
                 if not re.match(r"^[a-zA-Z0-9_].*[a-zA-Z0-9_]$", alias):
                     raise ValidationError(
                         "Alias must start and end with a letter, digit, or _"
