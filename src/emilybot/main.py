@@ -6,11 +6,11 @@ import re
 from discord.ext import commands
 from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
 
-import emilybot.remember.db as db
+import emilybot.db as db
 from emilybot.validation import AliasValidator, ValidationError
-from emilybot.remember.save_commands import SaveCommands
-from emilybot.remember.show_commands import ShowCommands
-from emilybot.remember.edit_commands import EditCommands
+from emilybot.commands.save import SaveCommands
+from emilybot.commands.show import ShowCommands
+from emilybot.commands.edit import EditCommands
 
 
 async def init_bot(dev: bool) -> Bot:

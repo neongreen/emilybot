@@ -2,7 +2,7 @@ from datetime import datetime
 from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
 import uuid
 
-import emilybot.remember.db as db
+import emilybot.db as db
 from emilybot.utils.list import first
 from emilybot.validation import AliasValidator, ValidationError
 
