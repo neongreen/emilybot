@@ -35,7 +35,7 @@ class SaveCommands:
     ) -> None:
         """Shared implementation for remember and learn commands."""
         try:
-            AliasValidator.validate_alias(alias)
+            AliasValidator.validate_alias(alias, "create")
             if not content.strip():
                 raise ValidationError("Text cannot be empty.")
 
@@ -88,7 +88,7 @@ class SaveCommands:
         """Shared implementation for adding content to an existing alias or creating a new one."""
         try:
             # Validate alias and content
-            AliasValidator.validate_alias(alias)
+            AliasValidator.validate_alias(alias, "create")
             if not content.strip():
                 raise ValidationError("Text to add cannot be empty.")
 

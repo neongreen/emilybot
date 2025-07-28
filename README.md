@@ -1,22 +1,5 @@
 # emilybot
 
-## Commands
-
-- `.remember <key> <value>` - Remember something
-- `.find <key>` or `.where <key>` - Find a remembered value
-- `.list` - List all remembered entries
-- `.forget <key>` - Forget a remembered entry, can only be done by the same user who added it
-- `.help` - Show help message
-
-## Usage Examples
-
-```
-.remember docs https://example.com/docs
-.find docs
-.list
-.forget docs
-```
-
 ## Development
 
 ### Setup
@@ -29,7 +12,7 @@ uv sync
 uv run pyright
 
 # Start the bot (requires TOKEN environment variable)
-uv run main.py
+DEV_MODE=True uv run emilybot
 ```
 
 ### Configuration

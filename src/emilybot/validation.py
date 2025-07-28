@@ -1,5 +1,6 @@
 """Validation utilities for Discord memory bot."""
 
+from typing import Literal
 import re
 
 
@@ -13,17 +14,21 @@ class AliasValidator:
     """Validator for alias format and constraints."""
 
     # Alias constraints from requirements
-    MIN_LENGTH = 1
+    MIN_LENGTH = 5
     MAX_LENGTH = 100
     VALID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-./]+$")
 
     @staticmethod
-    def validate_alias(alias: str) -> None:
+    def validate_alias(
+        alias: str, purpose: Literal["create", "lookup", "lookup_no_endslash"]
+    ) -> None:
         """
         Validate alias format and length.
 
         Args:
             alias: The alias to validate
+            purpose: `create` allows only aliases that can be created; `lookup` also allows things like `dir/`;
+              `lookup_no_endslash` is for lookups that cannot handle dirs
 
         Raises:
             ValidationError: If alias is invalid
@@ -31,12 +36,9 @@ class AliasValidator:
         if not alias:
             raise ValidationError("Alias cannot be empty")
 
-        if alias == "all":
-            raise ValidationError("Alias cannot be 'all'")
-
         if len(alias) < AliasValidator.MIN_LENGTH:
             raise ValidationError(
-                f"Alias must be at least {AliasValidator.MIN_LENGTH} character long"
+                f"Alias must be at least {AliasValidator.MIN_LENGTH} characters long"
             )
 
         if len(alias) > AliasValidator.MAX_LENGTH:
@@ -49,7 +51,18 @@ class AliasValidator:
                 "Alias can only contain alphanumeric characters, underscores, dashes, dots, and slashes"
             )
 
-        if not re.match(r".*[\w-]$", alias) or not re.match(r"^[\w-].*", alias):
-            raise ValidationError(
-                "Alias must start and end with a letter, number, or _"
-            )
+        match purpose:
+            case "create" | "lookup_no_endslash":
+                if not re.match(r"^[a-zA-Z0-9_].*[a-zA-Z0-9_]$", alias):
+                    raise ValidationError(
+                        "Alias must start and end with a letter, digit, or _"
+                    )
+            case "lookup":
+                if not re.match(r"^[a-zA-Z0-9_].*$", alias):
+                    raise ValidationError("Alias must start with a letter, digit, or _")
+                if not re.match(r"^.*[a-zA-Z0-9_/]$", alias):
+                    raise ValidationError(
+                        "Alias to lookup must end with a letter, digit, _, or /"
+                    )
+            case _:
+                assert_never(purpose)

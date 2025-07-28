@@ -96,7 +96,7 @@ class ShowCommands:
         """Shared implementation for getting a random non-blank line from an entry."""
         try:
             # Validate alias
-            AliasValidator.validate_alias(alias)
+            AliasValidator.validate_alias(alias, "lookup_no_endslash")
 
             server_id = ctx.guild.id if ctx.guild else None
 

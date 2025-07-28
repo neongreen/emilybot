@@ -8,7 +8,7 @@ from emilybot.remember.show_commands import ShowCommands
 from emilybot.remember.edit_commands import EditCommands
 
 
-class RememberCog(commands.Cog):
+class RememberCog(commands.Cog, name="remember"):
     def __init__(self, bot: commands.Bot, command_prefix: str) -> None:
         self.bot = bot
         self.db = db.DB()
@@ -41,20 +41,23 @@ class RememberCog(commands.Cog):
             print("RememberCog loaded, but bot user is not available yet.")
 
     def can_handle(self, content: str) -> bool:
-        """An extra check to see if the message can be handled by this cog. This will grab messages like `.foo?`."""
-        if (
-            content.startswith(self.command_prefix)
-            and len(content) > len(self.command_prefix)
-            and content[-1] == "?"
-        ):
-            try:
-                AliasValidator.validate_alias(
-                    content[len(self.command_prefix) : -1].strip()
-                )
-            except ValidationError:
-                return False
-            return True
-        return False
+        """An extra check to see if the message can be handled by this cog. This will grab messages with commands longer than 4 characters."""
+        if not content.startswith(self.command_prefix):
+            return False
+
+        # Extract the command part (everything after prefix, before first space)
+        command_part = content[len(self.command_prefix) :].split()[0]
+
+        # If it's 4 characters or shorter, don't handle here
+        if len(command_part) <= 4:
+            return False
+
+        # If longer than 4 characters and not a known command, treat as alias
+        try:
+            AliasValidator.validate_alias(command_part, "lookup")
+        except ValidationError:
+            return False
+        return True
 
     @commands.Cog.listener()
     async def on_command_error(
@@ -66,10 +69,10 @@ class RememberCog(commands.Cog):
 
         content = ctx.message.content
 
-        # Check if message starts with command prefix, ends with '?', and is not just '?'
+        # Check if this should be handled as an alias lookup
         if self.can_handle(content):
-            # Call show method through the show_commands component
-            alias = content[len(self.command_prefix) : -1].strip()
+            # Extract the alias (command part after prefix)
+            alias = content[len(self.command_prefix) :].split()[0]
             await self.show_commands.show(ctx, alias)
 
     @commands.command()

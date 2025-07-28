@@ -34,7 +34,7 @@ class EditCommands:
     ) -> None:
         """Shared implementation for editing an existing alias."""
         try:
-            AliasValidator.validate_alias(alias)
+            AliasValidator.validate_alias(alias, "create")
             if not new_content.strip():
                 raise ValidationError("Text cannot be empty.")
 
