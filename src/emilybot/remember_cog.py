@@ -157,10 +157,6 @@ class RememberCog(commands.Cog):
         """Format success message for remember operations."""
         return f"✅ Alias '{alias}' {action} successfully."
 
-    def format_retrieved_content(self, alias: str, content: str) -> str:
-        """Format retrieved content."""
-        return f"📝 **{alias}**:\n{content}"
-
     @commands.Cog.listener()
     async def on_ready(self) -> None:
         if self.bot.user:
@@ -215,10 +211,10 @@ class RememberCog(commands.Cog):
 
             # Check if entry already exists
             if server_id:
-                existing = self.db.find_alias(alias, server_id=server_id)
+                entry = self.db.find_alias(alias, server_id=server_id)
             else:
-                existing = self.db.find_alias(alias, user_id=ctx.author.id)
-            if existing:
+                entry = self.db.find_alias(alias, user_id=ctx.author.id)
+            if entry:
                 await ctx.send(
                     f"❌ Alias '{alias}' already exists", suppress_embeds=True
                 )
@@ -267,27 +263,27 @@ class RememberCog(commands.Cog):
 
             # Find existing entry
             if server_id:
-                existing = first(self.db.find_alias(alias, server_id=server_id))
+                entry = first(self.db.find_alias(alias, server_id=server_id))
             else:
-                existing = first(self.db.find_alias(alias, user_id=ctx.author.id))
+                entry = first(self.db.find_alias(alias, user_id=ctx.author.id))
 
-            if not existing:
+            if not entry:
                 await ctx.send(
                     self.format_not_found_message(alias), suppress_embeds=True
                 )
                 return
 
             # Update entry
-            old_content = existing.content
-            existing.content = new_content
-            self.db.remember.update(existing)
+            old_content = entry.content
+            entry.content = new_content
+            self.db.remember.update(entry)
 
             action = RememberAction(
                 user_id=ctx.author.id,
                 timestamp=datetime.now(),
                 action=RememberEditAction(
                     kind="edit",
-                    entry_id=existing.id,
+                    entry_id=entry.id,
                     old_content=old_content,
                     new_content=new_content,
                 ),
@@ -343,18 +339,14 @@ class RememberCog(commands.Cog):
                 )
 
         else:
-            existing = first(
+            entry = first(
                 self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
             )
-            if existing:
-                await ctx.send(
-                    self.format_retrieved_content(alias, existing.content),
-                    suppress_embeds=True,
-                )
+            if entry:
+                await ctx.send(entry.content, suppress_embeds=True)
             else:
                 await ctx.send(
-                    self.format_not_found_message(alias),
-                    suppress_embeds=True,
+                    self.format_not_found_message(alias), suppress_embeds=True
                 )
 
     @commands.command()
