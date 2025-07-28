@@ -261,12 +261,27 @@ class RememberCog(commands.Cog):
         except ValidationError as e:
             await ctx.send(self.format_validation_error(str(e)))
 
-    async def _find_implementation(self, ctx: Context[Bot], alias: str) -> None:
+    async def _find_implementation(self, ctx: Context[Bot], alias: str | None) -> None:
         """Shared implementation for finding an alias."""
 
         server_id = ctx.guild.id if ctx.guild else None
 
-        if alias.endswith("/"):
+        # `.show all` - list all aliases
+        if alias == "all" or alias == "/" or alias == "" or alias is None:
+            results = self.db.find_alias(
+                re.compile(".*"), server_id=server_id, user_id=ctx.author.id
+            )
+            plural = self.inflect.plural_noun("entry", len(results))  # type: ignore
+            if not results:
+                await ctx.send("❓ No aliases found.")
+            else:
+                await ctx.send(
+                    f"📜 Found {len(results)} {plural}':\n"
+                    + ", ".join(entry.name for entry in results)
+                )
+
+        # `.show foo/` - list all aliases starting with "foo/"
+        elif alias.endswith("/"):
             # list by prefix
             results = self.db.find_alias(
                 re.compile("^" + re.escape(alias), re.IGNORECASE),
@@ -281,6 +296,7 @@ class RememberCog(commands.Cog):
                     f"📜 Found {len(results)} {plural} for '{alias}':\n"
                     + "\n".join(f"- {entry.name}" for entry in results)
                 )
+
         else:
             existing = first(
                 self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
@@ -296,8 +312,8 @@ class RememberCog(commands.Cog):
         await self._remember_implementation(ctx, alias, content)
 
     @commands.command()
-    async def show(self, ctx: Context[Bot], alias: str) -> None:
-        """Find a remembered entry by alias. Usage: .show <alias>"""
+    async def show(self, ctx: Context[Bot], alias: str | None) -> None:
+        """Find a remembered entry by alias. Usage: .show <alias> or just .show to list all"""
         await self._find_implementation(ctx, alias)
 
     @commands.command()
