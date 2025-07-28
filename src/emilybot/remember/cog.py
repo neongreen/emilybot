@@ -1,15 +1,12 @@
 from datetime import datetime
 import re
 import random
-from typing import Literal, Optional, overload
-from dataclasses import dataclass
 from discord.ext import commands
 from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
-from typed_json_db import JsonDB
-from pathlib import Path
 import uuid
 import inflect
 
+import emilybot.remember.db as db
 from emilybot.validation import AliasValidator, ContentValidator, ValidationError
 
 
@@ -18,128 +15,10 @@ def first[T](iterable: list[T]) -> T | None:
     return iterable[0] if iterable else None
 
 
-@dataclass
-class RememberEditAction:
-    """Represents an edit action on a remember entry."""
-
-    kind: Literal["edit"]
-    entry_id: uuid.UUID
-    old_content: str
-    new_content: str
-
-
-@dataclass
-class RememberCreateAction:
-    """Represents a create action on a remember entry."""
-
-    kind: Literal["create"]
-    server_id: Optional[int]
-    name: str
-    content: str
-    entry_id: uuid.UUID
-
-
-@dataclass
-class RememberAction:
-    timestamp: datetime
-    user_id: int
-    action: RememberCreateAction | RememberEditAction
-
-
-@dataclass
-class RememberEntry:
-    """Rows in the `remember` table"""
-
-    id: uuid.UUID
-    """Unique ID"""
-
-    server_id: Optional[int]
-    """In which server was this entry added. `None` means it was in DMs with the bot"""
-
-    user_id: int
-    """Which user added this entry"""
-
-    created_at: str  # ISO format datetime string
-    """When"""
-
-    name: str
-    """E.g. "manual", will be normalized to lowercase"""
-
-    content: str
-    """E.g. link to that manual"""
-
-
-class DB:
-    def __init__(self) -> None:
-        # Ensure data directory exists with proper permissions
-        data_dir = Path("data")
-        data_dir.mkdir(parents=True, exist_ok=True)
-
-        # Initialize JsonDB with type annotation
-        self.remember = JsonDB[RememberEntry](
-            RememberEntry, data_dir / "remember.json", primary_key="id"
-        )
-        self.log = JsonDB[RememberAction](
-            RememberAction, data_dir / "remember_log.json"
-        )
-
-    @overload
-    def find_alias(
-        self,
-        alias: str | re.Pattern[str],
-        *,
-        server_id: int,
-        user_id: int | None = None,
-    ) -> list[RememberEntry]: ...
-
-    @overload
-    def find_alias(
-        self,
-        alias: str | re.Pattern[str],
-        *,
-        user_id: int,
-        server_id: int | None = None,
-    ) -> list[RememberEntry]: ...
-
-    def find_alias(
-        self,
-        alias: str | re.Pattern[str],
-        *,
-        server_id: Optional[int] = None,
-        user_id: Optional[int] = None,
-    ) -> list[RememberEntry]:
-        """Find an alias in the database."""
-        if server_id is not None:
-            if isinstance(alias, str):
-                results = self.remember.find(  # type: ignore
-                    server_id=server_id, name=alias.lower()
-                )
-            else:
-                results = self.remember.find(  # type: ignore
-                    server_id=server_id
-                )
-                results = [entry for entry in results if alias.match(entry.name)]
-
-        elif user_id is not None:
-            if isinstance(alias, str):
-                results = self.remember.find(  # type: ignore
-                    user_id=user_id, server_id=None, name=alias.lower()
-                )
-            else:
-                results = self.remember.find(  # type: ignore
-                    user_id=user_id, server_id=None
-                )
-                results = [entry for entry in results if alias.match(entry.name)]
-        else:
-            raise ValueError("Either server_id or user_id must be provided")
-
-        return results
-
-
 class RememberCog(commands.Cog):
     def __init__(self, bot: commands.Bot, command_prefix: str) -> None:
         self.bot = bot
-        self.db = DB()
+        self.db = db.DB()
         self.inflect = inflect.engine()
         self.command_prefix = command_prefix
 
@@ -222,7 +101,7 @@ class RememberCog(commands.Cog):
                 return
 
             # Add new entry
-            doc = RememberEntry(
+            doc = db.Entry(
                 id=uuid.uuid4(),
                 server_id=server_id,
                 user_id=ctx.author.id,
@@ -232,10 +111,10 @@ class RememberCog(commands.Cog):
             )
             self.db.remember.add(doc)
 
-            action = RememberAction(
+            action = db.Action(
                 user_id=ctx.author.id,
                 timestamp=datetime.now(),
-                action=RememberCreateAction(
+                action=db.ActionCreate(
                     kind="create",
                     entry_id=doc.id,
                     server_id=server_id,
@@ -279,10 +158,10 @@ class RememberCog(commands.Cog):
             entry.content = new_content
             self.db.remember.update(entry)
 
-            action = RememberAction(
+            action = db.Action(
                 user_id=ctx.author.id,
                 timestamp=datetime.now(),
-                action=RememberEditAction(
+                action=db.ActionEdit(
                     kind="edit",
                     entry_id=entry.id,
                     old_content=old_content,
@@ -392,10 +271,10 @@ class RememberCog(commands.Cog):
                 entry.content = f"{old_content}\n\n{content}"
                 self.db.remember.update(entry)
 
-                action = RememberAction(
+                action = db.Action(
                     user_id=ctx.author.id,
                     timestamp=datetime.now(),
-                    action=RememberEditAction(
+                    action=db.ActionEdit(
                         kind="edit",
                         entry_id=entry.id,
                         old_content=old_content,
@@ -409,7 +288,7 @@ class RememberCog(commands.Cog):
                 )
             else:
                 # Entry doesn't exist - create new one
-                doc = RememberEntry(
+                doc = db.Entry(
                     id=uuid.uuid4(),
                     server_id=server_id,
                     user_id=ctx.author.id,
@@ -419,10 +298,10 @@ class RememberCog(commands.Cog):
                 )
                 self.db.remember.add(doc)
 
-                action = RememberAction(
+                action = db.Action(
                     user_id=ctx.author.id,
                     timestamp=datetime.now(),
-                    action=RememberCreateAction(
+                    action=db.ActionCreate(
                         kind="create",
                         entry_id=doc.id,
                         server_id=server_id,

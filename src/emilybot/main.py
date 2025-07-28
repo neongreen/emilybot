@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot  # pyright: ignore[reportMissingTypeStubs]
 
-from emilybot.remember_cog import RememberCog
+from emilybot.remember.cog import RememberCog
 
 
 async def init_bot(dev: bool) -> Bot:
