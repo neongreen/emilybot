@@ -31,6 +31,9 @@ class AliasValidator:
         if not alias:
             raise ValidationError("Alias cannot be empty")
 
+        if alias == "all":
+            raise ValidationError("Alias cannot be 'all'")
+
         if len(alias) < AliasValidator.MIN_LENGTH:
             raise ValidationError(
                 f"Alias must be at least {AliasValidator.MIN_LENGTH} character long"

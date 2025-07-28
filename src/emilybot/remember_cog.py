@@ -136,16 +136,17 @@ class DB:
 
 
 class RememberCog(commands.Cog):
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: commands.Bot, command_prefix: str) -> None:
         self.bot = bot
         self.db = DB()
         self.inflect = inflect.engine()
+        self.command_prefix = command_prefix
 
     def format_not_found_message(self, alias: str) -> str:
         """Format a helpful error message when an alias is not found."""
         return (
             f"❓ Alias '{alias}' not found.\n"
-            f"💡 Use `.save {alias} <text>` to create this alias."
+            f"💡 Use `{self.command_prefix}save {alias} <text>` to create this alias."
         )
 
     def format_validation_error(self, error_message: str) -> str:
@@ -166,6 +167,39 @@ class RememberCog(commands.Cog):
             print(f"RememberCog loaded in {self.bot.user.name}")
         else:
             print("RememberCog loaded, but bot user is not available yet.")
+
+    def can_handle(self, content: str) -> bool:
+        """An extra check to see if the message can be handled by this cog. This will grab messages like `.foo?`."""
+        if (
+            content.startswith(self.command_prefix)
+            and len(content) > len(self.command_prefix)
+            and content[-1] == "?"
+        ):
+            try:
+                AliasValidator.validate_alias(
+                    content[len(self.command_prefix) : -1].strip()
+                )
+            except ValidationError:
+                return False
+            return True
+        return False
+
+    # Listen for messages to handle implicit commands like `.foo?` which should trigger `.show foo`
+    @commands.Cog.listener()
+    async def on_command_error(
+        self, ctx: commands.Context[commands.Bot], error: commands.CommandError
+    ) -> None:
+        # Only process if message is not from a bot
+        if ctx.message.author.bot:
+            return
+
+        content = ctx.message.content
+
+        # Check if message starts with command prefix, ends with '?', and is not just '?'
+        if self.can_handle(content):
+            # Call show
+            alias = content[len(self.command_prefix) : -1].strip()
+            await self.show.callback(self, ctx, alias)  # type: ignore
 
     async def _remember_implementation(
         self, ctx: Context[Bot], alias: str, content: str
@@ -276,7 +310,7 @@ class RememberCog(commands.Cog):
                 await ctx.send("❓ No aliases found.")
             else:
                 await ctx.send(
-                    f"📜 Found {len(results)} {plural}':\n"
+                    f"📜 Found {len(results)} {plural}:\n"
                     + ", ".join(entry.name for entry in results)
                 )
 
@@ -320,7 +354,3 @@ class RememberCog(commands.Cog):
     async def edit(self, ctx: Context[Bot], alias: str, *, new_content: str) -> None:
         """Edit an existing remembered entry. Usage: .edit <alias> <new_content>"""
         await self._edit_implementation(ctx, alias, new_content)
-
-
-async def setup(bot: Bot) -> None:
-    await bot.add_cog(RememberCog(bot))

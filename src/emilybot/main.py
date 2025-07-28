@@ -34,14 +34,29 @@ async def init_bot(dev: bool) -> Bot:
         ctx: commands.Context[commands.Bot], error: commands.CommandError
     ) -> None:
         """Handle command errors gracefully"""
+        logging.info(
+            f"on_command_error called with error: {error}, message: {ctx.message.content}"
+        )
         if isinstance(error, commands.CommandNotFound):
             # skip .dev. because it's meant for the dev bot
             if not dev and ctx.message.content.startswith(".dev."):
                 logging.info(f"Ignoring command meant for the dev bot.")
                 return
-            await ctx.send(
-                f"❓ Unknown command. Use `{command_prefix}help` to see available commands."
-            )
+            else:
+                # Try asking cogs if they want to handle the command
+                for cog in bot.cogs.values():
+                    logging.info(
+                        f"Checking if cog {cog.__class__.__name__} will handle this message"
+                    )
+                    if hasattr(cog, "can_handle"):
+                        logging.info(f"Calling can_handle for {cog.__class__.__name__}")
+                        handled = cog.can_handle(ctx.message.content)  # type: ignore
+                        if handled:
+                            return
+                # No takers
+                await ctx.send(
+                    f"❓ Unknown command. Use `{command_prefix}help` to see available commands."
+                )
         elif isinstance(error, commands.MissingRequiredArgument):
             param_name = getattr(error, "param", None)
             if param_name:
@@ -54,7 +69,7 @@ async def init_bot(dev: bool) -> Bot:
 
     bot.add_listener(on_command_error)
 
-    await bot.add_cog(RememberCog(bot))
+    await bot.add_cog(RememberCog(bot, command_prefix=command_prefix))
 
     return bot
 
