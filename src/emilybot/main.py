@@ -4,19 +4,18 @@ import os
 import discord
 import re
 from discord.ext import commands
-from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
 
-import emilybot.db as db
+from emilybot.discord import EmilyBot
 from emilybot.validation import AliasValidator, ValidationError
-from emilybot.commands.save import SaveCommands
-from emilybot.commands.show import ShowCommands
-from emilybot.commands.edit import EditCommands
-from emilybot.commands.delete import DeleteCommands
-from emilybot.commands.help import HelpCommands
-from emilybot.commands.promote import PromoteCommands
+from emilybot.commands.save import cmd_add
+from emilybot.commands.show import cmd_random, cmd_show
+from emilybot.commands.edit import cmd_edit
+from emilybot.commands.delete import cmd_rm
+from emilybot.commands.help import cmd_help
+from emilybot.commands.promote import cmd_promote, cmd_demote
 
 
-async def init_bot(dev: bool) -> Bot:
+async def init_bot(dev: bool) -> EmilyBot:
     intents = discord.Intents.default()
     intents.message_content = True
 
@@ -27,21 +26,21 @@ async def init_bot(dev: bool) -> Bot:
         logging.info("Running in production mode. Using `.` as command prefix.")
         command_prefix = "."
 
-    bot = Bot(
+    bot = EmilyBot(
         command_prefix=command_prefix,
         intents=intents,
         allowed_mentions=discord.AllowedMentions.none(),
     )
     bot.remove_command("help")
 
-    database = db.DB()
-
-    save_commands = SaveCommands(bot, database, command_prefix)
-    show_commands = ShowCommands(bot, database, command_prefix)
-    edit_commands = EditCommands(bot, database, command_prefix)
-    delete_commands = DeleteCommands(bot, database, command_prefix)
-    help_commands = HelpCommands(bot, database, command_prefix)
-    promote_commands = PromoteCommands(bot, database, command_prefix)
+    bot.add_command(cmd_add)
+    bot.add_command(cmd_show)
+    bot.add_command(cmd_random)
+    bot.add_command(cmd_edit)
+    bot.add_command(cmd_rm)
+    bot.add_command(cmd_help)
+    bot.add_command(cmd_promote)
+    bot.add_command(cmd_demote)
 
     @bot.listen()
     async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]
@@ -49,7 +48,7 @@ async def init_bot(dev: bool) -> Bot:
 
     @bot.listen()
     async def on_command_error(  # pyright: ignore[reportUnusedFunction]
-        ctx: Context[commands.Bot],
+        ctx: commands.Context[EmilyBot],
         error: commands.CommandError,
     ) -> None:
         """Handle command errors gracefully"""
@@ -75,14 +74,14 @@ async def init_bot(dev: bool) -> Bot:
             try:
                 # If it can be an alias, try looking it up
                 AliasValidator.validate_alias(potential_alias, "lookup")
-                await show_commands.show(ctx, potential_alias)
+                await cmd_show(ctx, potential_alias)
                 return
             except ValidationError:
                 pass
 
             # ok it's not an alias so it's an unknown command then
             await ctx.send(
-                f"❓ Unknown command. Use `{command_prefix}help` to see available commands."
+                f"❓ Unknown command. Use `{command_prefix}help` to see available commands.",
             )
 
         elif isinstance(error, commands.MissingRequiredArgument):
@@ -94,41 +93,6 @@ async def init_bot(dev: bool) -> Bot:
         else:
             await ctx.send(f"❌ An error occurred: {str(error)}")
             logging.error("An error occurred", exc_info=error)
-
-    @bot.command()
-    async def add(ctx: Context[Bot], alias: str, *, content: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """`.add <alias> <text>`: Add content to an existing alias or create a new one"""
-        await save_commands.add(ctx, alias, content=content)
-
-    @bot.command()
-    async def random(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """`.random <alias>`: Get a random non-blank line from an entry"""
-        await show_commands.random(ctx, alias)
-
-    @bot.command()
-    async def edit(ctx: Context[Bot], alias: str, *, new_content: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """`.edit <alias> <new_content>`: Edit an existing remembered entry"""
-        await edit_commands.edit(ctx, alias, new_content=new_content)
-
-    @bot.command()
-    async def rm(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """`.rm <alias>`: Delete an alias. 'Children' (foo/bar, etc) will not be deleted."""
-        await delete_commands.rm(ctx, alias)
-
-    @bot.command(name="help")
-    async def help_command(ctx: Context[Bot]) -> None:  # pyright: ignore[reportUnusedFunction]
-        """`.help`: Shows this help message"""
-        await help_commands.help(ctx)
-
-    @bot.command()
-    async def promote(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """`.promote <alias>`: Make the alias show up in help"""
-        await promote_commands.promote(ctx, alias)
-
-    @bot.command()
-    async def demote(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """`.demote <alias>`: Hide the alias in the gray text at the bottom of help"""
-        await promote_commands.demote(ctx, alias)
 
     return bot
 

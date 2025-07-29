@@ -137,14 +137,14 @@ class RememberEntry:
 
 ### Validation Errors
 
-1. **Empty Content**: "Content cannot be empty. Use `.remember <alias> <text>` to store something."
+1. **Empty Content**: "Content cannot be empty. Use `.remember [alias] [text]` to store something."
 2. **Content Too Long**: "Content too long (max 1000 characters). Current length: {length}"
 3. **Alias Too Long**: "Alias too long (max 100 characters). Current length: {length}"
 4. **Invalid Alias Characters**: "Alias contains invalid characters. Use only letters, numbers, underscores, dashes, dots, and slashes."
 
 ### Retrieval Errors
 
-1. **Alias Not Found**: "Alias not found. Use `.remember <alias> <text>` to create an alias."
+1. **Alias Not Found**: "Alias not found. Use `.remember [alias] [text]` to create an alias."
 
 ### System Errors
 

@@ -1,0 +1,30 @@
+from discord.message import Message
+
+
+from discord.ext import commands
+from typing import Any
+
+from emilybot.database import DB
+
+
+class EmilyContext(commands.Context["EmilyBot"]):
+    """A custom context class that inherits from commands.Context"""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+
+    async def send(
+        self, *args: Any, suppress_embeds: bool = True, **kwargs: Any
+    ) -> Message:
+        """Like the normal send, but suppresses embeds by default"""
+        return await super().send(*args, suppress_embeds=suppress_embeds, **kwargs)
+
+
+class EmilyBot(commands.Bot):
+    def __init__(self, command_prefix: str, *args: Any, **kwargs: Any):
+        super().__init__(command_prefix, *args, **kwargs)
+        self.db = DB()
+        self.just_command_prefix = command_prefix  # normal bot.command_prefix is smth like Iterable[str] | str | idk
+
+    async def get_context(self, *args: Any, **kwargs: Any) -> EmilyContext:
+        return await super().get_context(*args, **kwargs, cls=EmilyContext)

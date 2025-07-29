@@ -1,97 +1,84 @@
 from datetime import datetime
-from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
+from discord.ext import commands
 import uuid
+from emilybot.discord import EmilyContext
 
-import emilybot.db as db
+from emilybot.database import Entry, Action, ActionEdit, ActionCreate
 from emilybot.utils.list import first
 from emilybot.validation import AliasValidator, ValidationError
 
 
-class SaveCommands:
-    """Commands for saving and adding content to aliases."""
+def format_validation_error(error_message: str) -> str:
+    """Format validation error messages for user-friendly display."""
+    return f"❌ {error_message}"
 
-    def __init__(self, bot: Bot, db: db.DB, command_prefix: str) -> None:
-        self.bot = bot
-        self.db = db
-        self.command_prefix = command_prefix
 
-    def format_not_found_message(self, alias: str) -> str:
-        """Format a helpful error message when an alias is not found."""
-        return (
-            f"❓ Alias '{alias}' not found.\n"
-            f"💡 Use `{self.command_prefix}add {alias} <text>` to create this alias."
-        )
+def format_success_message(alias: str, action: str = "stored") -> str:
+    """Format success message for remember operations."""
+    return f"✅ Alias '{alias}' {action} successfully."
 
-    def format_validation_error(self, error_message: str) -> str:
-        """Format validation error messages for user-friendly display."""
-        return f"❌ {error_message}"
 
-    def format_success_message(self, alias: str, action: str = "stored") -> str:
-        """Format success message for remember operations."""
-        return f"✅ Alias '{alias}' {action} successfully."
+@commands.command(name="add")
+async def cmd_add(ctx: EmilyContext, alias: str, content: str) -> None:
+    """`.add [alias] [text]`: Add content to an existing entry or create a new one."""
 
-    async def add(self, ctx: Context[Bot], alias: str, content: str) -> None:
-        """Add content to an existing entry or create a new one. Usage: .add <alias> <content>"""
-        try:
-            # Validate alias and content
-            AliasValidator.validate_alias(alias, "create")
-            if not content.strip():
-                raise ValidationError("Text to add cannot be empty.")
+    db = ctx.bot.db
+    server_id = ctx.guild.id if ctx.guild else None
 
-            server_id = ctx.guild.id if ctx.guild else None
+    try:
+        # Validate alias and content
+        AliasValidator.validate_alias(alias, "create")
+        if not content.strip():
+            raise ValidationError("Text to add cannot be empty.")
 
-            # Find existing entry
-            entry = first(
-                self.db.find_alias(alias, server_id=server_id, user_id=ctx.author.id)
+        # Find existing entry
+        entry = first(db.find_alias(alias, server_id=server_id, user_id=ctx.author.id))
+
+        if entry:
+            # Entry exists - append content with blank line
+            old_content = entry.content
+            entry.content = f"{old_content}\n\n{content}"
+            db.remember.update(entry)
+
+            action = Action(
+                user_id=ctx.author.id,
+                timestamp=datetime.now(),
+                action=ActionEdit(
+                    kind="edit",
+                    entry_id=entry.id,
+                    old_content=old_content,
+                    new_content=entry.content,
+                ),
             )
+            db.log.add(action)
 
-            if entry:
-                # Entry exists - append content with blank line
-                old_content = entry.content
-                entry.content = f"{old_content}\n\n{content}"
-                self.db.remember.update(entry)
+            await ctx.send(format_success_message(alias, "updated"))
+        else:
+            # Entry doesn't exist - create new one
+            doc = Entry(
+                id=uuid.uuid4(),
+                server_id=server_id,
+                user_id=ctx.author.id,
+                created_at=datetime.now().isoformat(),
+                name=alias.lower(),
+                content=content,
+            )
+            db.remember.add(doc)
 
-                action = db.Action(
-                    user_id=ctx.author.id,
-                    timestamp=datetime.now(),
-                    action=db.ActionEdit(
-                        kind="edit",
-                        entry_id=entry.id,
-                        old_content=old_content,
-                        new_content=entry.content,
-                    ),
-                )
-                self.db.log.add(action)
-
-                await ctx.send(
-                    self.format_success_message(alias, "updated"), suppress_embeds=True
-                )
-            else:
-                # Entry doesn't exist - create new one
-                doc = db.Entry(
-                    id=uuid.uuid4(),
+            action = Action(
+                user_id=ctx.author.id,
+                timestamp=datetime.now(),
+                action=ActionCreate(
+                    kind="create",
+                    entry_id=doc.id,
                     server_id=server_id,
-                    user_id=ctx.author.id,
-                    created_at=datetime.now().isoformat(),
                     name=alias.lower(),
                     content=content,
-                )
-                self.db.remember.add(doc)
+                ),
+            )
+            db.log.add(action)
 
-                action = db.Action(
-                    user_id=ctx.author.id,
-                    timestamp=datetime.now(),
-                    action=db.ActionCreate(
-                        kind="create",
-                        entry_id=doc.id,
-                        server_id=server_id,
-                        name=alias.lower(),
-                        content=content,
-                    ),
-                )
-                self.db.log.add(action)
+            await ctx.send(format_success_message(alias))
 
-                await ctx.send(self.format_success_message(alias), suppress_embeds=True)
-
-        except ValidationError as e:
-            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
+    except ValidationError as e:
+        await ctx.send(format_validation_error(str(e)))

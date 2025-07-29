@@ -1,101 +1,97 @@
 from datetime import datetime
-from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
+from discord.ext import commands
+from emilybot.discord import EmilyContext
 
-import emilybot.db as db
+from emilybot.database import Action, ActionPromote
 from emilybot.utils.list import first
 from emilybot.validation import AliasValidator, ValidationError
 
 
-class PromoteCommands:
-    """Commands for promoting and demoting alias visibility in help."""
+def format_not_found_message(alias: str) -> str:
+    return f"❓ Alias '{alias}' not found."
 
-    def __init__(self, bot: Bot, db: db.DB, command_prefix: str) -> None:
-        self.bot = bot
-        self.db = db
-        self.command_prefix = command_prefix
 
-    def format_not_found_message(self, alias: str) -> str:
-        return f"❓ Alias '{alias}' not found."
+def format_validation_error(error_message: str) -> str:
+    return f"❌ {error_message}"
 
-    def format_validation_error(self, error_message: str) -> str:
-        return f"❌ {error_message}"
 
-    def format_promoted_message(self, alias: str) -> str:
-        return f"✅ Alias '{alias}' promoted - will show prominently in help."
+def format_promoted_message(alias: str) -> str:
+    return f"✅ Alias '{alias}' promoted - will show prominently in help."
 
-    def format_demoted_message(self, alias: str) -> str:
-        return f"✅ Alias '{alias}' demoted - will show as grey text at bottom of help."
 
-    def format_already_promoted_message(self, alias: str) -> str:
-        return f"ℹ️ Alias '{alias}' is already promoted."
+def format_demoted_message(alias: str) -> str:
+    return f"✅ Alias '{alias}' demoted - will show as grey text at bottom of help."
 
-    def format_already_demoted_message(self, alias: str) -> str:
-        return f"ℹ️ Alias '{alias}' is already demoted."
 
-    async def _promote_demote_implementation(
-        self, ctx: Context[Bot], alias: str, promote: bool
-    ) -> None:
-        """Shared implementation for promoting/demoting an alias."""
-        try:
-            AliasValidator.validate_alias(alias, "lookup")
+def format_already_promoted_message(alias: str) -> str:
+    return f"ℹ️ Alias '{alias}' is already promoted."
 
-            server_id = ctx.guild.id if ctx.guild else None
-            user_id = ctx.author.id
 
-            # Find existing entry
-            entry = first(
-                self.db.find_alias(alias, server_id=server_id, user_id=user_id)
-            )
+def format_already_demoted_message(alias: str) -> str:
+    return f"ℹ️ Alias '{alias}' is already demoted."
 
-            if not entry:
-                await ctx.send(
-                    self.format_not_found_message(alias), suppress_embeds=True
-                )
-                return
 
-            # Check if already in desired state
-            if promote and entry.promoted:
-                await ctx.send(
-                    self.format_already_promoted_message(alias), suppress_embeds=True
-                )
-                return
-            elif not promote and not entry.promoted:
-                await ctx.send(
-                    self.format_already_demoted_message(alias), suppress_embeds=True
-                )
-                return
+async def _promote_demote_implementation(
+    ctx: EmilyContext, alias: str, promote: bool
+) -> None:
+    """Shared implementation for promoting/demoting an alias."""
 
-            # Update entry
-            entry.promoted = promote
-            self.db.remember.update(entry)
+    db = ctx.bot.db
 
-            # Log the action
-            action = db.Action(
-                user_id=user_id,
-                timestamp=datetime.now(),
-                action=db.ActionPromote(
-                    kind="promote",
-                    entry_id=entry.id,
-                    promoted=promote,
-                ),
-            )
-            self.db.log.add(action)
+    try:
+        AliasValidator.validate_alias(alias, "lookup")
 
-            # Send appropriate message
-            if promote:
-                await ctx.send(
-                    self.format_promoted_message(alias), suppress_embeds=True
-                )
-            else:
-                await ctx.send(self.format_demoted_message(alias), suppress_embeds=True)
+        server_id = ctx.guild.id if ctx.guild else None
+        user_id = ctx.author.id
 
-        except ValidationError as e:
-            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
+        # Find existing entry
+        entry = first(db.find_alias(alias, server_id=server_id, user_id=user_id))
 
-    async def promote(self, ctx: Context[Bot], alias: str) -> None:
-        """Promote an alias to show prominently in help. Usage: .promote <alias>"""
-        await self._promote_demote_implementation(ctx, alias, True)
+        if not entry:
+            await ctx.send(format_not_found_message(alias))
+            return
 
-    async def demote(self, ctx: Context[Bot], alias: str) -> None:
-        """Demote an alias to show as grey text at bottom of help. Usage: .demote <alias>"""
-        await self._promote_demote_implementation(ctx, alias, False)
+        # Check if already in desired state
+        if promote and entry.promoted:
+            await ctx.send(format_already_promoted_message(alias))
+            return
+        elif not promote and not entry.promoted:
+            await ctx.send(format_already_demoted_message(alias))
+            return
+
+        # Update entry
+        entry.promoted = promote
+        db.remember.update(entry)
+
+        # Log the action
+        action = Action(
+            user_id=user_id,
+            timestamp=datetime.now(),
+            action=ActionPromote(
+                kind="promote",
+                entry_id=entry.id,
+                promoted=promote,
+            ),
+        )
+        db.log.add(action)
+
+        # Send appropriate message
+        if promote:
+            await ctx.send(format_promoted_message(alias))
+        else:
+            await ctx.send(format_demoted_message(alias))
+
+    except ValidationError as e:
+        await ctx.send(format_validation_error(str(e)))
+
+
+@commands.command(name="promote")
+async def cmd_promote(ctx: EmilyContext, alias: str) -> None:
+    """`.promote [alias]`: Promote an alias to show prominently in help."""
+    await _promote_demote_implementation(ctx, alias, True)
+
+
+@commands.command(name="demote")
+async def cmd_demote(ctx: EmilyContext, alias: str) -> None:
+    """`.demote [alias]`: Demote an alias to show as grey text at bottom of help."""
+    await _promote_demote_implementation(ctx, alias, False)

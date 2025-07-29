@@ -12,7 +12,7 @@ This feature implements a Discord bot with memory functionality that allows user
 
 #### Acceptance Criteria
 
-1. WHEN a user types `.remember <alias> <text>` THEN the bot SHALL store the text with the given alias
+1. WHEN a user types `.remember [alias] [text]` THEN the bot SHALL store the text with the given alias
 2. WHEN storing content THEN the bot SHALL validate that the alias is between 1-100 characters
 3. WHEN storing content THEN the bot SHALL validate that the text is between 1-1000 characters
 4. WHEN storing content THEN the bot SHALL accept aliases containing alphanumeric characters, underscores, dashes, dots, and slashes
@@ -27,7 +27,7 @@ This feature implements a Discord bot with memory functionality that allows user
 
 #### Acceptance Criteria
 
-1. WHEN a user types `.where <alias>` THEN the bot SHALL return the stored text for that alias
+1. WHEN a user types `.where [alias]` THEN the bot SHALL return the stored text for that alias
 2. WHEN retrieving content THEN the bot SHALL escape all Discord mentions in the output text
 3. WHEN an alias is not found THEN the bot SHALL respond with "Alias not found" and explain how to create an alias
 4. WHEN matching aliases THEN the bot SHALL perform case-insensitive matching

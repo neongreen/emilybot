@@ -1,63 +1,58 @@
 from datetime import datetime
-from discord.ext.commands import Context, Bot  # pyright: ignore[reportMissingTypeStubs]
+from discord.ext import commands
+from emilybot.discord import EmilyContext
 
-import emilybot.db as db
+from emilybot.database import Action, ActionDelete
 from emilybot.utils.list import first
 from emilybot.validation import AliasValidator, ValidationError
 
 
-class DeleteCommands:
-    """Commands for deleting existing aliases."""
+def format_not_found_message(alias: str) -> str:
+    return f"❓ Alias '{alias}' not found."
 
-    def __init__(self, bot: Bot, db: db.DB, command_prefix: str) -> None:
-        self.bot = bot
-        self.db = db
-        self.command_prefix = command_prefix
 
-    def format_not_found_message(self, alias: str) -> str:
-        return f"❓ Alias '{alias}' not found."
+def format_validation_error(error_message: str) -> str:
+    return f"❌ {error_message}"
 
-    def format_validation_error(self, error_message: str) -> str:
-        return f"❌ {error_message}"
 
-    def format_deleted_message(self, alias: str) -> str:
-        return f"✅ Fine. '{alias}' was deleted."
+def format_deleted_message(alias: str) -> str:
+    return f"✅ Fine. '{alias}' was deleted."
 
-    async def rm(self, ctx: Context[Bot], alias: str) -> None:
-        """Delete an existing remembered entry. Usage: .rm <alias>"""
 
-        try:
-            AliasValidator.validate_alias(alias, "delete")
+@commands.command(name="rm")
+async def cmd_rm(ctx: EmilyContext, alias: str) -> None:
+    """`.rm [alias]`: Delete an alias."""
 
-            server_id = ctx.guild.id if ctx.guild else None
-            user_id = ctx.author.id
+    db = ctx.bot.db
 
-            # Find existing entry
-            entry = first(
-                self.db.find_alias(alias, server_id=server_id, user_id=user_id)
-            )
+    try:
+        AliasValidator.validate_alias(alias, "delete")
 
-            if not entry:
-                await ctx.send(
-                    self.format_not_found_message(alias), suppress_embeds=True
-                )
-                return
+        server_id = ctx.guild.id if ctx.guild else None
+        user_id = ctx.author.id
 
-            # Delete entry
-            self.db.remember.remove(entry.id)
+        # Find existing entry
+        entry = first(db.find_alias(alias, server_id=server_id, user_id=user_id))
 
-            action = db.Action(
-                user_id=user_id,
-                timestamp=datetime.now(),
-                action=db.ActionDelete(
-                    kind="delete",
-                    entry_id=entry.id,
-                    entry=entry,
-                ),
-            )
-            self.db.log.add(action)
+        if not entry:
+            await ctx.send(format_not_found_message(alias))
+            return
 
-            await ctx.send(self.format_deleted_message(alias), suppress_embeds=True)
+        # Delete entry
+        db.remember.remove(entry.id)
 
-        except ValidationError as e:
-            await ctx.send(self.format_validation_error(str(e)), suppress_embeds=True)
+        action = Action(
+            user_id=user_id,
+            timestamp=datetime.now(),
+            action=ActionDelete(
+                kind="delete",
+                entry_id=entry.id,
+                entry=entry,
+            ),
+        )
+        db.log.add(action)
+
+        await ctx.send(format_deleted_message(alias))
+
+    except ValidationError as e:
+        await ctx.send(format_validation_error(str(e)))
