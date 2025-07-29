@@ -54,25 +54,14 @@ async def format_entry_content(entry: Entry) -> str:
             success, output = await js_executor.execute(entry.run, context)
 
             if success:
-                # Combine JavaScript output with original content
-                # Only add JavaScript output section if there's actual output
-                if output.strip():
-                    combined_content = (
-                        f"{entry.content}\n\n🔧 **JavaScript Output:**\n{output}"
-                    )
-                else:
-                    # JavaScript ran successfully but produced no output
-                    combined_content = (
-                        f"{entry.content}\n\n🔧 **JavaScript Output:** *(no output)*"
-                    )
-                return format_show_content(combined_content)
+                return format_show_content(output)
             else:
                 # Handle execution error - fall back to original content with error message
-                error_content = f"{entry.content}\n\n❌ **JavaScript Error:**\n{output}"
+                error_content = f"{entry.content}\n\n❌ **JavaScript error:**\n{output}"
                 return format_show_content(error_content)
         except Exception as e:
             # Handle unexpected errors gracefully
-            error_content = f"{entry.content}\n\n❌ **JavaScript Error:**\nUnexpected error: {str(e)}"
+            error_content = f"{entry.content}\n\n❌ **JavaScript error:**\nUnexpected error: {str(e)}"
             return format_show_content(error_content)
     else:
         # No JavaScript code, return original content

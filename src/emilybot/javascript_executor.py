@@ -5,6 +5,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
 from typing import Tuple
 from emilybot.database import Entry
 
@@ -27,7 +28,10 @@ class JavaScriptExecutor:
             timeout: Maximum execution time in seconds (default: 1.0)
         """
         self.timeout = timeout
-        self.deno_path = "deno"
+        deno_path = shutil.which("deno")
+        if not deno_path:
+            raise FileNotFoundError("Deno CLI not found in PATH")
+        self.deno_path = deno_path
         self.executor_script = "js-executor/main.ts"
 
     async def execute(
@@ -68,6 +72,7 @@ class JavaScriptExecutor:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=Path.cwd(),
+                env={"NO_COLOR": "1"},
             )
 
             try:

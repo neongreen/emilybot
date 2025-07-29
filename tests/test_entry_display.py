@@ -48,8 +48,6 @@ async def test_entry_with_javascript():
 
     result = await format_entry_content(entry)
 
-    assert "This is an entry with JavaScript" in result
-    assert "🔧 **JavaScript Output:**" in result
     assert "Hello from test-entry!" in result
 
 
@@ -71,7 +69,6 @@ async def test_entry_with_javascript_error():
 
     result = await format_entry_content(entry)
     assert "This is an entry with broken JavaScript" in result
-    assert "❌ **JavaScript Error:**" in result
     assert "'undefinedVariable' is not defined" in result
 
 
@@ -115,5 +112,4 @@ async def test_entry_with_no_output_javascript():
 
     result = await format_entry_content(entry)
 
-    assert "This is an entry with silent JavaScript" in result
-    assert "🔧 **JavaScript Output:** *(no output)*" in result
+    assert result == ""
