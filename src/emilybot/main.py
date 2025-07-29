@@ -12,6 +12,7 @@ from emilybot.commands.save import SaveCommands
 from emilybot.commands.show import ShowCommands
 from emilybot.commands.edit import EditCommands
 from emilybot.commands.delete import DeleteCommands
+from emilybot.commands.help import HelpCommands
 
 
 async def init_bot(dev: bool) -> Bot:
@@ -30,6 +31,7 @@ async def init_bot(dev: bool) -> Bot:
         intents=intents,
         allowed_mentions=discord.AllowedMentions.none(),
     )
+    bot.remove_command("help")
 
     database = db.DB()
 
@@ -37,6 +39,7 @@ async def init_bot(dev: bool) -> Bot:
     show_commands = ShowCommands(bot, database, command_prefix)
     edit_commands = EditCommands(bot, database, command_prefix)
     delete_commands = DeleteCommands(bot, database, command_prefix)
+    help_commands = HelpCommands(bot, database, command_prefix)
 
     @bot.listen()
     async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]
@@ -91,24 +94,9 @@ async def init_bot(dev: bool) -> Bot:
             logging.error("An error occurred", exc_info=error)
 
     @bot.command()
-    async def save(ctx: Context[Bot], alias: str, *, content: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """Remember content with an alias. Usage: .save <alias> <content>"""
-        await save_commands.save(ctx, alias, content=content)
-
-    @bot.command()
     async def add(ctx: Context[Bot], alias: str, *, content: str) -> None:  # pyright: ignore[reportUnusedFunction]
         """Add content to an existing entry or create a new one. Usage: .add <alias> <content>"""
         await save_commands.add(ctx, alias, content=content)
-
-    @bot.command()
-    async def show(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """Find a remembered entry by alias. Usage: .show <alias>, or list with .show dir/"""
-        await show_commands.show(ctx, alias)
-
-    @bot.command()
-    async def all(ctx: Context[Bot]) -> None:  # pyright: ignore[reportUnusedFunction]
-        """List all remembered entries."""
-        await show_commands.all(ctx)
 
     @bot.command()
     async def random(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
@@ -124,6 +112,11 @@ async def init_bot(dev: bool) -> Bot:
     async def rm(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
         """Delete an alias. Usage: .rm <alias>. 'Children' (foo/bar, etc) will not be deleted."""
         await delete_commands.rm(ctx, alias)
+
+    @bot.command(name="help")
+    async def help_command(ctx: Context[Bot]) -> None:  # pyright: ignore[reportUnusedFunction]
+        """Shows this help message."""
+        await help_commands.help(ctx)
 
     return bot
 

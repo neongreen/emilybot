@@ -18,7 +18,7 @@ class EditCommands:
         """Format a helpful error message when an alias is not found."""
         return (
             f"❓ Alias '{alias}' not found.\n"
-            f"💡 Use `{self.command_prefix}save {alias} <text>` to create this alias."
+            f"💡 Use `{self.command_prefix}add {alias} <text>` to create this alias."
         )
 
     def format_validation_error(self, error_message: str) -> str:

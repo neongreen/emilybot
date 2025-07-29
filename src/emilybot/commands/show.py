@@ -20,7 +20,7 @@ class ShowCommands:
         """Format a helpful error message when an alias is not found."""
         return (
             f"❓ Alias '{alias}' not found.\n"
-            f"💡 Use `{self.command_prefix}save {alias} <text>` to create this alias."
+            f"💡 Use `{self.command_prefix}add {alias} <text>` to create this alias."
         )
 
     def format_validation_error(self, error_message: str) -> str:
@@ -50,22 +50,8 @@ class ShowCommands:
                 first_line = first_line[:100] + "..."
             return f"- {entry.name}: {first_line}"
 
-        # `.show all` - list all aliases
-        if alias == "all" or alias == "/":
-            results = self.db.find_alias(
-                re.compile(".*"), server_id=server_id, user_id=ctx.author.id
-            )
-            if not results:
-                await ctx.send("❓ No aliases found.", suppress_embeds=True)
-            else:
-                await ctx.send(
-                    inflect(f"📜 Found no('entry', {len(results)}):\n")
-                    + "\n".join(format_entry_line(entry) for entry in results),
-                    suppress_embeds=True,
-                )
-
         # `.show foo/` - list all aliases starting with "foo/"
-        elif alias.endswith("/"):
+        if alias.endswith("/"):
             # list by prefix
             results = self.db.find_alias(
                 re.compile("^" + re.escape(alias), re.IGNORECASE),
@@ -138,10 +124,6 @@ class ShowCommands:
     async def show(self, ctx: Context[Bot], alias: str) -> None:
         """Find a remembered entry by alias. Usage: .show <alias>, or list with .show dir/"""
         await self._show_implementation(ctx, alias)
-
-    async def all(self, ctx: Context[Bot]) -> None:
-        """List all remembered entries."""
-        await self._show_implementation(ctx, "all")
 
     async def random(self, ctx: Context[Bot], alias: str) -> None:
         """Get a random non-blank line from an entry. Usage: .random <alias>"""
