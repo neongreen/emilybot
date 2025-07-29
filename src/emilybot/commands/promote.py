@@ -104,3 +104,52 @@ async def cmd_promote(ctx: EmilyContext, alias: str) -> None:
 async def cmd_demote(ctx: EmilyContext, alias: str) -> None:
     """`.demote [alias]`: Demote an alias to show as grey text at bottom of help."""
     await _promote_demote_implementation(ctx, alias, False)
+
+
+@commands.command(name="demote_all")
+async def cmd_demote_all(ctx: EmilyContext) -> None:
+    """`.demote_all`: Demote all promoted aliases to show as grey text at bottom of help."""
+    db = ctx.bot.db
+    server_id = ctx.guild.id if ctx.guild else None
+    user_id = ctx.author.id
+
+    # Find all promoted top-level aliases for this user/server
+    if server_id:
+        all_entries = db.remember.find(server_id=server_id)
+    else:
+        all_entries = db.remember.find(user_id=user_id, server_id=None)
+
+    # Filter for promoted top-level aliases (no "/" in name)
+    promoted_entries = [
+        entry for entry in all_entries if entry.promoted and "/" not in entry.name
+    ]
+
+    if not promoted_entries:
+        await ctx.send("ℹ️ No promoted aliases found to demote.")
+        return
+
+    # Demote all found entries
+    demoted_count = 0
+    for entry in promoted_entries:
+        entry.promoted = False
+        db.remember.update(entry)
+
+        # Log the action
+        action = Action(
+            user_id=user_id,
+            timestamp=datetime.now(),
+            action=ActionPromote(
+                kind="promote",
+                entry_id=entry.id,
+                promoted=False,
+            ),
+        )
+        db.log.add(action)
+        demoted_count += 1
+
+    if demoted_count == 1:
+        await ctx.send("✅ Demoted 1 alias - will show as grey text at bottom of help.")
+    else:
+        await ctx.send(
+            f"✅ Demoted {demoted_count} aliases - will show as grey text at bottom of help."
+        )

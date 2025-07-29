@@ -16,7 +16,7 @@ from emilybot.commands.show import cmd_list, cmd_random, cmd_show
 from emilybot.commands.edit import cmd_edit
 from emilybot.commands.delete import cmd_rm
 from emilybot.commands.help import cmd_help
-from emilybot.commands.promote import cmd_promote, cmd_demote
+from emilybot.commands.promote import cmd_promote, cmd_demote, cmd_demote_all
 
 
 async def init_bot(dev: bool) -> EmilyBot:
@@ -45,6 +45,7 @@ async def init_bot(dev: bool) -> EmilyBot:
     bot.add_command(cmd_help)
     bot.add_command(cmd_promote)
     bot.add_command(cmd_demote)
+    bot.add_command(cmd_demote_all)
     bot.add_command(cmd_list)
 
     @bot.listen()
