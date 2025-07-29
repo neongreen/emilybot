@@ -32,6 +32,9 @@ class Entry:
     promoted: bool
     """Whether this alias should be prominently displayed in help (True) or shown as grey text at bottom (False)"""
 
+    run: Optional[str] = None
+    """Optional JavaScript code to execute when displaying this entry"""
+
 
 @dataclass
 class ActionEdit:

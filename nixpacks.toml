@@ -1,8 +1,14 @@
 # Used by Coolify
 
 [phases.setup]
-# Install sops and age so that we can decrypt the secrets from .env.yaml
-nixPkgs = ["...", "sops", "age"]
+nixPkgs = [
+  "...",
+  # Install sops and age so that we can decrypt the secrets from .env.yaml
+  "sops",
+  "age",
+  # For the JS execution
+  "deno",
+]
 
 [start]
 # Run the app with the decrypted secrets

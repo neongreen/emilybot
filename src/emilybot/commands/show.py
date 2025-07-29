@@ -7,6 +7,7 @@ from emilybot.database import Entry
 from emilybot.utils.list import first
 from emilybot.validation import AliasValidator, ValidationError
 from emilybot.utils.inflect import inflect
+from emilybot.javascript_executor import JavaScriptExecutor, create_context_from_entry
 
 
 def format_not_found_message(alias: str, command_prefix: str) -> str:
@@ -29,6 +30,53 @@ def format_show_content(content: str) -> str:
     if content.count("\n") > 100:
         content = "\n".join(content.split("\n")[:100]) + "..."
     return content
+
+
+async def format_entry_content(entry: Entry) -> str:
+    """Format entry content, executing JavaScript if .run attribute is present.
+
+    Args:
+        entry: The database entry to format
+
+    Returns:
+        Formatted content string, potentially including JavaScript output
+    """
+    # Check if entry has JavaScript code to execute
+    if entry.run and entry.run.strip():
+        try:
+            # Create JavaScript executor
+            js_executor = JavaScriptExecutor()
+
+            # Create context from entry
+            context = create_context_from_entry(entry)
+
+            # Execute JavaScript code
+            success, output = await js_executor.execute(entry.run, context)
+
+            if success:
+                # Combine JavaScript output with original content
+                # Only add JavaScript output section if there's actual output
+                if output.strip():
+                    combined_content = (
+                        f"{entry.content}\n\n🔧 **JavaScript Output:**\n{output}"
+                    )
+                else:
+                    # JavaScript ran successfully but produced no output
+                    combined_content = (
+                        f"{entry.content}\n\n🔧 **JavaScript Output:** *(no output)*"
+                    )
+                return format_show_content(combined_content)
+            else:
+                # Handle execution error - fall back to original content with error message
+                error_content = f"{entry.content}\n\n❌ **JavaScript Error:**\n{output}"
+                return format_show_content(error_content)
+        except Exception as e:
+            # Handle unexpected errors gracefully
+            error_content = f"{entry.content}\n\n❌ **JavaScript Error:**\nUnexpected error: {str(e)}"
+            return format_show_content(error_content)
+    else:
+        # No JavaScript code, return original content
+        return format_show_content(entry.content)
 
 
 def format_entry_line(entry: Entry) -> str:
@@ -66,7 +114,8 @@ async def cmd_show(ctx: EmilyContext, alias: str) -> None:
     else:
         entry = first(db.find_alias(alias, server_id=server_id, user_id=ctx.author.id))
         if entry:
-            await ctx.send(format_show_content(entry.content))
+            formatted_content = await format_entry_content(entry)
+            await ctx.send(formatted_content)
         else:
             await ctx.send(format_not_found_message(alias, command_prefix))
 
@@ -117,7 +166,37 @@ async def cmd_random(ctx: EmilyContext, alias: str) -> None:
 
         # Select a random non-blank line
         random_line = random.choice(non_blank_lines)
-        await ctx.send(random_line)
+
+        # Check if entry has JavaScript code to execute
+        if entry.run and entry.run.strip():
+            try:
+                # For random command, we still want to execute JavaScript and show the output
+                # along with the random line
+                js_executor = JavaScriptExecutor()
+                context = create_context_from_entry(entry)
+                success, output = await js_executor.execute(entry.run, context)
+
+                if success:
+                    if output.strip():
+                        combined_content = (
+                            f"{random_line}\n\n🔧 **JavaScript Output:**\n{output}"
+                        )
+                    else:
+                        combined_content = (
+                            f"{random_line}\n\n🔧 **JavaScript Output:** *(no output)*"
+                        )
+                    await ctx.send(format_show_content(combined_content))
+                else:
+                    error_content = (
+                        f"{random_line}\n\n❌ **JavaScript Error:**\n{output}"
+                    )
+                    await ctx.send(format_show_content(error_content))
+            except Exception as e:
+                # Handle unexpected errors gracefully
+                error_content = f"{random_line}\n\n❌ **JavaScript Error:**\nUnexpected error: {str(e)}"
+                await ctx.send(format_show_content(error_content))
+        else:
+            await ctx.send(random_line)
 
     except ValidationError as e:
         await ctx.send(format_validation_error(str(e)))
