@@ -44,10 +44,10 @@ class HelpCommands:
 
             if top_level_entry:
                 alias_lines.append(
-                    f"**.{name}:** {format_preview(top_level_entry.content)}"
+                    f"`.{name}`: {format_preview(top_level_entry.content)}"
                 )
             else:
-                alias_lines.append(f"**.{name}/**")
+                alias_lines.append(f"`.{name}/`")
 
             children = [
                 e
@@ -56,9 +56,9 @@ class HelpCommands:
             ]
             if children:
                 alias_lines.append(
-                    "-# · · · Also: "
-                    + ", ".join(f".{child.name}" for child in children)
+                    "-# " + ", ".join(f".{child.name}" for child in children)
                 )
+            alias_lines.append("")
 
         if alias_lines:
             alias_lines.pop()
