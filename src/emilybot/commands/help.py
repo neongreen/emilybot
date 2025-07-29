@@ -20,8 +20,8 @@ def format_preview(content: str) -> str:
     return first_line
 
 
-def format_aliases_section(aliases: List[Entry], grey_text: bool = False) -> str:
-    """Format a section of aliases, optionally as grey text."""
+def format_aliases_section(aliases: List[Entry]) -> str:
+    """Format a section of aliases"""
     alias_lines: List[str] = []
     top_level_names = sorted(list(set(e.name.split("/")[0] for e in aliases)))
 
@@ -35,14 +35,9 @@ def format_aliases_section(aliases: List[Entry], grey_text: bool = False) -> str
 
         if top_level_entry:
             line = f"`.{name}`: {format_preview(top_level_entry.content)}"
-            if grey_text:
-                line = f"-# {line}"
-            alias_lines.append(line)
         else:
             line = f"`.{name}/`"
-            if grey_text:
-                line = f"-# {line}"
-            alias_lines.append(line)
+        alias_lines.append(line)
 
         if children:
             children_line = "-# " + ", ".join(f".{child.name}" for child in children)
@@ -67,15 +62,35 @@ async def cmd_help(ctx: EmilyContext) -> None:
     all_aliases = db.find_alias(re.compile(".*"), server_id=server_id, user_id=user_id)
     all_aliases.sort(key=lambda e: e.name)
 
-    # Separate promoted and demoted aliases
-    promoted_aliases = [e for e in all_aliases if getattr(e, "promoted", True)]
-    demoted_aliases = [e for e in all_aliases if not getattr(e, "promoted", True)]
+    # Get top-level aliases and their promotion status
+    top_level_aliases = {
+        e.name.split("/")[0]: getattr(e, "promoted", True)
+        for e in all_aliases
+        if "/" not in e.name
+    }
+
+    # Separate aliases based on top-level promotion status
+    promoted_aliases: list[Entry] = []
+    demoted_aliases: list[Entry] = []
+
+    for alias in all_aliases:
+        top_level_name = alias.name.split("/")[0]
+        # If top-level is promoted, include in promoted section
+        # If top-level is demoted, include in demoted section
+        if top_level_aliases.get(top_level_name, True):
+            promoted_aliases.append(alias)
+        else:
+            demoted_aliases.append(alias)
 
     # Format promoted aliases normally
     promoted_str = format_aliases_section(promoted_aliases)
 
     # Format demoted aliases as grey text
-    demoted_str = format_aliases_section(demoted_aliases, grey_text=True)
+    demoted_str = (
+        "-# And more: " + ", ".join(f"`.{e.name}`" for e in demoted_aliases)
+        if demoted_aliases
+        else ""
+    )
 
     # Builtins section
     builtins = sorted_by_order(
@@ -98,6 +113,6 @@ async def cmd_help(ctx: EmilyContext) -> None:
             message_parts.append("")  # Add spacing
         message_parts.append(demoted_str)
 
-    message_parts.extend(["", f"-# __Teach Emily stuff__", builtins_str])
+    message_parts.extend(["", f"__Teach Emily stuff__", builtins_str])
 
     await ctx.send("\n\n".join(filter(None, message_parts)))

@@ -51,6 +51,15 @@ async def _promote_demote_implementation(
             await ctx.send(format_not_found_message(alias))
             return
 
+        # Check if this is a top-level LAS (no "/" in name)
+        if "/" in entry.name:
+            await ctx.send(
+                format_validation_error(
+                    "Only top-level aliases can be promoted or demoted."
+                )
+            )
+            return
+
         # Check if already in desired state
         if promote and entry.promoted:
             await ctx.send(format_already_promoted_message(alias))
