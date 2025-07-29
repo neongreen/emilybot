@@ -26,7 +26,12 @@ def format_success_message(alias: str, action: str = "stored") -> str:
 
 
 @commands.command(name="edit")
-async def cmd_edit(ctx: EmilyContext, alias: str, *, new_content: str) -> None:
+async def cmd_edit(
+    ctx: EmilyContext,
+    alias: str,
+    *,  # you need * to treat the rest as a single string!
+    new_content: str,
+) -> None:
     """`.edit [alias] [text]`: Overwrite an existing alias."""
 
     db = ctx.bot.db

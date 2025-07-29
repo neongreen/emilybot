@@ -19,7 +19,12 @@ def format_success_message(alias: str, action: str = "stored") -> str:
 
 
 @commands.command(name="add")
-async def cmd_add(ctx: EmilyContext, alias: str, content: str) -> None:
+async def cmd_add(
+    ctx: EmilyContext,
+    alias: str,
+    *,  # you need * to treat the rest as a single string!
+    content: str,
+) -> None:
     """`.add [alias] [text]`: Add content to an existing entry or create a new one."""
 
     db = ctx.bot.db
