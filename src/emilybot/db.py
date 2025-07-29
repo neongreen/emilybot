@@ -29,6 +29,9 @@ class Entry:
     content: str
     """E.g. link to that manual"""
 
+    promoted: bool = True
+    """Whether this alias should be prominently displayed in help (True) or shown as grey text at bottom (False)"""
+
 
 @dataclass
 class ActionEdit:
@@ -61,10 +64,19 @@ class ActionDelete:
 
 
 @dataclass
+class ActionPromote:
+    """Represents a promote action on a remember entry."""
+
+    kind: Literal["promote"]
+    entry_id: uuid.UUID
+    promoted: bool
+
+
+@dataclass
 class Action:
     timestamp: datetime
     user_id: int
-    action: ActionCreate | ActionEdit | ActionDelete
+    action: ActionCreate | ActionEdit | ActionDelete | ActionPromote
 
 
 class DB:

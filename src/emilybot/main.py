@@ -13,6 +13,7 @@ from emilybot.commands.show import ShowCommands
 from emilybot.commands.edit import EditCommands
 from emilybot.commands.delete import DeleteCommands
 from emilybot.commands.help import HelpCommands
+from emilybot.commands.promote import PromoteCommands
 
 
 async def init_bot(dev: bool) -> Bot:
@@ -40,6 +41,7 @@ async def init_bot(dev: bool) -> Bot:
     edit_commands = EditCommands(bot, database, command_prefix)
     delete_commands = DeleteCommands(bot, database, command_prefix)
     help_commands = HelpCommands(bot, database, command_prefix)
+    promote_commands = PromoteCommands(bot, database, command_prefix)
 
     @bot.listen()
     async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]
@@ -95,28 +97,38 @@ async def init_bot(dev: bool) -> Bot:
 
     @bot.command()
     async def add(ctx: Context[Bot], alias: str, *, content: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """Add content to an existing entry or create a new one. Usage: .add <alias> <content>"""
+        """`.add <alias> <text>`: Add content to an existing alias or create a new one"""
         await save_commands.add(ctx, alias, content=content)
 
     @bot.command()
     async def random(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """Get a random non-blank line from an entry. Usage: .random <alias>"""
+        """`.random <alias>`: Get a random non-blank line from an entry"""
         await show_commands.random(ctx, alias)
 
     @bot.command()
     async def edit(ctx: Context[Bot], alias: str, *, new_content: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """Edit an existing remembered entry. Usage: .edit <alias> <new_content>"""
+        """`.edit <alias> <new_content>`: Edit an existing remembered entry"""
         await edit_commands.edit(ctx, alias, new_content=new_content)
 
     @bot.command()
     async def rm(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
-        """Delete an alias. Usage: .rm <alias>. 'Children' (foo/bar, etc) will not be deleted."""
+        """`.rm <alias>`: Delete an alias. 'Children' (foo/bar, etc) will not be deleted."""
         await delete_commands.rm(ctx, alias)
 
     @bot.command(name="help")
     async def help_command(ctx: Context[Bot]) -> None:  # pyright: ignore[reportUnusedFunction]
-        """Shows this help message."""
+        """`.help`: Shows this help message"""
         await help_commands.help(ctx)
+
+    @bot.command()
+    async def promote(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
+        """`.promote <alias>`: Make the alias show up in help"""
+        await promote_commands.promote(ctx, alias)
+
+    @bot.command()
+    async def demote(ctx: Context[Bot], alias: str) -> None:  # pyright: ignore[reportUnusedFunction]
+        """`.demote <alias>`: Hide the alias in the gray text at the bottom of help"""
+        await promote_commands.demote(ctx, alias)
 
     return bot
 
