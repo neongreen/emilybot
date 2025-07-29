@@ -18,7 +18,7 @@ class AliasValidator:
     # Alias constraints from requirements
     MIN_LENGTH = 2
     MAX_LENGTH = 100
-    VALID_PATTERN = re.compile(r"^[a-zA-Z0-9_-/]+$")
+    VALID_PATTERN = re.compile(r"^[a-zA-Z0-9_/\-]+$")
 
     @staticmethod
     def validate_alias(
