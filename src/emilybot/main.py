@@ -75,10 +75,9 @@ async def init_bot(dev: bool) -> EmilyBot:
             # Bot should refuse to handle anything that can annoy people.
             # Allowed things are: .ab<anything>
             if (
-                not re.match(
-                    r"^[a-zA-Z0-9][a-zA-Z0-9_/]", potential_alias
-                )  # avoid .[punctuation]
-                or not re.match("[0-9]", potential_alias)  # avoid .0123
+                re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_/]", potential_alias)
+                is None  # avoid .[punctuation]
+                or potential_alias.isdecimal()  # avoid .0123
             ):
                 logging.info(f"Not treating {potential_alias} as a command.")
                 return
