@@ -54,10 +54,11 @@ class HelpCommands:
                 for e in all_aliases
                 if e.name.startswith(name + "/") and e.name != name
             ]
-            for child in children:
-                alias_lines.append(f"- .{child.name}: {format_preview(child.content)}")
-
-            alias_lines.append("")  # for spacing between sections
+            if children:
+                alias_lines.append(
+                    "-# · · · Also: "
+                    + ", ".join(f".{child.name}" for child in children)
+                )
 
         if alias_lines:
             alias_lines.pop()
