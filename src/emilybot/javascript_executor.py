@@ -60,7 +60,7 @@ class JavaScriptExecutor:
                 self.deno_path,
                 "run",
                 "--allow-env=QTS_DEBUG",
-                "--allow-read=deno.lock",
+                "--allow-read=js-executor/deno.lock",
                 self.executor_script,
                 code,
                 context_json,
