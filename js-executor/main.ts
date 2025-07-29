@@ -9,7 +9,7 @@ async function main() {
   const args = Deno.args;
   
   if (args.length !== 2) {
-    console.error("Usage: deno run --allow-env=QTS_DEBUG js-executor/main.ts <js-code> <context-json>");
+    console.error("Expected two args");
     Deno.exit(1);
   }
   

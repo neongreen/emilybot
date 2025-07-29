@@ -10,7 +10,7 @@ async function runWithTimeout() {
   const args = Deno.args;
   
   if (args.length !== 2) {
-    console.error("Usage: deno run --allow-env=QTS_DEBUG js-executor/runner.ts <js-code> <context-json>");
+    console.error("Expected two args");
     Deno.exit(1);
   }
   
