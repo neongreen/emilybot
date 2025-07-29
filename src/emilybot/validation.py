@@ -18,7 +18,7 @@ class AliasValidator:
     # Alias constraints from requirements
     MIN_LENGTH = 2
     MAX_LENGTH = 100
-    VALID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-./]+$")
+    VALID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-/]+$")
 
     @staticmethod
     def validate_alias(
@@ -52,21 +52,23 @@ class AliasValidator:
 
         if not AliasValidator.VALID_PATTERN.match(alias):
             raise ValidationError(
-                "Alias can only contain alphanumeric characters, underscores, dashes, dots, and slashes"
+                "Alias can only contain alphanumeric characters and `_`, `-`, or `/`"
             )
 
         match purpose:
             case "create" | "lookup_no_endslash" | "delete":
                 if not re.match(r"^[a-zA-Z0-9_].*[a-zA-Z0-9_]$", alias):
                     raise ValidationError(
-                        "Alias must start and end with a letter, digit, or _"
+                        "Alias must start and end with a letter, digit, or `_`"
                     )
             case "lookup":
                 if not re.match(r"^[a-zA-Z0-9_].*$", alias):
-                    raise ValidationError("Alias must start with a letter, digit, or _")
+                    raise ValidationError(
+                        "Alias must start with a letter, digit, or `_`"
+                    )
                 if not re.match(r"^.*[a-zA-Z0-9_/]$", alias):
                     raise ValidationError(
-                        "Alias to lookup must end with a letter, digit, _, or /"
+                        "Alias to lookup must end with a letter, digit, `_`, or `/`"
                     )
             case _:
                 assert_never(purpose)
