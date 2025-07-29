@@ -6,6 +6,7 @@ dependencies = [
   "discord-py>=2.5.2",
   "inflect>=7.5.0",
   "typed-json-db>=0.2.2",
+  "watchfiles>=1.1.0",
 ]
 
 [project.scripts]

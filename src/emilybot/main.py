@@ -3,12 +3,16 @@ import logging
 import os
 import discord
 import re
+import sys
+from pathlib import Path
+from typing import Any, Optional
 from discord.ext import commands
+from watchfiles import awatch  # type: ignore
 
 from emilybot.discord import EmilyBot
 from emilybot.validation import AliasValidator, ValidationError
 from emilybot.commands.save import cmd_add
-from emilybot.commands.show import cmd_random, cmd_show
+from emilybot.commands.show import cmd_list, cmd_random, cmd_show
 from emilybot.commands.edit import cmd_edit
 from emilybot.commands.delete import cmd_rm
 from emilybot.commands.help import cmd_help
@@ -41,6 +45,7 @@ async def init_bot(dev: bool) -> EmilyBot:
     bot.add_command(cmd_help)
     bot.add_command(cmd_promote)
     bot.add_command(cmd_demote)
+    bot.add_command(cmd_list)
 
     @bot.listen()
     async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]
@@ -97,6 +102,79 @@ async def init_bot(dev: bool) -> EmilyBot:
     return bot
 
 
+async def run_bot_with_autoreload() -> None:
+    """Run the bot with autoreload in development mode."""
+
+    TOKEN = os.environ.get("TOKEN")
+    if TOKEN is None:
+        print("❌ TOKEN is not set")
+        sys.exit(1)
+
+    bot_task: Optional[asyncio.Task[Any]] = None
+    watch_paths = [Path("src/emilybot")]
+
+    async def start_bot():
+        nonlocal bot_task
+        if bot_task and not bot_task.done():
+            bot_task.cancel()
+            try:
+                await bot_task
+            except asyncio.CancelledError:
+                pass
+
+        logging.info("🚀 Starting bot...")
+        dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
+        bot = await init_bot(dev_mode)
+        bot_task = asyncio.create_task(bot.start(TOKEN))
+
+    async def stop_bot():
+        nonlocal bot_task
+        if bot_task and not bot_task.done():
+            logging.info("🛑 Stopping bot...")
+            bot_task.cancel()
+            try:
+                await bot_task
+            except asyncio.CancelledError:
+                pass
+
+    def is_relevant_file(file_path: str) -> bool:
+        """Check if a file change should trigger a restart."""
+        path = Path(file_path)
+        return (
+            path.suffix == ".py"
+            and "__pycache__" not in path.parts
+            and not path.name.startswith(".")
+        )
+
+    try:
+        # Start the bot initially
+        await start_bot()
+
+        # Watch for changes
+        logging.info(
+            f"👀 Watching for changes in: {', '.join(str(p) for p in watch_paths)}"
+        )
+        async for changes in awatch(*watch_paths, recursive=True):
+            relevant_changes = [
+                change for change in changes if is_relevant_file(change[1])
+            ]
+
+            if relevant_changes:
+                logging.info(
+                    f"📝 Detected changes: {[Path(change[1]).name for change in relevant_changes]}"
+                )
+                await stop_bot()
+                await asyncio.sleep(0.5)  # Brief pause before restart
+                await start_bot()
+
+    except KeyboardInterrupt:
+        logging.info("🔄 Bot stopped by user")
+    except Exception:
+        logging.exception("💥 Unexpected error in development server")
+    finally:
+        await stop_bot()
+
+
 async def main_async() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -105,11 +183,17 @@ async def main_async() -> None:
     )
     TOKEN = os.environ.get("TOKEN")
     if TOKEN is None:
-        print("TOKEN is not set")
-        exit(1)
+        print("❌ TOKEN is not set")
+        sys.exit(1)
     dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
-    bot = await init_bot(dev_mode)
-    await bot.start(TOKEN)
+
+    if dev_mode:
+        logging.info("🔧 Starting in development mode with autoreload...")
+        await run_bot_with_autoreload()
+    else:
+        logging.info("🚀 Starting in production mode...")
+        bot = await init_bot(dev_mode)
+        await bot.start(TOKEN)
 
 
 def main() -> None:

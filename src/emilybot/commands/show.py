@@ -71,6 +71,22 @@ async def cmd_show(ctx: EmilyContext, alias: str) -> None:
             await ctx.send(format_not_found_message(alias, command_prefix))
 
 
+@commands.command(name="list")
+async def cmd_list(ctx: EmilyContext) -> None:
+    """`.list`: List all aliases."""
+
+    db = ctx.bot.db
+    server_id = ctx.guild.id if ctx.guild else None
+
+    results = db.find_alias(
+        re.compile(".*"), server_id=server_id, user_id=ctx.author.id
+    )
+    if not results:
+        await ctx.send(f"❓ No entries found.")
+    else:
+        await ctx.send(", ".join(entry.name for entry in results))
+
+
 @commands.command(name="random")
 async def cmd_random(ctx: EmilyContext, alias: str) -> None:
     """`.random [alias]`: Get a random non-blank line from an entry."""
