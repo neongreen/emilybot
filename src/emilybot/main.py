@@ -67,15 +67,21 @@ async def init_bot(dev: bool) -> EmilyBot:
                 logging.info("Ignoring command meant for the dev bot.")
                 return
 
+            # Extract the command part (everything after prefix, before first space)
+            potential_alias = (
+                ctx.message.content[len(command_prefix) :].split(" ")[0].strip()
+            )
+
             # Bot should refuse to handle anything that can annoy people.
             # Allowed things are: .ab<anything>
-            msg_without_prefix = ctx.message.content[len(command_prefix) :]
-            if not re.match(r"^[a-zA-Z][a-zA-Z0-9_/]", msg_without_prefix):
-                logging.info(f"Not treating {msg_without_prefix} as a command.")
+            if (
+                not re.match(
+                    r"^[a-zA-Z0-9][a-zA-Z0-9_/]", potential_alias
+                )  # avoid .[punctuation]
+                or not re.match("[0-9]", potential_alias)  # avoid .0123
+            ):
+                logging.info(f"Not treating {potential_alias} as a command.")
                 return
-
-            # Extract the command part (everything after prefix, before first space)
-            potential_alias = msg_without_prefix.split(" ")[0].strip()
 
             try:
                 # If it can be an alias, try looking it up
