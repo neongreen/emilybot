@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from emilybot.javascript_executor import (
     JavaScriptExecutor,
-    parse_javascript_code,
+    extract_js_code,
     create_context_from_entry,
 )
 from emilybot.database import Entry
@@ -43,7 +43,7 @@ async def test_code_parsing():
     ]
 
     for i, (input_code, expected) in enumerate(test_cases):
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         if result == expected:
             print(f"✅ Test case {i + 1} passed")
         else:

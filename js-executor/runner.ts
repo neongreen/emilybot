@@ -1,4 +1,3 @@
-#!/usr/bin/env -S deno run --allow-read --allow-env
 /**
  * Timeout wrapper for JavaScript execution
  * This script runs the actual executor with a hard timeout
@@ -11,7 +10,7 @@ async function runWithTimeout() {
   const args = Deno.args;
   
   if (args.length !== 2) {
-    console.error("Usage: deno run --allow-read --allow-env js-executor/runner.ts <js-code> <context-json>");
+    console.error("Usage: deno run --allow-env=QTS_DEBUG js-executor/runner.ts <js-code> <context-json>");
     Deno.exit(1);
   }
   

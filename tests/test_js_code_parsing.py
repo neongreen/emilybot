@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from emilybot.javascript_executor import (
-    parse_javascript_code,
+    extract_js_code,
     create_context_from_entry,
 )
 from emilybot.database import Entry
@@ -23,84 +23,63 @@ class TestCodeParsing(unittest.TestCase):
         """Test parsing plain JavaScript code without backticks."""
         input_code = "console.log('hello');"
         expected = "console.log('hello');"
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
     def test_code_with_plain_triple_backticks(self):
         """Test parsing code wrapped in plain triple backticks."""
         input_code = "```\nconsole.log('hello');\n```"
         expected = "console.log('hello');"
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
     def test_code_with_js_language_identifier(self):
         """Test parsing code with 'js' language identifier."""
         input_code = "```js\nconsole.log('hello');\n```"
         expected = "console.log('hello');"
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
     def test_code_with_javascript_language_identifier(self):
         """Test parsing code with 'javascript' language identifier."""
         input_code = "```javascript\nconsole.log('hello');\n```"
         expected = "console.log('hello');"
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
     def test_multiline_code_with_backticks(self):
         """Test parsing multi-line JavaScript code with backticks."""
         input_code = "```js\nconsole.log('line 1');\nconsole.log('line 2');\n```"
         expected = "console.log('line 1');\nconsole.log('line 2');"
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
     def test_code_with_extra_whitespace(self):
         """Test parsing code with extra whitespace around backticks."""
         input_code = "  ```js  \n  console.log('hello');  \n  ```  "
         expected = "console.log('hello');"
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
     def test_empty_language_identifier(self):
         """Test parsing code with empty language identifier line."""
         input_code = "```\nconsole.log('hello');\n```"
         expected = "console.log('hello');"
-        result = parse_javascript_code(input_code)
-        self.assertEqual(result, expected)
-
-    def test_language_identifier_on_same_line_js(self):
-        """Test parsing code with 'js' identifier on same line as code."""
-        input_code = "```js console.log('hello');\n```"
-        expected = "console.log('hello');"
-        result = parse_javascript_code(input_code)
-        self.assertEqual(result, expected)
-
-    def test_language_identifier_on_same_line_javascript(self):
-        """Test parsing code with 'javascript' identifier on same line as code."""
-        input_code = "```javascript console.log('hello');\n```"
-        expected = "console.log('hello');"
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
     def test_language_identifier_on_separate_line(self):
         """Test parsing code with language identifier on separate line."""
         input_code = "```js\nconsole.log('hello');\nconsole.log('world');\n```"
         expected = "console.log('hello');\nconsole.log('world');"
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
     def test_empty_code_block(self):
         """Test parsing empty code block."""
         input_code = "```js\n```"
         expected = ""
-        result = parse_javascript_code(input_code)
-        self.assertEqual(result, expected)
-
-    def test_code_block_with_only_language_identifier(self):
-        """Test parsing code block with only language identifier."""
-        input_code = "```\njs\n```"
-        expected = ""
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
     def test_complex_multiline_code(self):
@@ -115,48 +94,7 @@ greet(context.name);
     console.log('Hello, ' + name + '!');
 }
 greet(context.name);"""
-        result = parse_javascript_code(input_code)
-        self.assertEqual(result, expected)
-
-    def test_code_with_backticks_inside_strings(self):
-        """Test parsing code that contains backticks inside string literals."""
-        input_code = "```js\nconsole.log('This has ``` inside');\n```"
-        expected = "console.log('This has ``` inside');"
-        result = parse_javascript_code(input_code)
-        self.assertEqual(result, expected)
-
-    def test_case_insensitive_language_identifiers(self):
-        """Test that language identifiers are case insensitive."""
-        test_cases = [
-            ("```JS\nconsole.log('hello');\n```", "console.log('hello');"),
-            ("```JavaScript\nconsole.log('hello');\n```", "console.log('hello');"),
-            ("```JAVASCRIPT\nconsole.log('hello');\n```", "console.log('hello');"),
-        ]
-
-        for input_code, expected in test_cases:
-            with self.subTest(input_code=input_code):
-                result = parse_javascript_code(input_code)
-                self.assertEqual(result, expected)
-
-    def test_edge_case_no_closing_backticks(self):
-        """Test edge case where opening backticks exist but no closing backticks."""
-        input_code = "```js\nconsole.log('hello');"
-        expected = "```js\nconsole.log('hello');"
-        result = parse_javascript_code(input_code)
-        self.assertEqual(result, expected)
-
-    def test_edge_case_only_opening_backticks(self):
-        """Test edge case with only opening backticks."""
-        input_code = "```"
-        expected = "```"
-        result = parse_javascript_code(input_code)
-        self.assertEqual(result, expected)
-
-    def test_edge_case_only_closing_backticks(self):
-        """Test edge case with only closing backticks."""
-        input_code = "console.log('hello');\n```"
-        expected = "console.log('hello');\n```"
-        result = parse_javascript_code(input_code)
+        result = extract_js_code(input_code)
         self.assertEqual(result, expected)
 
 

@@ -63,7 +63,7 @@ interface ExecutionResult {
 
 **CLI Usage:**
 ```bash
-deno run --allow-read js-executor/main.ts <js-code> <context-json>
+deno run --allow-env=QTS_DEBUG js-executor/main.ts <js-code> <context-json>
 ```
 
 ### 3. Python Integration

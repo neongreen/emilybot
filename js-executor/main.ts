@@ -1,7 +1,5 @@
-#!/usr/bin/env -S deno run --allow-read --allow-env
 /**
  * Main Deno CLI script for JavaScript execution with hard timeout
- * Usage: deno run --allow-read --allow-env js-executor/main.ts <js-code> <context-json>
  */
 
 import { JavaScriptExecutor } from "./executor.ts";
@@ -11,7 +9,7 @@ async function main() {
   const args = Deno.args;
   
   if (args.length !== 2) {
-    console.error("Usage: deno run --allow-read --allow-env js-executor/main.ts <js-code> <context-json>");
+    console.error("Usage: deno run --allow-env=QTS_DEBUG js-executor/main.ts <js-code> <context-json>");
     Deno.exit(1);
   }
   

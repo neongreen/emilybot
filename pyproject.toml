@@ -32,10 +32,10 @@ package = true
 
 [tool.pyright]
 typeCheckingMode = "strict"
-include = ["src"]
+include = ["src", "tests"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 timeout = 3
 asyncio_mode = "auto"
 

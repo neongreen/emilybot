@@ -55,8 +55,7 @@ class JavaScriptExecutor:
             cmd = [
                 self.deno_path,
                 "run",
-                "--allow-read",
-                "--allow-env",
+                "--allow-env=QTS_DEBUG",
                 self.executor_script,
                 code,
                 context_json,
@@ -221,10 +220,16 @@ def create_context_from_entry(entry: Entry) -> dict[str, str | int]:
 def extract_js_code(raw_code: str) -> str:
     """Parse and clean JavaScript code by stripping triple backticks.
 
-    Handles various backtick formats:
-    - Plain triple backticks: ```code```
-    - With js language identifier: ```js code```
-    - With javascript language identifier: ```javascript code```
+    Handles various backtick formats (markdown):
+    - Plain triple backticks:
+      ```
+      code
+      ```
+
+    - With a language identifier (for now we accept anything):
+      ```js|javascript|...
+      code
+      ```
 
     Args:
         raw_code: Raw JavaScript code that may contain triple backticks
@@ -234,35 +239,10 @@ def extract_js_code(raw_code: str) -> str:
     """
     code = raw_code.strip()
 
-    # Check if code starts and ends with triple backticks
-    if code.startswith("```") and code.endswith("```"):
-        # Remove the opening ```
-        code = code[3:]
+    lines = code.splitlines()
+    if lines[0].strip().startswith("```"):
+        lines.pop(0)  # Remove first line
+    if lines[-1].strip().startswith("```"):
+        lines.pop()  # Remove last line
 
-        # Check for language identifier on the first line
-        lines = code.split("\n", 1)
-        first_line = lines[0].strip()
-
-        # Check if first line starts with language identifier
-        first_line_lower = first_line.lower()
-        if first_line_lower.startswith("js "):
-            # Content on same line as js identifier
-            code = first_line[3:] + ("\n" + lines[1] if len(lines) > 1 else "")
-        elif first_line_lower.startswith("javascript "):
-            # Content on same line as javascript identifier
-            code = first_line[11:] + ("\n" + lines[1] if len(lines) > 1 else "")
-        elif first_line_lower in ("js", "javascript", ""):
-            # Language identifier on its own line
-            if len(lines) > 1:
-                code = lines[1]
-            else:
-                code = ""
-        else:
-            # First line is not a language identifier, keep it
-            code = "\n".join(lines) if len(lines) > 1 else lines[0]
-
-        # Remove the closing ```
-        if code.endswith("```"):
-            code = code[:-3]
-
-    return code.strip()
+    return "\n".join(lines).strip()
