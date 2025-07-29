@@ -29,7 +29,7 @@ class Entry:
     content: str
     """E.g. link to that manual"""
 
-    promoted: bool = True
+    promoted: bool
     """Whether this alias should be prominently displayed in help (True) or shown as grey text at bottom (False)"""
 
 

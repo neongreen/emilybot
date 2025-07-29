@@ -67,6 +67,7 @@ async def cmd_add(
                 created_at=datetime.now().isoformat(),
                 name=alias.lower(),
                 content=content,
+                promoted=False,
             )
             db.remember.add(doc)
 
