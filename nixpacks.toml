@@ -6,6 +6,8 @@ nixPkgs = [
   # Install sops and age so that we can decrypt the secrets from .env.yaml
   "sops",
   "age",
+  # Needed for the deno installer
+  "unzip",
 ]
 cmds = [
   # Download the same version of Deno we have in mise.toml (and which was used to generate the lockfile)
