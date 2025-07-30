@@ -6,6 +6,7 @@ age = "latest"
 uv = "latest"
 sops = "latest"
 dprint = "0.50.1"
+deno = "2.4.1"
 
 [env]
 '_'.file.path = ".env.yaml"

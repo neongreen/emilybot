@@ -7,6 +7,10 @@ nixPkgs = [
   "sops",
   "age",
 ]
+cmds = [
+  # Download the same version of Deno we have in mise.toml (and which was used to generate the lockfile)
+  "curl -fsSL https://deno.land/install.sh | sh -s v2.4.1",
+]
 
 [start]
 # Run the app with the decrypted secrets
