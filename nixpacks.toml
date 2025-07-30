@@ -14,6 +14,9 @@ cmds = [
   "curl -fsSL https://deno.land/install.sh | sh -s v2.4.1",
 ]
 
+[phases.start]
+paths = ["/root/.deno/bin"]
+
 [start]
 # Run the app with the decrypted secrets
 cmd = "sops exec-env .env.yaml 'uv run emilybot'"
