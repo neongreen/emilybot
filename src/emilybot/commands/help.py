@@ -71,26 +71,18 @@ async def cmd_help(ctx: EmilyContext) -> None:
 
     # Separate aliases based on top-level promotion status
     promoted_aliases: list[Entry] = []
-    demoted_aliases: list[Entry] = []
 
     for alias in all_aliases:
         top_level_name = alias.name.split("/")[0]
         # If top-level is promoted, include in promoted section
-        # If top-level is demoted, include in demoted section
         if top_level_aliases.get(top_level_name, True):
             promoted_aliases.append(alias)
-        else:
-            demoted_aliases.append(alias)
 
-    # Format promoted aliases normally
+    # Format promoted aliases
     promoted_str = format_aliases_section(promoted_aliases)
 
-    # Format demoted aliases as grey text
-    demoted_str = (
-        "-# And more: " + ", ".join(f"`.{e.name}`" for e in demoted_aliases)
-        if demoted_aliases
-        else ""
-    )
+    # Don't show demoted aliases, we quickly run into the 2k char limit
+    and_more = "Use `.list` to see all aliases."
 
     # Builtins section
     builtins = sorted_by_order(
@@ -107,11 +99,8 @@ async def cmd_help(ctx: EmilyContext) -> None:
 
     if promoted_str:
         message_parts.append(promoted_str)
-
-    if demoted_str:
-        if promoted_str:
-            message_parts.append("")  # Add spacing
-        message_parts.append(demoted_str)
+        message_parts.append("")
+    message_parts.append(and_more)
 
     message_parts.extend(["", f"__Teach Emily stuff__", builtins_str])
 

@@ -46,11 +46,12 @@ See [JavaScript execution](#javascript-execution) for more details.
 
 ### Organization
 
-| Command           | What it does                                      | Example             |
-| ----------------- | ------------------------------------------------- | ------------------- |
-| `.promote [name]` | Show the alias and its first line in help         | `.promote docs`     |
-| `.demote [name]`  | Show the alias in gray text at the bottom of help | `.demote old-stuff` |
-| `.help`           | Show all commands and aliases                     | `.help`             |
+| Command           | What it does                              | Example             |
+| ----------------- | ----------------------------------------- | ------------------- |
+| `.promote [name]` | Show the alias and its first line in help | `.promote docs`     |
+| `.demote [name]`  | Don't list in help, only in `.list`       | `.demote old-stuff` |
+| `.demote_all`     | Demote all aliases                        | `.demote_all`       |
+| `.help`           | Show all commands and promoted aliases    | `.help`             |
 
 ## Anatomy of an alias
 
@@ -99,6 +100,18 @@ Only top-level aliases (no `/`) can be promoted:
 | `weather`  | ✅ Yes       | No `/` in name  |
 
 When you promote `docs`, all `docs/*` aliases follow its promotion status.
+
+Currently, if an alias doesn't exist but its children do -- e.g. you have `.foo/bar` but don't have `.foo` --
+you can't demote it and it will always show up in help.
+
+#### .demote_all
+
+Clean the help to not show any top-level aliases.
+Folders will still show up.
+
+#### .help
+
+Display all available commands, promoted aliases, and alias folders.
 
 ## JavaScript execution
 
