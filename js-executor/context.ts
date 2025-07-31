@@ -2,6 +2,9 @@
  * Type definitions for JavaScript execution context
  */
 
+/**
+ * Available to the `.run` attribute of the alias.
+ */
 export interface ExecutionContext {
   content: string;      // Original entry content
   name: string;         // Entry name

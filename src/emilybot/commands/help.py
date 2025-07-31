@@ -115,4 +115,12 @@ async def cmd_help(ctx: EmilyContext) -> None:
 
     message_parts.extend(["", f"__Teach Emily stuff__", builtins_str])
 
+    message_parts.extend(
+        [
+            "",
+            f"__Full docs__",
+            f"https://github.com/neongreen/emilybot/tree/main/docs/README.md",
+        ]
+    )
+
     await ctx.send("\n\n".join(filter(None, message_parts)))
