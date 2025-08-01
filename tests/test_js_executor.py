@@ -2,11 +2,6 @@
 """Test script for JavaScript executor functionality."""
 
 import asyncio
-import sys
-from pathlib import Path
-
-# Add src to path so we can import emilybot modules
-sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from emilybot.javascript_executor import (
     JavaScriptExecutor,
@@ -94,12 +89,18 @@ async def test_javascript_execution():
 
     # Test simple console.log
     test_code = "console.log('Hello from JavaScript!');"
-    test_context = {
-        "content": "test content",
-        "name": "test",
-        "created_at": "2025-01-29T12:00:00Z",
-        "user_id": 123,
-    }
+    # Create a proper test entry for context
+    test_entry = Entry(
+        id=uuid.uuid4(),
+        server_id=12345,
+        user_id=123,
+        created_at="2025-01-29T12:00:00Z",
+        name="test",
+        content="test content",
+        promoted=False,
+        run=None,
+    )
+    test_context = create_context_from_entry(test_entry)
 
     try:
         success, output = await executor.execute(test_code, test_context)

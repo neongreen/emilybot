@@ -4,7 +4,8 @@
  */
 
 import { JavaScriptExecutor } from "./executor.ts";
-import type { ExecutionContext } from "./context.ts";
+import type { ExecutionContext, AliasRunContext } from "./context.ts";
+import { validateContext } from "./context.ts";
 
 async function runWithTimeout() {
   const args = Deno.args;
@@ -17,12 +18,17 @@ async function runWithTimeout() {
   const [jsCode, contextJson] = args;
   
   try {
-    // Parse context JSON
-    const context: ExecutionContext = JSON.parse(contextJson);
+    // Parse and validate context JSON
+    const rawContext = JSON.parse(contextJson);
+    const context: ExecutionContext = validateContext(rawContext);
     
-    // Validate context structure
-    if (!context.content || !context.name || !context.created_at || typeof context.user_id !== 'number') {
-      console.error("Invalid context structure");
+    // Check if this is an alias run context (has the required fields)
+    const isAliasContext = (ctx: ExecutionContext): ctx is AliasRunContext => {
+      return 'content' in ctx && 'name' in ctx && 'created_at' in ctx;
+    };
+    
+    if (!isAliasContext(context)) {
+      console.error("Invalid context: expected alias run context");
       Deno.exit(1);
     }
     

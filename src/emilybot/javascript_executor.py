@@ -6,15 +6,50 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
-from typing import Tuple
+from typing import Tuple, TypedDict, Union, Literal
 from emilybot.database import Entry
+
+
+# Type definitions matching TypeScript context types
+
+
+class AliasRunContext(TypedDict):
+    """Available to the .run attribute of the alias."""
+
+    content: str  # Original entry content
+    name: str  # Entry name
+    created_at: str  # Entry creation timestamp
+    user_id: int  # Entry creator ID
+
+
+class RunCommandContext(TypedDict):
+    """Available to the .run command for direct execution."""
+
+    user_id: int  # User who ran the command
+    server_id: int | None  # Server ID or None for DM
+
+
+# Union type for execution context
+ExecutionContext = Union[AliasRunContext, RunCommandContext]
+
+
+class ExecutionResult(TypedDict):
+    """Result of JavaScript execution."""
+
+    success: bool
+    output: str  # Console.log output
+    error: str | None  # Error message if failed (optional)
+
+
+# Error type literal
+ErrorType = Literal["timeout", "memory", "syntax", "runtime"]
 
 
 @dataclass
 class JSExecutionError(Exception):
     """Exception raised when JavaScript execution fails."""
 
-    error_type: str  # "timeout", "memory", "syntax", "runtime"
+    error_type: ErrorType
     message: str
 
 
@@ -34,14 +69,12 @@ class JavaScriptExecutor:
         self.deno_path = deno_path
         self.executor_script = "js-executor/main.ts"
 
-    async def execute(
-        self, code: str, context: dict[str, str | int]
-    ) -> Tuple[bool, str]:
+    async def execute(self, code: str, context: ExecutionContext) -> Tuple[bool, str]:
         """Execute JavaScript code with context.
 
         Args:
             code: JavaScript code to execute
-            context: Context object to inject into JavaScript environment
+            context: ExecutionContext (AliasRunContext or RunCommandContext)
 
         Returns:
             Tuple of (success: bool, output: str)
@@ -60,7 +93,7 @@ class JavaScriptExecutor:
                 self.deno_path,
                 "run",
                 "--allow-env=QTS_DEBUG",
-                "--allow-read=js-executor/deno.lock",
+                "--allow-read=js-executor/",
                 self.executor_script,
                 code,
                 context_json,
@@ -206,20 +239,38 @@ class JavaScriptExecutor:
         return "JavaScript runtime error"
 
 
-def create_context_from_entry(entry: Entry) -> dict[str, str | int]:
-    """Create JavaScript execution context from Entry object.
+def create_context_from_entry(entry: Entry) -> AliasRunContext:
+    """Create AliasRunContext from Entry object.
 
     Args:
         entry: Database entry to create context from
 
     Returns:
-        Context dictionary for JavaScript execution
+        AliasRunContext for JavaScript execution
     """
     return {
         "content": entry.content,
         "name": entry.name,
         "created_at": entry.created_at,
         "user_id": entry.user_id,
+    }
+
+
+def create_run_command_context(
+    user_id: int, server_id: int | None
+) -> RunCommandContext:
+    """Create RunCommandContext for direct .run command execution.
+
+    Args:
+        user_id: ID of the user running the command
+        server_id: ID of the server, or None for DM
+
+    Returns:
+        RunCommandContext for JavaScript execution
+    """
+    return {
+        "user_id": user_id,
+        "server_id": server_id,
     }
 
 

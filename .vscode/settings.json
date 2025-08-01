@@ -25,5 +25,6 @@
     "**/__pycache__": true,
     "**/.jj": true,
     "**/*.egg-info": true
-  }
+  },
+  "deno.enable": true
 }

@@ -3,7 +3,7 @@
  */
 
 import { JavaScriptExecutor } from "./executor.ts";
-import type { ExecutionContext } from "./context.ts";
+import type { ExecutionContext, AliasRunContext, RunCommandContext } from "./context.ts";
 
 async function main() {
   const args = Deno.args;
@@ -19,10 +19,19 @@ async function main() {
     // Parse context JSON
     const context: ExecutionContext = JSON.parse(contextJson);
     
-    // Validate context structure
-    if (!context.content || !context.name || !context.created_at || typeof context.user_id !== 'number') {
-      console.error("Invalid context structure");
-      Deno.exit(1);
+    // Validate context structure - check if it's AliasRunContext or RunCommandContext
+    if ('content' in context) {
+      // AliasRunContext validation
+      if (!context.content || !context.name || !context.created_at || typeof context.user_id !== 'number') {
+        console.error("Invalid alias run context structure");
+        Deno.exit(1);
+      }
+    } else {
+      // RunCommandContext validation
+      if (typeof context.user_id !== 'number' || (context.server_id !== null && typeof context.server_id !== 'number')) {
+        console.error("Invalid run command context structure");
+        Deno.exit(1);
+      }
     }
     
     // Create a hard timeout that will kill the process

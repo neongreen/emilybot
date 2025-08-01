@@ -2,13 +2,10 @@
 """Test script for JavaScript executor error handling."""
 
 import asyncio
-import sys
-from pathlib import Path
 
-# Add src to path so we can import emilybot modules
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
-from emilybot.javascript_executor import JavaScriptExecutor
+from emilybot.javascript_executor import JavaScriptExecutor, create_context_from_entry
+from emilybot.database import Entry
+import uuid
 
 
 async def test_error_handling():
@@ -17,12 +14,18 @@ async def test_error_handling():
 
     executor = JavaScriptExecutor(timeout=1.0)
 
-    test_context = {
-        "content": "test content",
-        "name": "test",
-        "created_at": "2025-01-29T12:00:00Z",
-        "user_id": 123,
-    }
+    # Create a proper test entry for context
+    test_entry = Entry(
+        id=uuid.uuid4(),
+        server_id=12345,
+        user_id=123,
+        created_at="2025-01-29T12:00:00Z",
+        name="test",
+        content="test content",
+        promoted=False,
+        run=None,
+    )
+    test_context = create_context_from_entry(test_entry)
 
     # Test syntax error
     print("\n1. Testing syntax error...")

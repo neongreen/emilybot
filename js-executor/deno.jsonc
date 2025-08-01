@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["ES2022", "DOM", "deno.ns"]
+  },
+  "imports": {
+    "quickjs-emscripten": "npm:quickjs-emscripten@^0.31.0",
+    "zod": "npm:zod@^4.0.14"
+  },
+  // Put node modules into js-executor/ so that --allow-read for the cache folder is not needed
+  "nodeModulesDir": "auto"
+}

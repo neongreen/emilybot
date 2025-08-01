@@ -2,8 +2,8 @@
  * QuickJS wrapper for sandboxed JavaScript execution
  */
 
-import { getQuickJS, QuickJSContext, QuickJSRuntime } from "https://esm.sh/quickjs-emscripten@0.23.0";
-import type { ExecutionContext, ExecutionResult, JSExecutionError } from "./context.ts";
+import { getQuickJS, QuickJSContext, QuickJSRuntime } from "quickjs-emscripten";
+import type { ExecutionContext, AliasRunContext, RunCommandContext, ExecutionResult, JSExecutionError } from "./context.ts";
 
 export class JavaScriptExecutor {
   private timeout: number;
@@ -38,12 +38,25 @@ export class JavaScriptExecutor {
       vm.setProp(consoleHandle, "log", consoleLogHandle);
       vm.setProp(vm.global, "console", consoleHandle);
       
-      // Inject context object
+      // Inject context object based on context type
       const contextHandle = vm.newObject();
-      vm.setProp(contextHandle, "content", vm.newString(context.content));
-      vm.setProp(contextHandle, "name", vm.newString(context.name));
-      vm.setProp(contextHandle, "created_at", vm.newString(context.created_at));
-      vm.setProp(contextHandle, "user_id", vm.newNumber(context.user_id));
+      
+      if ('content' in context) {
+        // AliasRunContext
+        vm.setProp(contextHandle, "content", vm.newString(context.content));
+        vm.setProp(contextHandle, "name", vm.newString(context.name));
+        vm.setProp(contextHandle, "created_at", vm.newString(context.created_at));
+        vm.setProp(contextHandle, "user_id", vm.newNumber(context.user_id));
+      } else {
+        // RunCommandContext
+        vm.setProp(contextHandle, "user_id", vm.newNumber(context.user_id));
+        if (context.server_id !== null) {
+          vm.setProp(contextHandle, "server_id", vm.newNumber(context.server_id));
+        } else {
+          vm.setProp(contextHandle, "server_id", vm.null);
+        }
+      }
+      
       vm.setProp(vm.global, "context", contextHandle);
       
       // Dispose handles after setting properties

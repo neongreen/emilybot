@@ -1,5 +1,57 @@
 {
   "version": "5",
+  "specifiers": {
+    "npm:quickjs-emscripten@0.31": "0.31.0",
+    "npm:zod@^4.0.14": "4.0.14"
+  },
+  "npm": {
+    "@jitl/quickjs-ffi-types@0.31.0": {
+      "integrity": "sha512-1yrgvXlmXH2oNj3eFTrkwacGJbmM0crwipA3ohCrjv52gBeDaD7PsTvFYinlAnqU8iPME3LGP437yk05a2oejw=="
+    },
+    "@jitl/quickjs-wasmfile-debug-asyncify@0.31.0": {
+      "integrity": "sha512-YkdzQdr1uaftFhgEnTRjTTZHk2SFZdpWO7XhOmRVbi6CEVsH9g5oNF8Ta1q3OuSJHRwwT8YsuR1YzEiEIJEk6w==",
+      "dependencies": [
+        "@jitl/quickjs-ffi-types"
+      ]
+    },
+    "@jitl/quickjs-wasmfile-debug-sync@0.31.0": {
+      "integrity": "sha512-8XvloaaWBONqcHXYs5tWOjdhQVxzULilIfB2hvZfS6S+fI4m2+lFiwQy7xeP8ExHmiZ7D8gZGChNkdLgjGfknw==",
+      "dependencies": [
+        "@jitl/quickjs-ffi-types"
+      ]
+    },
+    "@jitl/quickjs-wasmfile-release-asyncify@0.31.0": {
+      "integrity": "sha512-uz0BbQYTxNsFkvkurd7vk2dOg57ElTBLCuvNtRl4rgrtbC++NIndD5qv2+AXb6yXDD3Uy1O2PCwmoaH0eXgEOg==",
+      "dependencies": [
+        "@jitl/quickjs-ffi-types"
+      ]
+    },
+    "@jitl/quickjs-wasmfile-release-sync@0.31.0": {
+      "integrity": "sha512-hYduecOByj9AsAfsJhZh5nA6exokmuFC8cls39+lYmTCGY51bgjJJJwReEu7Ff7vBWaQCL6TeDdVlnp2WYz0jw==",
+      "dependencies": [
+        "@jitl/quickjs-ffi-types"
+      ]
+    },
+    "quickjs-emscripten-core@0.31.0": {
+      "integrity": "sha512-oQz8p0SiKDBc1TC7ZBK2fr0GoSHZKA0jZIeXxsnCyCs4y32FStzCW4d1h6E1sE0uHDMbGITbk2zhNaytaoJwXQ==",
+      "dependencies": [
+        "@jitl/quickjs-ffi-types"
+      ]
+    },
+    "quickjs-emscripten@0.31.0": {
+      "integrity": "sha512-K7Yt78aRPLjPcqv3fIuLW1jW3pvwO21B9pmFOolsjM/57ZhdVXBr51GqJpalgBlkPu9foAvhEAuuQPnvIGvLvQ==",
+      "dependencies": [
+        "@jitl/quickjs-wasmfile-debug-asyncify",
+        "@jitl/quickjs-wasmfile-debug-sync",
+        "@jitl/quickjs-wasmfile-release-asyncify",
+        "@jitl/quickjs-wasmfile-release-sync",
+        "quickjs-emscripten-core"
+      ]
+    },
+    "zod@4.0.14": {
+      "integrity": "sha512-nGFJTnJN6cM2v9kXL+SOBq3AtjQby3Mv5ySGFof5UGRHrRioSJ5iG680cYNjE/yWk671nROcpPj4hAS8nyLhSw=="
+    }
+  },
   "remote": {
     "https://esm.sh/quickjs-emscripten@0.23.0": "76646ded437b01e146d5797479ea62b857e9a8b48919da156bc6249c822706d7",
     "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/generated/emscripten-module.WASM_DEBUG_ASYNCIFY.mjs": "1e919e7555fec767a9aae3287e62ad22eef9b66925010d67f5aaaaf6d215ce86",
@@ -13,5 +65,11 @@
     "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/module-asyncify.mjs": "76890cea522b6409d1566cc5ede7cdcca570bc87f8618365b2cabcb069958a53",
     "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/module.mjs": "d699864e4cef7680bf64c2ebdbab2ce39a3c517a87171a1f3d4c66fda5f2e90f",
     "https://esm.sh/quickjs-emscripten@0.23.0/denonext/quickjs-emscripten.mjs": "68c0600ae1e57c0c1a05bb9b6eac776e7c49183351f5ba7ec160f427f1e00378"
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:quickjs-emscripten@0.31",
+      "npm:zod@^4.0.14"
+    ]
   }
 }

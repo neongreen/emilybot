@@ -11,10 +11,6 @@ deno = "2.4.1"
 [env]
 '_'.file.path = ".env.yaml"
 
-[tasks.pyright]
-description = "Typecheck"
-run = "uv run pyright --project=."
-
 [tasks.dev]
 description = "Start the bot"
 env.DEV_MODE = "True"
@@ -28,10 +24,26 @@ run = "uv run pytest"
 description = "Format code"
 run = "dprint fmt"
 
-[tasks.check]
-description = "Check formatting"
-run = "dprint check"
-
 [tasks."secrets:updatekeys"]
 description = "Update secret keys"
 run = "sops updatekeys .env.yaml"
+
+# --- checks ---
+
+[tasks."check"]
+description = "Run all checks before committing"
+depends = ["check:*"]
+
+[tasks."check:pyright"]
+description = "Typecheck python"
+alias = "pyright"
+run = "uv run pyright --project=."
+
+[tasks."check:fmt"]
+description = "Check formatting"
+run = "dprint check"
+
+[tasks."check:deno"]
+description = "Typecheck js-executor/ JS code"
+dir = "js-executor"
+run = "deno check"

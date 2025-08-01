@@ -35,9 +35,10 @@ Emily:  Why did the chicken cross the road?
 
 ### JavaScript
 
-| Command                  | What it does               | Example                                                     |
-| ------------------------ | -------------------------- | ----------------------------------------------------------- |
-| `.set [name].run [code]` | Add JavaScript to an alias | `.set weather.run console.log("Today: " + context.content)` |
+| Command                  | What it does                | Example                                                     |
+| ------------------------ | --------------------------- | ----------------------------------------------------------- |
+| `.set [name].run [code]` | Add JavaScript to an alias  | `.set weather.run console.log("Today: " + context.content)` |
+| `.run [code]`            | Execute JavaScript directly | `.run console.log("Hello, world!")`                         |
 
 When you use an alias that has attribute `run`, instead of showing the text it will execute the code.
 Everything printed with `console.log` will be shown in the chat.
@@ -128,7 +129,9 @@ Add JavaScript to make aliases dynamic:
 
 <!-- See js-executor/context.ts -->
 
-Your JavaScript gets a `context` object:
+Your JavaScript gets a `context` object with different properties depending on how it's executed:
+
+**For `.alias.run` (alias with JavaScript):**
 
 | Property             | What it contains                     | Example                  |
 | -------------------- | ------------------------------------ | ------------------------ |
@@ -136,6 +139,13 @@ Your JavaScript gets a `context` object:
 | `context.name`       | The alias name                       | `"weather"`              |
 | `context.created_at` | When created                         | `"2025-01-29T12:00:00Z"` |
 | `context.user_id`    | ID of the user who created the alias | `123456789`              |
+
+**For `.run [code]` (direct execution):**
+
+| Property            | What it contains                   | Example               |
+| ------------------- | ---------------------------------- | --------------------- |
+| `context.user_id`   | ID of the user running the command | `123456789`           |
+| `context.server_id` | Server ID (or `null` for DM)       | `987654321` or `null` |
 
 ### Code formats
 
@@ -210,6 +220,19 @@ Be yourself; everyone else is already taken.
 .quotes
 # Shows: Be yourself; everyone else is already taken.
 # (or one of the other quotes, randomly chosen)
+```
+
+**Direct JavaScript execution:**
+
+```
+.run console.log("Current time: " + new Date().toLocaleTimeString())
+# Shows: Current time: 2:30:45 PM
+
+.run let nums = [1,2,3,4,5]; console.log("Sum:", nums.reduce((a,b) => a+b))
+# Shows: Sum: 15
+
+.run console.log("User ID:", context.user_id)
+# Shows: User ID: 123456789
 ```
 
 ### Organization example
