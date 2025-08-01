@@ -24,9 +24,10 @@ def format_validation_error(error_message: str) -> str:
 
 
 def format_show_content(content: str) -> str:
-    # trim if >2000char, *then* trim if >100 lines
-    if len(content) > 2000:
-        content = content[:2000] + "..."
+    # trim if >1900char, *then* trim if >100 lines.
+    # Discord limit is 2000 but we go a bit lower.
+    if len(content) > 1900:
+        content = content[:1900] + "..."
     if content.count("\n") > 100:
         content = "\n".join(content.split("\n")[:100]) + "..."
     return content
