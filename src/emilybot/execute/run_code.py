@@ -33,7 +33,7 @@ async def run_code(
 
     # Create Context for direct execution
     context = Context(
-        message=CtxMessage(content=ctx.message.content),
+        message=CtxMessage(text=ctx.message.content),
         user=CtxUser(id=ctx.author.id, name=ctx.author.display_name),
         server=CtxServer(id=ctx.guild.id) if ctx.guild else None,
     )

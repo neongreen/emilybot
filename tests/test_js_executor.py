@@ -58,7 +58,7 @@ async def test_javascript_execution():
     # Test simple console.log
     test_code = "console.log('Hello from JavaScript!');"
     test_context = Context(
-        message=CtxMessage(content="test message"),
+        message=CtxMessage(text="test message"),
         user=CtxUser(id=123, name="TestUser"),
         server=CtxServer(id=12345),
     )

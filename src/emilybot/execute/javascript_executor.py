@@ -28,7 +28,7 @@ class CtxServer:
 
 @dataclass
 class CtxMessage:
-    content: str
+    text: str
 
 
 @dataclass
@@ -48,7 +48,7 @@ class Context:
 
 def run_code_context(code: str) -> Context:
     return Context(
-        message=CtxMessage(content=f".run {code}"),
+        message=CtxMessage(text=f".run {code}"),
         user=CtxUser(id=1, name="Test user"),
         server=None,
     )
@@ -115,7 +115,7 @@ class JavaScriptExecutor:
             JSExecutionError: When execution fails with specific error types
         """
         try:
-            fields_json = json.dumps({"context": context.as_json()})
+            fields_json = json.dumps({"ctx": context.as_json()})
             commands_json = json.dumps(commands)
 
             with TemporaryDirectory() as temp_dir:
