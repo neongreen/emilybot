@@ -59,14 +59,8 @@ class CommandQueryService:
         all_entries_pattern = re.compile(".*")
 
         if server_id is not None:
-            # Server context: find entries for this server
-            # Note: The current find_alias implementation doesn't filter by user_id when server_id is provided
-            # So we need to filter manually
-            all_server_entries = self.db.find_alias(
-                all_entries_pattern, server_id=server_id
-            )
-            # Filter to only entries owned by this user
-            return [entry for entry in all_server_entries if entry.user_id == user_id]
+            # Server context: find entries for this server, any user is ok
+            return self.db.find_alias(all_entries_pattern, server_id=server_id)
         else:
             # DM context: find entries for this user in DM (server_id=None)
             return self.db.find_alias(all_entries_pattern, user_id=user_id)
