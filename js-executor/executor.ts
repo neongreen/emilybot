@@ -14,7 +14,7 @@ export async function execute(
   const QuickJS = await getQuickJS()
   const ctx = QuickJS.newContext()
   const arena = new Arena(ctx, {
-    isMarshalable(_target) {
+    isMarshalable(_target: any): boolean {
       // We want to marshal functions and tagging/whitelisting them is tricky
       return true
     },

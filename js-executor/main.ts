@@ -2,7 +2,7 @@
  * Main Deno CLI script for JavaScript execution with hard timeout
  */
 
-import z, { success, ZodError } from "zod/v4"
+import z, { ZodError } from "zod/v4"
 import { execute } from "./executor.ts"
 import { lib } from "./lib.ts"
 import { validateCommands } from "./types.ts"
