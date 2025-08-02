@@ -51,6 +51,7 @@ async def init_bot(dev: bool) -> EmilyBot:
     bot.add_command(cmd_list)
     bot.add_command(cmd_set)
     bot.add_command(cmd_run)
+    bot.add_command(cmd_cmd)
 
     @bot.listen()
     async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]

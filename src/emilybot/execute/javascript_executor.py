@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
+from tempfile import TemporaryDirectory
 from typing import Any, Tuple, TypedDict, Literal
 
 
@@ -114,46 +115,55 @@ class JavaScriptExecutor:
             JSExecutionError: When execution fails with specific error types
         """
         try:
-            print(context)
-            print(commands)
             fields_json = json.dumps({"context": context.as_json()})
             commands_json = json.dumps(commands)
 
-            # Build command
-            cmd = [
-                self.deno_path,
-                "run",
-                "--allow-env=QTS_DEBUG",
-                "--allow-read=js-executor/",
-                self.executor_script,
-                code,
-                fields_json,
-                commands_json,
-            ]
+            with TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                fields_path = temp_path / "fields.json"
+                commands_path = temp_path / "commands.json"
+                fields_path.write_text(fields_json)
+                commands_path.write_text(commands_json)
 
-            # Execute with timeout
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=Path.cwd(),
-                env={"NO_COLOR": "1"},
-            )
+                # Build command
+                cmd = [
+                    self.deno_path,
+                    "run",
+                    "--allow-env=QTS_DEBUG",
+                    f"--allow-read=js-executor/,{temp_path}",
+                    self.executor_script,
+                    code,
+                    str(fields_path),
+                    str(commands_path),
+                ]
 
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=self.timeout
-                    + 0.5,  # Add small buffer to Deno's internal timeout
+                # Execute with timeout
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=Path.cwd(),
+                    env={"NO_COLOR": "1"},
                 )
-            except asyncio.TimeoutError:
-                # Kill the process if it's still running
+
                 try:
-                    process.kill()
-                    await process.wait()
-                except ProcessLookupError:
-                    pass  # Process already terminated
-                return False, "⏱️ JavaScript execution timed out (1 second limit)", None
+                    stdout, stderr = await asyncio.wait_for(
+                        process.communicate(),
+                        timeout=self.timeout
+                        + 0.5,  # Add small buffer to Deno's internal timeout
+                    )
+                except asyncio.TimeoutError:
+                    # Kill the process if it's still running
+                    try:
+                        process.kill()
+                        await process.wait()
+                    except ProcessLookupError:
+                        pass  # Process already terminated
+                    return (
+                        False,
+                        "⏱️ JavaScript execution timed out (1 second limit)",
+                        None,
+                    )
 
             # Decode output
             stdout_text = stdout.decode("utf-8").strip() if stdout else ""

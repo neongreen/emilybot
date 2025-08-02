@@ -50,18 +50,12 @@ export async function execute(
       const $ = ({
         commands: commandsMap,
         cmd: function(name) {
-          if (!this.commands[name]) {
+          if (!(name in this.commands)) {
             throw new Error("Command not found: " + name)
           }
           return this.commands[name].run()
         },
       })
-      $.cmd = function(name) {
-        if (!this.commands[name]) {
-          throw new Error("Command not found: " + name)
-        }
-        return this.commands[name].run()
-      }
       for (const key in $$.fields) {
         $[key] = $$.fields[key]
       }

@@ -9,14 +9,16 @@ import { validateCommands } from "./types.ts"
 
 async function main() {
   if (Deno.args.length !== 3) {
-    console.error("Usage: main.ts <code> <fields> <commands>")
+    console.error("Usage: main.ts <code> <fields.json> <commands.json>")
     Deno.exit(1)
   }
 
-  const [code, fieldsJson, commandsJson] = Deno.args
+  const [code, fieldsJsonPath, commandsJsonPath] = Deno.args
 
   let fields, commands
   try {
+    const fieldsJson = await Deno.readTextFile(fieldsJsonPath)
+    const commandsJson = await Deno.readTextFile(commandsJsonPath)
     fields = JSON.parse(fieldsJson)
     if (typeof fields !== "object" || fields === null) {
       throw new Error("Fields must be a valid JSON object")

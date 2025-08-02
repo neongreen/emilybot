@@ -51,10 +51,12 @@ async def cmd_cmd(ctx: EmilyContext, alias: str) -> None:
             return
 
         # Run the command
-        success, output, _ = await run_code(
-            ctx, code=f"$.cmd('{json.dumps(entry.name)}')"
+        success, output, value = await run_code(
+            ctx, code=f"$.cmd({json.dumps(entry.name)})"
         )
-        if not success:
+        if success:
+            await ctx.send(format_show_content(output, value))
+        else:
             await ctx.send(f"❌ Error executing JavaScript: {output}")
 
     except ValidationError as e:
