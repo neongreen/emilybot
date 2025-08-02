@@ -115,7 +115,8 @@ class JavaScriptExecutor:
             JSExecutionError: When execution fails with specific error types
         """
         try:
-            fields_json = json.dumps({"ctx": context.as_json()})
+            # XXX: ctx left for backwards compatibility, will remove later
+            fields_json = json.dumps({**context.as_json(), "ctx": context.as_json()})
             commands_json = json.dumps(commands)
 
             with TemporaryDirectory() as temp_dir:

@@ -13,12 +13,13 @@ def test_get_available_commands_server_context(server_context: SimpleNamespace):
     )
 
     # Verify results
-    assert len(commands) == 2
+    assert len(commands) == 3
     command_names = [cmd["name"] for cmd in commands]
     command_by_name = {cmd["name"]: cmd for cmd in commands}
 
     assert "test-command" in command_names
     assert "another-cmd" in command_names
+    assert "other-user-cmd" in command_names
     assert command_by_name["test-command"]["content"] == "This is a test command"
     assert command_by_name["test-command"]["name"] == "test-command"
     assert command_by_name["another-cmd"]["content"] == "Another command content"
@@ -26,7 +27,6 @@ def test_get_available_commands_server_context(server_context: SimpleNamespace):
 
     # Verify excluded commands
     assert "dm-command" not in command_names
-    assert "other-user-cmd" not in command_names
 
 
 def test_get_available_commands_dm_context(dm_context: SimpleNamespace):

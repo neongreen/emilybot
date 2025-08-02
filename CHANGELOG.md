@@ -4,7 +4,7 @@
 
 - BREAKING: Commands can access info about their own invocation via `this` instead of `context`.
 - BREAKING: `.show` shows command structure instead of running it.
-- Commands now have access to the message context via `$.ctx`.
+- Commands now have access to `$.message`, `$.user`, and `$.server`.
 - Commands can access other commands' content using `$.commands[name]`.
 - Commands can be called from JS using `$.cmd(name)`.
 
