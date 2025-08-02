@@ -1,0 +1,4 @@
+# used on CI
+
+[env]
+'_'.file.path = ".env.ci.yaml"
