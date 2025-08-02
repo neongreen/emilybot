@@ -3,13 +3,15 @@ def format_show_content(content: str, value: str | None) -> str:
     # Discord limit is 2000 but we go a bit lower.
     content = content.strip()
     if content == "" and value is None:
-        return "No output or value returned."
+        return "*No output or value returned.*"
     elif content == "" and value is not None:
-        return f"**Returned value:**{single_or_triple_backticks(limit(value, 1900))}"
+        return f"*Result:* {single_or_triple_backticks(limit(value, 1900))}"
     else:
         content = limit(content, 1800)
         if value:
-            content += f"\n\n**Returned value:**{single_or_triple_backticks(limit(value, 100, 10))}"
+            content += (
+                f"\n\n*Result:* {single_or_triple_backticks(limit(value, 100, 10))}"
+            )
         return content
 
 

@@ -41,14 +41,14 @@ export async function execute(
       },
     })
 
-    arena.expose({ "$$": { "fields": fields, "commands": commands } })
+    arena.expose({ "$init__": { "fields": fields, "commands": commands } })
     // TODO: can I deepfreeze or smth? do I even need to?
     // TODO: rename code run etc
     // TODO: forbid 'console' etc
     arena.evalCode(`
-      const commandsMap = ({})
+      const $commandsMap__ = ({})
       const $ = ({
-        commands: commandsMap,
+        commands: $commandsMap__,
         cmd: function(name) {
           if (!(name in this.commands)) {
             throw new Error("Command not found: " + name)
@@ -56,10 +56,10 @@ export async function execute(
           return this.commands[name].run()
         },
       })
-      for (const key in $$.fields) {
-        $[key] = $$.fields[key]
+      for (const key in $init__.fields) {
+        $[key] = $init__.fields[key]
       }
-      for (const command of $$.commands) {
+      for (const command of $init__.commands) {
         const obj = ({
           name: command.name,
           content: command.content,
@@ -72,10 +72,8 @@ export async function execute(
             }
           }
         })
-        commandsMap[command.name] = obj
+        $commandsMap__[command.name] = obj
       }
-      $.commands = commandsMap
-      Object.freeze($)
     `)
 
     const result = arena.evalCode(code)
