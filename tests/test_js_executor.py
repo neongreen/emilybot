@@ -3,13 +3,14 @@
 
 import asyncio
 
-from emilybot.javascript_executor import (
+from emilybot.execute.javascript_executor import (
     JavaScriptExecutor,
     extract_js_code,
-    create_context_from_entry,
+    Context,
+    CtxMessage,
+    CtxUser,
+    CtxServer,
 )
-from emilybot.database import Entry
-import uuid
 
 
 async def test_code_parsing():
@@ -48,39 +49,6 @@ async def test_code_parsing():
             print(f"   Got: {repr(result)}")
 
 
-async def test_context_creation():
-    """Test context creation from Entry."""
-    print("\nTesting context creation...")
-
-    # Create a test entry
-    entry = Entry(
-        id=uuid.uuid4(),
-        server_id=12345,
-        user_id=67890,
-        created_at="2025-01-29T12:00:00Z",
-        name="test-entry",
-        content="This is test content",
-        promoted=False,
-        run=None,
-    )
-
-    context = create_context_from_entry(entry)
-
-    expected_context = {
-        "content": "This is test content",
-        "name": "test-entry",
-        "created_at": "2025-01-29T12:00:00Z",
-        "user_id": 67890,
-    }
-
-    if context == expected_context:
-        print("✅ Context creation test passed")
-    else:
-        print("❌ Context creation test failed:")
-        print(f"   Expected: {expected_context}")
-        print(f"   Got: {context}")
-
-
 async def test_javascript_execution():
     """Test JavaScript execution (requires Deno to be installed)."""
     print("\nTesting JavaScript execution...")
@@ -89,21 +57,14 @@ async def test_javascript_execution():
 
     # Test simple console.log
     test_code = "console.log('Hello from JavaScript!');"
-    # Create a proper test entry for context
-    test_entry = Entry(
-        id=uuid.uuid4(),
-        server_id=12345,
-        user_id=123,
-        created_at="2025-01-29T12:00:00Z",
-        name="test",
-        content="test content",
-        promoted=False,
-        run=None,
+    test_context = Context(
+        message=CtxMessage(content="test message"),
+        user=CtxUser(id=123, name="TestUser"),
+        server=CtxServer(id=12345),
     )
-    test_context = create_context_from_entry(test_entry)
 
     try:
-        success, output = await executor.execute(test_code, test_context)
+        success, output, _value = await executor.execute(test_code, test_context, [])
         if success:
             print(f"✅ JavaScript execution test passed: {repr(output)}")
         else:
@@ -117,7 +78,9 @@ async def test_javascript_execution():
     )
 
     try:
-        success, output = await executor.execute(test_code_with_context, test_context)
+        success, output, _value = await executor.execute(
+            test_code_with_context, test_context, []
+        )
         if success:
             print(f"✅ Context access test passed: {repr(output)}")
         else:
@@ -131,7 +94,6 @@ async def main():
     print("Running JavaScript executor tests...\n")
 
     await test_code_parsing()
-    await test_context_creation()
     await test_javascript_execution()
 
     print("\nTests completed!")

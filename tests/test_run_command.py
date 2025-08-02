@@ -1,112 +1,84 @@
 """Tests for the .run command."""
 
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from emilybot.commands.run import cmd_run
-from emilybot.discord import EmilyContext
-
-
-class MockBot:
-    """Mock bot for testing."""
-
-    pass
-
-
-class MockAuthor:
-    """Mock author for testing."""
-
-    def __init__(self, user_id: int = 123456789):
-        self.id = user_id
-
-
-class MockGuild:
-    """Mock guild for testing."""
-
-    def __init__(self, guild_id: int = 987654321):
-        self.id = guild_id
+from tests.conftest import MakeCtx
 
 
 @pytest.mark.asyncio
-async def test_run_command_basic_execution():
+async def test_run_command_basic_execution(make_ctx: MakeCtx):
     """Test basic JavaScript execution with .run command."""
-    # Create mock context
-    ctx = AsyncMock(spec=EmilyContext)
-    ctx.bot = MockBot()
-    ctx.author = MockAuthor()
-    ctx.guild = MockGuild()
+    code = 'console.log("Hello, world!")'
+    ctx = make_ctx(f".run {code}", None)
 
     # Test basic console.log
-    await cmd_run(ctx, code='console.log("Hello, world!")')
+    await cmd_run(ctx, code=code)
 
     # Verify send was called with the output
+    assert isinstance(ctx.send, (MagicMock, AsyncMock))
     ctx.send.assert_called_once()
     call_args = ctx.send.call_args[0][0]
     assert "Hello, world!" in call_args
 
 
 @pytest.mark.asyncio
-async def test_run_command_with_backticks():
+async def test_run_command_with_backticks(make_ctx: MakeCtx):
     """Test .run command with code wrapped in backticks."""
-    ctx = AsyncMock(spec=EmilyContext)
-    ctx.bot = MockBot()
-    ctx.author = MockAuthor()
-    ctx.guild = MockGuild()
-
     # Test with triple backticks
-    code_with_backticks = """```js
+    code = """```js
 console.log("Test with backticks")
 ```"""
+    ctx = make_ctx(f".run {code}", None)
 
-    await cmd_run(ctx, code=code_with_backticks)
+    await cmd_run(ctx, code=code)
 
+    assert isinstance(ctx.send, (MagicMock, AsyncMock))
     ctx.send.assert_called_once()
     call_args = ctx.send.call_args[0][0]
     assert "Test with backticks" in call_args
 
 
 @pytest.mark.asyncio
-async def test_run_command_no_output():
+async def test_run_command_no_output(make_ctx: MakeCtx):
     """Test .run command with code that produces no output."""
-    ctx = AsyncMock(spec=EmilyContext)
-    ctx.bot = MockBot()
-    ctx.author = MockAuthor()
-    ctx.guild = MockGuild()
+    code = "let x = 5;"
+    ctx = make_ctx(f".run {code}", None)
 
     # Test code that doesn't produce output
-    await cmd_run(ctx, code="let x = 5;")
+    await cmd_run(ctx, code=code)
 
+    assert isinstance(ctx.send, (MagicMock, AsyncMock))
     ctx.send.assert_called_once()
     call_args = ctx.send.call_args[0][0]
-    assert "JavaScript executed successfully" in call_args
-    assert "no output" in call_args
+    assert "No output" in call_args
 
 
 @pytest.mark.asyncio
-async def test_run_command_syntax_error():
+async def test_run_command_syntax_error(make_ctx: MakeCtx):
     """Test .run command with syntax error."""
-    ctx = AsyncMock(spec=EmilyContext)
-    ctx.bot = MockBot()
-    ctx.author = MockAuthor()
-    ctx.guild = MockGuild()
+    code = "console.log('missing quote)"
+    ctx = make_ctx(f".run {code}", None)
 
     # Test invalid JavaScript syntax
-    await cmd_run(ctx, code='console.log("missing quote)')
+    await cmd_run(ctx, code=code)
 
+    assert isinstance(ctx.send, (MagicMock, AsyncMock))
     ctx.send.assert_called_once()
     call_args = ctx.send.call_args[0][0]
     assert "❌" in call_args or "⚠️" in call_args  # Error indicator should be present
 
 
 @pytest.mark.asyncio
-async def test_run_command_dm_context():
+async def test_run_command_dm_context(make_ctx: MakeCtx):
     """Test .run command in DM (no guild)."""
-    ctx = AsyncMock(spec=EmilyContext)
-    ctx.bot = MockBot()
-    ctx.author = MockAuthor()
-    ctx.guild = None  # DM context
+    code = "console.log('DM test')"
+    ctx = make_ctx(f".run {code}", None)
+    ctx.guild = None  # Simulate DM context
 
-    await cmd_run(ctx, code='console.log("DM test")')
+    await cmd_run(ctx, code=code)
 
+    assert isinstance(ctx.send, (MagicMock, AsyncMock))
     ctx.send.assert_called_once()
     call_args = ctx.send.call_args[0][0]
     assert "DM test" in call_args

@@ -83,9 +83,8 @@ class Action:
 
 
 class DB:
-    def __init__(self) -> None:
-        # Ensure data directory exists with proper permissions
-        data_dir = Path("data")
+    def __init__(self, data_dir: Path = Path("data")) -> None:
+        data_dir = data_dir
         data_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize JsonDB with type annotation
@@ -122,24 +121,18 @@ class DB:
         """Find an alias in the database."""
         if server_id is not None:
             if isinstance(alias, str):
-                results = self.remember.find(  # type: ignore
-                    server_id=server_id, name=alias.lower()
-                )
+                results = self.remember.find(server_id=server_id, name=alias.lower())
             else:
-                results = self.remember.find(  # type: ignore
-                    server_id=server_id
-                )
+                results = self.remember.find(server_id=server_id)
                 results = [entry for entry in results if alias.match(entry.name)]
 
         elif user_id is not None:
             if isinstance(alias, str):
-                results = self.remember.find(  # type: ignore
+                results = self.remember.find(
                     user_id=user_id, server_id=None, name=alias.lower()
                 )
             else:
-                results = self.remember.find(  # type: ignore
-                    user_id=user_id, server_id=None
-                )
+                results = self.remember.find(user_id=user_id, server_id=None)
                 results = [entry for entry in results if alias.match(entry.name)]
         else:
             raise ValueError("Either server_id or user_id must be provided")

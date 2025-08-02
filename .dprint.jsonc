@@ -1,5 +1,6 @@
 {
   "json": {
+    "trailingCommas": "never"
   },
   "markdown": {
   },
@@ -13,12 +14,16 @@
   },
   "yaml": {
   },
+  "typescript": {
+    "trailingCommas": "onlyMultiLine",
+    "semiColons": "asi"
+  },
   "excludes": [
     "**/*-lock.json",
     "**/node_modules",
     "uv.lock",
     ".kiro/",
-    ".env.yaml",
+    ".env.yaml"
   ],
   "plugins": [
     "https://plugins.dprint.dev/json-0.20.0.wasm",
@@ -28,5 +33,6 @@
     "https://plugins.dprint.dev/g-plane/malva-v0.14.0.wasm",
     "https://plugins.dprint.dev/g-plane/markup_fmt-v0.23.1.wasm",
     "https://plugins.dprint.dev/g-plane/pretty_yaml-v0.5.1.wasm",
-  ],
+    "https://plugins.dprint.dev/typescript-0.95.9.wasm"
+  ]
 }

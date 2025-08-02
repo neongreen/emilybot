@@ -2,71 +2,71 @@
  * Main Deno CLI script for JavaScript execution with hard timeout
  */
 
-import { JavaScriptExecutor } from "./executor.ts";
-import type { ExecutionContext, AliasRunContext, RunCommandContext } from "./context.ts";
+import z, { success, ZodError } from "zod/v4"
+import { execute } from "./executor.ts"
+import { lib } from "./lib.ts"
+import { validateCommands } from "./types.ts"
 
 async function main() {
-  const args = Deno.args;
-  
-  if (args.length !== 2) {
-    console.error("Expected two args");
-    Deno.exit(1);
+  if (Deno.args.length !== 3) {
+    console.error("Usage: main.ts <code> <fields> <commands>")
+    Deno.exit(1)
   }
-  
-  const [jsCode, contextJson] = args;
-  
+
+  const [code, fieldsJson, commandsJson] = Deno.args
+
+  let fields, commands
   try {
-    // Parse context JSON
-    const context: ExecutionContext = JSON.parse(contextJson);
-    
-    // Validate context structure - check if it's AliasRunContext or RunCommandContext
-    if ('content' in context) {
-      // AliasRunContext validation
-      if (!context.content || !context.name || !context.created_at || typeof context.user_id !== 'number') {
-        console.error("Invalid alias run context structure");
-        Deno.exit(1);
-      }
-    } else {
-      // RunCommandContext validation
-      if (typeof context.user_id !== 'number' || (context.server_id !== null && typeof context.server_id !== 'number')) {
-        console.error("Invalid run command context structure");
-        Deno.exit(1);
-      }
+    fields = JSON.parse(fieldsJson)
+    if (typeof fields !== "object" || fields === null) {
+      throw new Error("Fields must be a valid JSON object")
     }
-    
+    commands = validateCommands(JSON.parse(commandsJson))
+  } catch (error) {
+    if (error instanceof ZodError) {
+      console.error(`Failed to parse or validate input:\n${z.prettifyError(error)}`)
+    } else {
+      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    Deno.exit(1)
+  }
+
+  try {
     // Create a hard timeout that will kill the process
     const timeoutId = setTimeout(() => {
-      console.error("Execution timed out after 1 second");
-      Deno.exit(1);
-    }, 1000);
-    
+      console.error("Execution timed out after 1 second")
+      Deno.exit(1)
+    }, 1000)
+
+    const context = {
+      ...fields,
+      lib: lib,
+    }
+
     try {
       // Execute JavaScript code
-      const executor = new JavaScriptExecutor(1000);
-      const result = await executor.execute(jsCode, context);
-      
+      const result = await execute(context, commands, code)
+
       // Clear timeout since execution completed
-      clearTimeout(timeoutId);
-      
+      clearTimeout(timeoutId)
+
       if (result.success) {
-        console.log(result.output);
-        Deno.exit(0);
+        console.log(JSON.stringify(result))
+        Deno.exit(0)
       } else {
-        console.error(result.error || "Unknown execution error");
-        Deno.exit(1);
+        console.error(result.error || "Unknown execution error")
+        Deno.exit(1)
       }
     } catch (error) {
-      clearTimeout(timeoutId);
-      console.error(`Execution failed: ${error instanceof Error ? error.message : String(error)}`);
-      Deno.exit(1);
+      clearTimeout(timeoutId)
+      throw error
     }
-    
   } catch (error) {
-    console.error(`Failed to parse context JSON: ${error instanceof Error ? error.message : String(error)}`);
-    Deno.exit(1);
+    console.error(`Execution failed: ${error instanceof Error ? error.message : String(error)}`)
+    Deno.exit(1)
   }
 }
 
 if (import.meta.main) {
-  await main();
+  await main()
 }

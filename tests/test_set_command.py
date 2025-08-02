@@ -1,6 +1,6 @@
 """Test the .set command functionality."""
 
-from emilybot.javascript_executor import extract_js_code
+from emilybot.execute.javascript_executor import extract_js_code
 
 
 def test_extract_js_code_plain_backticks():

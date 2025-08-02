@@ -3,9 +3,13 @@
 
 import asyncio
 
-from emilybot.javascript_executor import JavaScriptExecutor, create_context_from_entry
-from emilybot.database import Entry
-import uuid
+from emilybot.execute.javascript_executor import (
+    JavaScriptExecutor,
+    Context,
+    CtxMessage,
+    CtxUser,
+    CtxServer,
+)
 
 
 async def test_error_handling():
@@ -14,25 +18,23 @@ async def test_error_handling():
 
     executor = JavaScriptExecutor(timeout=1.0)
 
-    # Create a proper test entry for context
-    test_entry = Entry(
-        id=uuid.uuid4(),
-        server_id=12345,
-        user_id=123,
-        created_at="2025-01-29T12:00:00Z",
-        name="test",
-        content="test content",
-        promoted=False,
-        run=None,
+    # Create a test context directly
+    test_context = Context(
+        message=CtxMessage(content="test message"),
+        user=CtxUser(id=123, name="TestUser"),
+        server=CtxServer(id=12345),
     )
-    test_context = create_context_from_entry(test_entry)
 
     # Test syntax error
     print("\n1. Testing syntax error...")
     syntax_error_code = "console.log('missing quote);"
     try:
-        success, output = await executor.execute(syntax_error_code, test_context)
-        print(f"   Result: success={success}, output={repr(output)}")
+        success, output, value = await executor.execute(
+            syntax_error_code, test_context, []
+        )
+        print(
+            f"   Result: success={success}, output={repr(output)}, value={repr(value)}"
+        )
     except Exception as e:
         print(f"   Exception: {e}")
 
@@ -40,8 +42,12 @@ async def test_error_handling():
     print("\n2. Testing runtime error...")
     runtime_error_code = "console.log(undefinedVariable);"
     try:
-        success, output = await executor.execute(runtime_error_code, test_context)
-        print(f"   Result: success={success}, output={repr(output)}")
+        success, output, value = await executor.execute(
+            runtime_error_code, test_context, []
+        )
+        print(
+            f"   Result: success={success}, output={repr(output)}, value={repr(value)}"
+        )
     except Exception as e:
         print(f"   Exception: {e}")
 
@@ -49,8 +55,10 @@ async def test_error_handling():
     print("\n3. Testing timeout...")
     timeout_code = "while(true) { /* infinite loop */ }"
     try:
-        success, output = await executor.execute(timeout_code, test_context)
-        print(f"   Result: success={success}, output={repr(output)}")
+        success, output, value = await executor.execute(timeout_code, test_context, [])
+        print(
+            f"   Result: success={success}, output={repr(output)}, value={repr(value)}"
+        )
     except Exception as e:
         print(f"   Exception: {e}")
 
@@ -62,8 +70,12 @@ async def test_error_handling():
     console.log('Context name: ' + context.name);
     """
     try:
-        success, output = await executor.execute(multi_log_code, test_context)
-        print(f"   Result: success={success}, output={repr(output)}")
+        success, output, value = await executor.execute(
+            multi_log_code, test_context, []
+        )
+        print(
+            f"   Result: success={success}, output={repr(output)}, value={repr(value)}"
+        )
     except Exception as e:
         print(f"   Exception: {e}")
 

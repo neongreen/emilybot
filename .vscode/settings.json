@@ -19,6 +19,12 @@
   "[markdown]": {
     "editor.defaultFormatter": "dprint.dprint"
   },
+  "[typescript]": {
+    "editor.defaultFormatter": "dprint.dprint"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "dprint.dprint"
+  },
   "files.exclude": {
     "**/.git": true,
     ".pytest_cache": true,

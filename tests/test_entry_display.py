@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Test script for entry display with JavaScript execution."""
 
+import json
 import uuid
 import pytest
 
-from emilybot.commands.show import format_entry_content
+from emilybot.commands.run import run_code
 from emilybot.database import Entry
+from tests.conftest import MakeCtx
 
 
 @pytest.mark.asyncio
-async def test_entry_without_javascript():
+async def test_entry_without_javascript(make_ctx: MakeCtx):
     """Test entry display without JavaScript code."""
     print("Testing entry display without JavaScript...")
 
@@ -24,14 +26,19 @@ async def test_entry_without_javascript():
         run=None,
     )
 
-    result = await format_entry_content(entry)
+    ctx = make_ctx("test message", entry)
+    success, result, value = await run_code(
+        ctx, code=f"$.cmd({json.dumps(entry.name)})"
+    )
     expected = "This is a simple entry without JavaScript"
 
+    assert success
     assert result == expected
+    assert value is None
 
 
 @pytest.mark.asyncio
-async def test_entry_with_javascript():
+async def test_entry_with_javascript(make_ctx: MakeCtx):
     """Test entry display with JavaScript code."""
     print("\nTesting entry display with JavaScript...")
 
@@ -43,16 +50,21 @@ async def test_entry_with_javascript():
         name="test-entry",
         content="This is an entry with JavaScript",
         promoted=False,
-        run="console.log('Hello from ' + context.name + '!');",
+        run="console.log('Hello from ' + this.name + '!');",
     )
 
-    result = await format_entry_content(entry)
+    ctx = make_ctx("test message", entry)
+    success, result, value = await run_code(
+        ctx, code=f"$.cmd({json.dumps(entry.name)})"
+    )
 
+    assert success
     assert "Hello from test-entry!" in result
+    assert value is None
 
 
 @pytest.mark.asyncio
-async def test_entry_with_javascript_error():
+async def test_entry_with_javascript_error(make_ctx: MakeCtx):
     """Test entry display with JavaScript error."""
     print("\nTesting entry display with JavaScript error...")
 
@@ -67,13 +79,16 @@ async def test_entry_with_javascript_error():
         run="console.log(undefinedVariable);",  # This will cause a runtime error
     )
 
-    result = await format_entry_content(entry)
-    assert "This is an entry with broken JavaScript" in result
+    ctx = make_ctx("test message", entry)
+    success, result, _value = await run_code(
+        ctx, code=f"$.cmd({json.dumps(entry.name)})"
+    )
+    assert not success
     assert "'undefinedVariable' is not defined" in result
 
 
 @pytest.mark.asyncio
-async def test_entry_with_empty_javascript():
+async def test_entry_with_empty_javascript(make_ctx: MakeCtx):
     """Test entry display with empty JavaScript code."""
     print("\nTesting entry display with empty JavaScript...")
 
@@ -88,14 +103,19 @@ async def test_entry_with_empty_javascript():
         run="   ",  # Empty/whitespace-only JavaScript
     )
 
-    result = await format_entry_content(entry)
+    ctx = make_ctx("test message", entry)
+    success, result, value = await run_code(
+        ctx, code=f"$.cmd({json.dumps(entry.name)})"
+    )
     expected = "This is an entry with empty JavaScript"
 
+    assert success
     assert result == expected
+    assert value is None
 
 
 @pytest.mark.asyncio
-async def test_entry_with_no_output_javascript():
+async def test_entry_with_no_output_javascript(make_ctx: MakeCtx):
     """Test entry display with JavaScript that produces no output."""
     print("\nTesting entry display with JavaScript that produces no output...")
 
@@ -110,6 +130,11 @@ async def test_entry_with_no_output_javascript():
         run="let x = 1 + 1;",  # Valid JavaScript but no console.log
     )
 
-    result = await format_entry_content(entry)
+    ctx = make_ctx("test message", entry)
+    success, result, value = await run_code(
+        ctx, code=f"$.cmd({json.dumps(entry.name)})"
+    )
 
+    assert success
     assert result == ""
+    assert value is None

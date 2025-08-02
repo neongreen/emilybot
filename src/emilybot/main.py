@@ -18,7 +18,7 @@ from emilybot.commands.delete import cmd_rm
 from emilybot.commands.help import cmd_help
 from emilybot.commands.promote import cmd_promote, cmd_demote, cmd_demote_all
 from emilybot.commands.set import cmd_set
-from emilybot.commands.run import cmd_run
+from emilybot.commands.run import cmd_cmd, cmd_run
 
 
 async def init_bot(dev: bool) -> EmilyBot:
@@ -26,8 +26,8 @@ async def init_bot(dev: bool) -> EmilyBot:
     intents.message_content = True
 
     if dev:
-        logging.info("Running in development mode. Using `.dev.` as command prefix.")
-        command_prefix = ".dev."
+        logging.info("Running in development mode. Using `##` as command prefix.")
+        command_prefix = "##"
     else:
         logging.info("Running in production mode. Using `.` as command prefix.")
         command_prefix = "."
@@ -66,8 +66,8 @@ async def init_bot(dev: bool) -> EmilyBot:
             f"on_command_error called with error: {error}, message: {ctx.message.content}"
         )
         if isinstance(error, commands.CommandNotFound):
-            # skip .dev. because it's meant for the dev bot
-            if not dev and ctx.message.content.startswith(".dev."):
+            # skip the dev prefix because it's meant for the dev bot
+            if not dev and ctx.message.content.startswith("##"):
                 logging.info("Ignoring command meant for the dev bot.")
                 return
 
@@ -89,7 +89,7 @@ async def init_bot(dev: bool) -> EmilyBot:
             try:
                 # If it can be an alias, try looking it up
                 AliasValidator.validate_alias(potential_alias, "lookup")
-                await cmd_show(ctx, potential_alias)
+                await cmd_cmd(ctx, potential_alias)
                 return
             except ValidationError:
                 pass

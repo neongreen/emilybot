@@ -6,7 +6,7 @@ from emilybot.discord import EmilyContext
 from emilybot.database import Action, ActionEdit
 from emilybot.utils.list import first
 from emilybot.validation import AliasValidator, ValidationError
-from emilybot.javascript_executor import extract_js_code
+from emilybot.execute.javascript_executor import extract_js_code
 
 
 def format_not_found_message(alias: str, command_prefix: str) -> str:

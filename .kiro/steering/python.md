@@ -27,7 +27,3 @@ inclusion: always
 - For components that need mocking, create injectable classes with clear interfaces
 - Example: Create a `Discord` class for message operations that can be swapped with a test implementation
 - Test implementations should use simple data structures (arrays, dictionaries) for state
-
-### Discord Integration Testing
-- For Discord-specific integration tests, use [dpytest](https://github.com/CraftSpider/dpytest)
-- Do not create custom `Discord` wrapper classes for integration testing

@@ -6,31 +6,59 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
-from typing import Tuple, TypedDict, Union, Literal
-from emilybot.database import Entry
+from typing import Any, Tuple, TypedDict, Literal
 
 
 # Type definitions matching TypeScript context types
 
-
-class AliasRunContext(TypedDict):
-    """Available to the .run attribute of the alias."""
-
-    content: str  # Original entry content
-    name: str  # Entry name
-    created_at: str  # Entry creation timestamp
-    user_id: int  # Entry creator ID
+# TODO: autogenerate?
 
 
-class RunCommandContext(TypedDict):
-    """Available to the .run command for direct execution."""
+@dataclass
+class CtxUser:
+    id: int
+    name: str
 
-    user_id: int  # User who ran the command
-    server_id: int | None  # Server ID or None for DM
+
+@dataclass
+class CtxServer:
+    id: int
 
 
-# Union type for execution context
-ExecutionContext = Union[AliasRunContext, RunCommandContext]
+@dataclass
+class CtxMessage:
+    content: str
+
+
+@dataclass
+class Context:
+    message: CtxMessage
+    user: CtxUser
+    server: CtxServer | None
+
+    def as_json(self) -> dict[str, Any]:
+        """Serialize Context to JSON string."""
+        return {
+            "message": self.message.__dict__,
+            "user": self.user.__dict__,
+            "server": self.server.__dict__ if self.server else None,
+        }
+
+
+def run_code_context(code: str) -> Context:
+    return Context(
+        message=CtxMessage(content=f".run {code}"),
+        user=CtxUser(id=1, name="Test user"),
+        server=None,
+    )
+
+
+class CommandData(TypedDict):
+    """Data for a command in the global context."""
+
+    name: str  # Command name
+    content: str  # Command content
+    run: str | None  # JavaScript code to execute when command is run
 
 
 class ExecutionResult(TypedDict):
@@ -69,15 +97,16 @@ class JavaScriptExecutor:
         self.deno_path = deno_path
         self.executor_script = "js-executor/main.ts"
 
-    async def execute(self, code: str, context: ExecutionContext) -> Tuple[bool, str]:
-        """Execute JavaScript code with context.
-
-        Args:
-            code: JavaScript code to execute
-            context: ExecutionContext (AliasRunContext or RunCommandContext)
+    async def execute(
+        self,
+        code: str,
+        context: Context,
+        commands: list[CommandData] = [],
+    ) -> Tuple[bool, str, str | None]:
+        """Execute JavaScript code with context and available commands.
 
         Returns:
-            Tuple of (success: bool, output: str)
+            Tuple of (success: bool, output: str, result: str)
             - If success=True, output contains console.log output
             - If success=False, output contains error message
 
@@ -85,8 +114,10 @@ class JavaScriptExecutor:
             JSExecutionError: When execution fails with specific error types
         """
         try:
-            # Prepare context JSON
-            context_json = json.dumps(context)
+            print(context)
+            print(commands)
+            fields_json = json.dumps({"context": context.as_json()})
+            commands_json = json.dumps(commands)
 
             # Build command
             cmd = [
@@ -96,7 +127,8 @@ class JavaScriptExecutor:
                 "--allow-read=js-executor/",
                 self.executor_script,
                 code,
-                context_json,
+                fields_json,
+                commands_json,
             ]
 
             # Execute with timeout
@@ -121,7 +153,7 @@ class JavaScriptExecutor:
                     await process.wait()
                 except ProcessLookupError:
                     pass  # Process already terminated
-                return False, "⏱️ JavaScript execution timed out (1 second limit)"
+                return False, "⏱️ JavaScript execution timed out (1 second limit)", None
 
             # Decode output
             stdout_text = stdout.decode("utf-8").strip() if stdout else ""
@@ -129,7 +161,8 @@ class JavaScriptExecutor:
 
             # Check exit code and classify errors
             if process.returncode == 0:
-                return True, stdout_text
+                parsed = json.loads(stdout_text)
+                return True, parsed.get("output", ""), parsed.get("value", None)
             else:
                 # Classify error based on stderr content
                 error_type = self._classify_error(stderr_text)
@@ -137,32 +170,42 @@ class JavaScriptExecutor:
 
                 # For user-facing errors, return a clean message
                 if error_type == "timeout":
-                    return False, "⏱️ JavaScript execution timed out (1 second limit)"
+                    return (
+                        False,
+                        "⏱️ JavaScript execution timed out (1 second limit)",
+                        None,
+                    )
                 elif error_type == "memory":
-                    return False, "💾 JavaScript execution exceeded memory limits"
+                    return False, "💾 JavaScript execution exceeded memory limits", None
                 elif error_type == "syntax":
                     return (
                         False,
-                        f"❌ JavaScript syntax error: {self._extract_syntax_error(stderr_text)}",
+                        f"❌ JavaScript syntax error: {stderr_text}",
+                        None,
                     )
                 elif error_type == "runtime":
                     return (
                         False,
-                        f"⚠️ JavaScript runtime error: {self._extract_runtime_error(stderr_text)}",
+                        f"⚠️ JavaScript runtime error: {stderr_text}",
+                        None,
                     )
                 else:
-                    return False, f"❌ JavaScript execution failed: {error_message}"
+                    return (
+                        False,
+                        f"❌ JavaScript execution failed: {error_message}",
+                        None,
+                    )
 
         except FileNotFoundError:
-            return False, f"❌ Deno executable not found at: {self.deno_path}"
+            return False, f"❌ Deno executable not found at: {self.deno_path}", None
         except (TypeError, ValueError) as e:
-            return False, f"❌ Failed to encode context as JSON: {e}"
+            return False, f"❌ Failed to encode context as JSON: {e}", None
         except JSExecutionError:
             # Re-raise JSExecutionError as-is
             raise
         except Exception as e:
             logging.error(f"Unexpected error in JavaScript execution: {e}")
-            return False, f"❌ Unexpected execution error: {e}"
+            return False, f"❌ Unexpected execution error: {e}", None
 
     def _classify_error(self, stderr: str) -> str:
         """Classify error type based on stderr content.
@@ -183,95 +226,6 @@ class JavaScriptExecutor:
             return "syntax"
         else:
             return "runtime"
-
-    def _extract_syntax_error(self, stderr: str) -> str:
-        """Extract meaningful syntax error message from stderr.
-
-        Args:
-            stderr: Standard error output containing syntax error
-
-        Returns:
-            Cleaned syntax error message
-        """
-        # Try to extract the actual syntax error message
-        lines = stderr.split("\n")
-        for line in lines:
-            if "SyntaxError" in line:
-                # Remove "SyntaxError: " prefix if present
-                return line.replace("SyntaxError: ", "").strip()
-
-        # Fallback to first non-empty line
-        for line in lines:
-            if line.strip():
-                return line.strip()
-
-        return "Invalid JavaScript syntax"
-
-    def _extract_runtime_error(self, stderr: str) -> str:
-        """Extract meaningful runtime error message from stderr.
-
-        Args:
-            stderr: Standard error output containing runtime error
-
-        Returns:
-            Cleaned runtime error message
-        """
-        # Try to extract the actual error message
-        lines = stderr.split("\n")
-        for line in lines:
-            # Look for common error patterns
-            if any(
-                error_type in line
-                for error_type in [
-                    "Error:",
-                    "TypeError:",
-                    "ReferenceError:",
-                    "RangeError:",
-                ]
-            ):
-                return line.strip()
-
-        # Fallback to first non-empty line
-        for line in lines:
-            if line.strip():
-                return line.strip()
-
-        return "JavaScript runtime error"
-
-
-def create_context_from_entry(entry: Entry) -> AliasRunContext:
-    """Create AliasRunContext from Entry object.
-
-    Args:
-        entry: Database entry to create context from
-
-    Returns:
-        AliasRunContext for JavaScript execution
-    """
-    return {
-        "content": entry.content,
-        "name": entry.name,
-        "created_at": entry.created_at,
-        "user_id": entry.user_id,
-    }
-
-
-def create_run_command_context(
-    user_id: int, server_id: int | None
-) -> RunCommandContext:
-    """Create RunCommandContext for direct .run command execution.
-
-    Args:
-        user_id: ID of the user running the command
-        server_id: ID of the server, or None for DM
-
-    Returns:
-        RunCommandContext for JavaScript execution
-    """
-    return {
-        "user_id": user_id,
-        "server_id": server_id,
-    }
 
 
 def extract_js_code(raw_code: str) -> str:

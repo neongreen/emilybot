@@ -1,4 +1,15 @@
 - [ ] can we create aliases that are a persons nick. that would be neat
-- [ ] .help is truncated
 - [ ] enforce that aliases are essentially a path
-- [ ] show toplevel aliases in help
+- [ ] add output of print($) to the docs and enforce it on ci
+- [ ] .add should become alias prop?
+- [ ] expose Intl
+- [ ] fix autoreloading
+- [ ] .remind
+- [ ] change dev prefix to $
+- [ ] print($) should show docs/descriptions somehow
+- [ ] semi-builtins (eg. .random could be implemented in JS, just don't let people modify/override it)
+- [ ] ppl should be able to see the implementation of any alias
+- [ ] .clone
+- .show should go away or idk what (.inspect? .info?)
+- rename emilybot to emily (folder)
+- show the bot invite link in .help

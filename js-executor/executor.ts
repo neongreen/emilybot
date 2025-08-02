@@ -2,129 +2,110 @@
  * QuickJS wrapper for sandboxed JavaScript execution
  */
 
-import { getQuickJS, QuickJSContext, QuickJSRuntime } from "quickjs-emscripten";
-import type { ExecutionContext, AliasRunContext, RunCommandContext, ExecutionResult, JSExecutionError } from "./context.ts";
+import { getQuickJS } from "quickjs-emscripten"
+import { Arena } from "quickjs-emscripten-sync"
+import { type CommandData, type ExecutionResult } from "./types.ts"
 
-export class JavaScriptExecutor {
-  private timeout: number;
+export async function execute(
+  fields: Record<string, any> = {},
+  commands: CommandData[] = [],
+  code: string,
+): Promise<ExecutionResult> {
+  const QuickJS = await getQuickJS()
+  const ctx = QuickJS.newContext()
+  const arena = new Arena(ctx, {
+    isMarshalable(_target) {
+      // We want to marshal functions and tagging/whitelisting them is tricky
+      return true
+    },
+  })
 
-  constructor(timeout: number = 1000) {
-    this.timeout = timeout;
-  }
+  arena.context.runtime.setMemoryLimit(1024 * 1024) // Set memory limit to 1MB
 
-  async execute(code: string, context: ExecutionContext): Promise<ExecutionResult> {
-    let runtime: QuickJSRuntime | null = null;
-    let vm: QuickJSContext | null = null;
-    
-    try {
-      const QuickJS = await getQuickJS();
-      runtime = QuickJS.newRuntime();
-      
-      // Set memory limit (1MB)
-      runtime.setMemoryLimit(1024 * 1024);
-      
-      vm = runtime.newContext();
-      
-      // Capture console.log output
-      const consoleOutput: string[] = [];
-      
-      // Inject console.log function
-      const consoleLogHandle = vm.newFunction("log", (...args: any[]) => {
-        const message = args.map(arg => vm!.dump(arg)).join(" ");
-        consoleOutput.push(message);
-      });
-      
-      const consoleHandle = vm.newObject();
-      vm.setProp(consoleHandle, "log", consoleLogHandle);
-      vm.setProp(vm.global, "console", consoleHandle);
-      
-      // Inject context object based on context type
-      const contextHandle = vm.newObject();
-      
-      if ('content' in context) {
-        // AliasRunContext
-        vm.setProp(contextHandle, "content", vm.newString(context.content));
-        vm.setProp(contextHandle, "name", vm.newString(context.name));
-        vm.setProp(contextHandle, "created_at", vm.newString(context.created_at));
-        vm.setProp(contextHandle, "user_id", vm.newNumber(context.user_id));
-      } else {
-        // RunCommandContext
-        vm.setProp(contextHandle, "user_id", vm.newNumber(context.user_id));
-        if (context.server_id !== null) {
-          vm.setProp(contextHandle, "server_id", vm.newNumber(context.server_id));
-        } else {
-          vm.setProp(contextHandle, "server_id", vm.null);
-        }
-      }
-      
-      vm.setProp(vm.global, "context", contextHandle);
-      
-      // Dispose handles after setting properties
-      consoleLogHandle.dispose();
-      consoleHandle.dispose();
-      contextHandle.dispose();
-      
-      // Execute JavaScript code with timeout handling
-      try {
-        const result = vm.evalCode(code);
-        
-        if (result.error) {
-          let errorStr = "Unknown error";
-          try {
-            // Try to get the error message property
-            const messageProp = vm.getProp(result.error, "message");
-            if (messageProp) {
-              errorStr = vm.dump(messageProp);
-              messageProp.dispose();
-            } else {
-              errorStr = vm.dump(result.error);
+  try {
+    // Capture console.log output
+    const consoleOutput: string[] = []
+    arena.expose({
+      console: {
+        log: (...args: any[]) => {
+          // Make the output for objects nicer
+          const showArg = (arg: any) => {
+            if (typeof arg === "object" && arg !== null) {
+              // it doesn't seem to allow Deno.customInspect to run when it's inside QuickJS, so that's good
+              return Deno.inspect(arg, { depth: 999, colors: false, compact: true, breakLength: 100 }) // Use Deno's inspect for better object output
             }
-          } catch (e) {
-            errorStr = "Error dumping failed";
+            return String(arg)
           }
-          result.error.dispose();
-          return {
-            success: false,
-            output: consoleOutput.join("\n"), // Include any console output before error
-            error: `runtime: ${errorStr}`
-          };
-        } else {
-          result.value.dispose();
-          return {
-            success: true,
-            output: consoleOutput.join("\n")
-          };
+          consoleOutput.push(args.map(showArg).join(" "))
+        },
+      },
+    })
+
+    arena.expose({ "$$": { "fields": fields, "commands": commands } })
+    // TODO: can I deepfreeze or smth? do I even need to?
+    // TODO: rename code run etc
+    // TODO: forbid 'console' etc
+    arena.evalCode(`
+      const commandsMap = ({})
+      const $ = ({
+        commands: commandsMap,
+        cmd: function(name) {
+          if (!this.commands[name]) {
+            throw new Error("Command not found: " + name)
+          }
+          return this.commands[name].run()
+        },
+      })
+      $.cmd = function(name) {
+        if (!this.commands[name]) {
+          throw new Error("Command not found: " + name)
         }
-      } catch (error) {
-        return {
-          success: false,
-          output: "",
-          error: `syntax: ${error instanceof Error ? error.message : String(error)}`
-        };
+        return this.commands[name].run()
       }
-      
-    } catch (error) {
-      if (error instanceof Error && error.message === "timeout") {
-        return {
-          success: false,
-          output: "",
-          error: "Execution timed out after 1 second"
-        };
+      for (const key in $$.fields) {
+        $[key] = $$.fields[key]
       }
-      
-      const jsError = error as JSExecutionError;
+      for (const command of $$.commands) {
+        const obj = ({
+          name: command.name,
+          content: command.content,
+          code: command.run || null,
+          run: function() {
+            if (this.code && this.code.trim()) {
+              return eval("(() => {\\n" + this.code + "\\n})()")
+            } else {
+              console.log(this.content)
+            }
+          }
+        })
+        commandsMap[command.name] = obj
+      }
+      $.commands = commandsMap
+      Object.freeze($)
+    `)
+
+    const result = arena.evalCode(code)
+    return {
+      success: true,
+      output: consoleOutput.join("\n"),
+      value: result !== undefined
+        ? Deno.inspect(result, { depth: 999, colors: false, compact: true, breakLength: 100 })
+        : undefined,
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message === "timeout") {
       return {
         success: false,
         output: "",
-        error: `${jsError.type || 'unknown'}: ${jsError.message || String(error)}`
-      };
-    } finally {
-      // Clean up resources
-      if (vm) {
-        vm.dispose();
+        value: undefined,
+        error: "Execution timed out",
       }
-      if (runtime) {
-        runtime.dispose();
+    } else {
+      return {
+        success: false,
+        output: "",
+        value: undefined,
+        error: error instanceof Error ? error.message : String(error),
       }
     }
   }

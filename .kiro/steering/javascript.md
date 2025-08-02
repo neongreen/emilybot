@@ -1,0 +1,5 @@
+- javascript code lives in js-executor/
+- the bot can execute user-submitted js code
+- js code runs in WASM-compiled QuickJS that itself runs via Deno
+- run `mise check:deno` to typecheck js code
+- all exported definitions must have docstrings

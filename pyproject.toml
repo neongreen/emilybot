@@ -32,13 +32,14 @@ package = true
 
 [tool.pyright]
 typeCheckingMode = "strict"
-include = ["src", "tests"]
+include = [".", "src", "tests"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "tests"]
+pythonpath = [".", "src", "tests"]
 timeout = 3
 asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 88
 indent-width = 4
+lint.ignore = ["F541"]
