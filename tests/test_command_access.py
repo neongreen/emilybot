@@ -12,6 +12,12 @@ from emilybot.execute.javascript_executor import (
 
 
 async def test_command_access():
+    """Golden test: Verify the actual behavior of Emily's JavaScript API.
+
+    This test documents what actually works vs what doesn't work in the
+    JavaScript execution environment. It serves as both a test and documentation
+    of the real API behavior.
+    """
     # Create executor
     executor = JavaScriptExecutor()
 
@@ -51,27 +57,49 @@ async def test_command_access():
         ),
     ]
 
-    # Test command access patterns
+    # Test command access patterns - both what works and what doesn't
     code = """
-    console.log("=== Command Access Test ===");
-    console.log("Available commands:", Object.keys($).filter(k => !["ctx", "lib"].includes(k)));
+    console.log("=== Golden Test: Emily JavaScript API Reality Check ===");
     
-    console.log("\\n=== Property Access (valid identifiers) ===");
-    console.log("$.hello:", $.hello);
-    console.log("$.validIdentifier:", $.validIdentifier);
+    console.log("\\n=== What WORKS: $.commands access ===");
+    console.log("Available commands:", Object.keys($.commands));
+    console.log("$.commands.hello:", $.commands.hello);
+    console.log("$.commands.hello.content:", $.commands.hello.content);
+    console.log("$.commands['test-command']:", $.commands['test-command']);
+    console.log("$.commands['test-command'].content:", $.commands['test-command'].content);
     
-    console.log("\\n=== Bracket Access ===");
-    console.log("$['hello']:", $['hello']);
-    console.log("$['test-command']:", $['test-command']);
-    console.log("$['invalid-identifier']:", $['invalid-identifier']);
+    console.log("\\n=== What WORKS: $.cmd() function ===");
+    console.log("Calling $.cmd('hello'):");
+    $.cmd('hello');
+    console.log("Calling $.cmd('test-command'):");
+    $.cmd('test-command');
     
-    console.log("\\n=== Function Call Access ===");
-    console.log("$('hello'):", $('hello'));
-    console.log("$('test-command'):", $('test-command'));
-    console.log("$('invalid-identifier'):", $('invalid-identifier'));
+    console.log("\\n=== What WORKS: Context and utilities ===");
+    console.log("$.ctx.user.name:", $.ctx.user.name);
+    console.log("$.lib.random(1,3):", $.lib.random(1,3));
     
-    console.log("\\n=== Non-existent Command ===");
-    console.log("$('nonexistent'):", $('nonexistent'));
+    console.log("\\n=== What DOESN'T WORK: Direct property access ===");
+    console.log("$.hello (should be undefined):", $.hello);
+    console.log("$['hello'] (should be undefined):", $['hello']);
+    
+    console.log("\\n=== What DOESN'T WORK: $ as function ===");
+    try {
+        $('hello');
+        console.log("ERROR: $('hello') should have failed!");
+    } catch (e) {
+        console.log("✅ $('hello') correctly failed:", e.message);
+    }
+    
+    console.log("\\n=== Error handling for $.cmd() ===");
+    try {
+        $.cmd('nonexistent');
+        console.log("ERROR: $.cmd('nonexistent') should have failed!");
+    } catch (e) {
+        console.log("✅ $.cmd('nonexistent') correctly failed:", e.message);
+    }
+    
+    console.log("\\n=== Full $ object structure ===");
+    console.log("Object.keys($):", Object.keys($));
     """
 
     success, output, value = await executor.execute(code, context, commands)

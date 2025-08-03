@@ -43,7 +43,7 @@ Emily:  Why did the chicken cross the road?
 When you use an alias that has attribute `run`, instead of showing the text it will execute the code.
 Everything printed with `console.log` will be shown in the chat.
 
-See [JavaScript execution](#javascript-execution) for more details.
+See [JavaScript execution](#javascript-execution) for more details, or see the comprehensive [JavaScript API Reference](JavaScript-API.md) for complete documentation.
 
 ### Organization
 
@@ -125,27 +125,30 @@ Add JavaScript to make aliases dynamic:
 # Shows: 🌤️ Weather: Sunny, 75°F
 ```
 
-### Context object
+> **📖 For complete JavaScript API documentation**: See [JavaScript API Reference](JavaScript-API.md)
 
-<!-- See js-executor/context.ts -->
+### Context and Global Objects
 
-Your JavaScript gets a `context` object with different properties depending on how it's executed:
+Your JavaScript code has access to two main interfaces:
 
-**For `.alias.run` (alias with JavaScript):**
+**Legacy `context` object** (for `.alias.run` commands):
 
-| Property             | What it contains                     | Example                  |
-| -------------------- | ------------------------------------ | ------------------------ |
-| `context.content`    | The alias text                       | `"Sunny, 75°F"`          |
-| `context.name`       | The alias name                       | `"weather"`              |
-| `context.created_at` | When created                         | `"2025-01-29T12:00:00Z"` |
-| `context.user_id`    | ID of the user who created the alias | `123456789`              |
+| Property          | What it contains | Example         |
+| ----------------- | ---------------- | --------------- |
+| `context.content` | The alias text   | `"Sunny, 75°F"` |
+| `context.name`    | The alias name   | `"weather"`     |
 
-**For `.run [code]` (direct execution):**
+**Modern `$` global object** (available everywhere):
 
-| Property            | What it contains                   | Example               |
-| ------------------- | ---------------------------------- | --------------------- |
-| `context.user_id`   | ID of the user running the command | `123456789`           |
-| `context.server_id` | Server ID (or `null` for DM)       | `987654321` or `null` |
+| Property             | What it contains                   | Example                 |
+| -------------------- | ---------------------------------- | ----------------------- |
+| `$.ctx.user.name`    | User's display name                | `"JohnDoe"`             |
+| `$.ctx.user.id`      | Discord user ID                    | `"123456789"`           |
+| `$.ctx.server.id`    | Discord server ID (null in DMs)    | `"987654321"` or `null` |
+| `$.ctx.message.text` | The original message content       | `".weather"`            |
+| `$.commands`         | All available commands             | `{weather: {...}, ...}` |
+| `$.cmd(name)`        | Function to execute other commands | `$.cmd('weather')`      |
+| `$.lib.random(a,b)`  | Random integer between a and b     | `$.lib.random(1, 10)`   |
 
 ### Code formats
 
@@ -216,7 +219,7 @@ Finish project
 .add quotes The best time to plant a tree was 20 years ago. The second best time is now.
 Life is what happens to you while you're busy making other plans.
 Be yourself; everyone else is already taken.
-.set quotes.run let lines = context.content.split('\n').filter(Boolean); console.log(lines[Math.floor(Math.random() * lines.length)]);
+.set quotes.run let lines = context.content.split('\n').filter(Boolean); console.log(lines[$.lib.random(0, lines.length - 1)]);
 .quotes
 # Shows: Be yourself; everyone else is already taken.
 # (or one of the other quotes, randomly chosen)
@@ -231,8 +234,8 @@ Be yourself; everyone else is already taken.
 .run let nums = [1,2,3,4,5]; console.log("Sum:", nums.reduce((a,b) => a+b))
 # Shows: Sum: 15
 
-.run console.log("User ID:", context.user_id)
-# Shows: User ID: 123456789
+.run console.log("User:", $.ctx.user.name)
+# Shows: User: JohnDoe
 ```
 
 ### Organization example
@@ -270,3 +273,7 @@ In `.help`, you'll see:
 1. Built-in commands (`.add`, `.help`, etc.) always work first
 2. If not a built-in command, bot looks for your alias
 3. Patterns like `..` or `.1` are ignored
+
+## Further Reading
+
+- **[JavaScript API Reference](JavaScript-API.md)** - Complete documentation of the JavaScript execution environment, including the `$` global object, context access, command manipulation, and error handling.
