@@ -17,13 +17,13 @@ from typing import Any, Tuple, TypedDict, Literal
 
 @dataclass
 class CtxUser:
-    id: int
+    id: str  # instead of 'int' because in JS it overflows 'number'
     name: str
 
 
 @dataclass
 class CtxServer:
-    id: int
+    id: str
 
 
 @dataclass
@@ -49,7 +49,7 @@ class Context:
 def run_code_context(code: str) -> Context:
     return Context(
         message=CtxMessage(text=f".run {code}"),
-        user=CtxUser(id=1, name="Test user"),
+        user=CtxUser(id="1", name="Test user"),
         server=None,
     )
 

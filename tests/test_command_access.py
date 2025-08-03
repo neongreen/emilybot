@@ -18,8 +18,8 @@ async def test_command_access():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
-        user=CtxUser(id=12345, name="TestUser"),
-        server=CtxServer(id=67890),
+        user=CtxUser(id="12345", name="TestUser"),
+        server=CtxServer(id="67890"),
     )
 
     # Create some test commands

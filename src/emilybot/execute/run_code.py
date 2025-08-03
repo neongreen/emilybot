@@ -34,8 +34,8 @@ async def run_code(
     # Create Context for direct execution
     context = Context(
         message=CtxMessage(text=ctx.message.content),
-        user=CtxUser(id=ctx.author.id, name=ctx.author.display_name),
-        server=CtxServer(id=ctx.guild.id) if ctx.guild else None,
+        user=CtxUser(id=str(ctx.author.id), name=ctx.author.display_name),
+        server=CtxServer(id=str(ctx.guild.id)) if ctx.guild else None,
     )
 
     # Execute JavaScript code with available commands

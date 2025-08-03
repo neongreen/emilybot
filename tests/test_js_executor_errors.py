@@ -21,8 +21,8 @@ async def test_error_handling():
     # Create a test context directly
     test_context = Context(
         message=CtxMessage(text="test message"),
-        user=CtxUser(id=123, name="TestUser"),
-        server=CtxServer(id=12345),
+        user=CtxUser(id="123", name="TestUser"),
+        server=CtxServer(id="12345"),
     )
 
     # Test syntax error
