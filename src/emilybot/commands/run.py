@@ -31,8 +31,8 @@ async def cmd_run(
 
 
 @commands.command(name="cmd")
-async def cmd_cmd(ctx: EmilyContext, alias: str) -> None:
-    """`.cmd [alias]`: Run a command by its alias. Just use .[alias] instead"""
+async def cmd_cmd(ctx: EmilyContext, alias: str, *, args: list[str]) -> None:
+    """`.cmd [alias] [args...]`: Run a command by its alias with arguments. Just use .[alias] instead"""
 
     db = ctx.bot.db
     command_prefix = ctx.bot.just_command_prefix
@@ -50,9 +50,14 @@ async def cmd_cmd(ctx: EmilyContext, alias: str) -> None:
             await ctx.send(format_not_found_message(alias, command_prefix))
             return
 
-        # Run the command
+        # Parse arguments
+        # Convert arguments to JSON strings for JavaScript
+        arg_strings = [json.dumps(arg) for arg in args]
+        args_code = ", ".join(arg_strings)
+
+        # Run the command with arguments
         success, output, value = await run_code(
-            ctx, code=f"$.cmd({json.dumps(entry.name)})"
+            ctx, code=f"$.cmd({json.dumps(entry.name)}, {args_code})"
         )
         if success:
             await ctx.send(format_show_content(output, value))

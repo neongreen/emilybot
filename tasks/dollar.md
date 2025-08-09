@@ -41,7 +41,7 @@ also we should detect if the person tries to define multiple functions in the sa
 
 # rename .content to .text
 
-# have args in the context
+# ✅ have args in the context
 
 e.g. give the function stuff like 'args' when called like $foo
 
@@ -54,3 +54,5 @@ any whitespace should work, e.g `$ foo`, `$\nfoo`, etc
 just give Deno a tree, don't make it reconstruct the tree by itself
 
 # ✅ btw move tests to be colocated with the code they test?
+
+# use some kind of parser combinator lib or grammar lib

@@ -82,3 +82,62 @@ def test_whitespace_consistency():
         # Parser should handle this as JS
         result = parse_command(pattern)
         assert isinstance(result, JS), f"Parser should return JS for: {pattern}"
+
+
+def test_argument_handling_integration():
+    """Test that argument handling works end-to-end from parsing to execution."""
+    from emilybot.parser import parse_command, Command
+    from emilybot.execute.javascript_executor import (
+        JavaScriptExecutor,
+        CommandData,
+        Context,
+        CtxMessage,
+        CtxUser,
+        CtxServer,
+    )
+    import asyncio
+
+    # Test parsing
+    result = parse_command("$greeting Alice Bob")
+    assert isinstance(result, Command)
+    assert result.cmd == "greeting"
+    assert result.args == ["Alice", "Bob"]
+
+    # Test execution
+    async def test_execution():
+        executor = JavaScriptExecutor()
+        context = Context(
+            message=CtxMessage(text="$greeting Alice Bob"),
+            user=CtxUser(id="12345", name="TestUser"),
+            server=CtxServer(id="67890"),
+        )
+        commands = [
+            CommandData(
+                name="greeting",
+                content="Hello, world!",
+                run="console.log('Hello ' + args[0] + ' and ' + args[1] + '!')",
+            ),
+        ]
+
+        success, output, _value = await executor.execute(
+            "$greeting('Alice', 'Bob')",
+            context,
+            commands,
+        )
+
+        assert success
+        assert "Hello Alice and Bob!" in output
+
+    # Run the async test
+    asyncio.run(test_execution())
+
+
+def test_argument_handling_with_special_characters():
+    """Test that argument handling works with special characters."""
+    from emilybot.parser import parse_command, Command
+
+    # Test parsing with special characters
+    result = parse_command("$echo hello-world test_arg 'quoted string'")
+    assert isinstance(result, Command)
+    assert result.cmd == "echo"
+    assert result.args == ["hello-world", "test_arg", "'quoted string'"]

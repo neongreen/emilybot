@@ -27,6 +27,23 @@ $.commands.hello.code // JavaScript code (if set with .set alias.run)
 $.commands.hello.run() // Function to execute the command
 ```
 
+#### Command Arguments
+
+Commands can accept arguments when called:
+
+```javascript
+// Call a command with arguments
+$.cmd("greeting", "Alice", "Bob") // Pass arguments to the greeting command
+$.commands.greeting.run("Alice", "Bob") // Same as above
+
+// Inside a command's JavaScript code, arguments are available:
+// - `args` - Array of arguments passed to the command
+
+// Example command that uses arguments:
+// .set greeting.run console.log("Hello " + args[0] + " and " + args[1] + "!")
+// $greeting Alice Bob  // Outputs: Hello Alice and Bob!
+```
+
 > **Implementation source**:
 > Commands are stored in `$commandsMap__` and exposed via `$.commands` in [`js-executor/executor.ts:49-75`](../js-executor/executor.ts#L49-L75)
 
@@ -51,6 +68,10 @@ $user_settings() // Call the user-settings command
 $docs.api // The docs/api command
 $docs.api() // Call the docs/api command
 $docs.install // The docs/install command
+
+// Commands can accept arguments
+$greeting("Alice", "Bob") // Call greeting with arguments
+$greeting._run("Alice", "Bob") // Same as above
 ```
 
 > **Note**: Command names with dashes (`-`) are converted to underscores (`_`) for global variable access. For example, `user-settings` becomes `$user_settings`.
@@ -134,6 +155,12 @@ When you use the `$` prefix in Discord messages, Emily has special behavior:
    $docs.api()             // Call nested alias
    ```
 
+4. **Commands can accept arguments**:
+   ```
+   $greeting Alice Bob     // Equivalent to $greeting("Alice", "Bob")
+   $echo Hello World       // Equivalent to $echo("Hello", "World")
+   ```
+
 ## Usage Examples
 
 ### Basic Command Execution
@@ -167,6 +194,33 @@ $docs.install() // Call docs/install command
 if ($weather._content.includes("sunny")) {
     $console.log("It's a beautiful day!")
 }
+```
+
+### Command Arguments
+
+```javascript
+// Create a greeting command that uses arguments
+// .set greeting.run console.log("Hello " + args[0] + "! Welcome to " + args[1] + "!")
+
+// Call the command with arguments
+$greeting Alice Discord  // Outputs: Hello Alice! Welcome to Discord!
+
+// Access arguments in different ways
+// .set echo.run 
+// console.log("First arg:", args[0])
+// console.log("All args:", args)
+// console.log("Args length:", arguments.length)
+
+$echo Hello World Test  // Outputs the arguments in different formats
+
+// Use arguments for dynamic content
+// .set welcome.run 
+// let name = args[0] || "Guest"
+// let role = args[1] || "User"
+// console.log("Welcome " + name + "! You are a " + role + ".")
+
+$welcome Alice Admin  // Outputs: Welcome Alice! You are a Admin.
+$welcome Bob         // Outputs: Welcome Bob! You are a User.
 ```
 
 ### Dynamic Content Generation
@@ -290,77 +344,3 @@ JavaScript code can be provided in several formats:
 ```
 console.log("🌤️ " + $.commands.weather.content)
 ```
-````
-
-````
-.set weather.run
-```javascript
-console.log("🌤️ " + $.commands.weather.content)  
-```
-````
-
-## Common Patterns
-
-### Conditional Logic
-
-```javascript
-// Access command content directly for conditional logic
-let weatherContent = $.commands.weather.content
-if (weatherContent.includes("rain")) {
-  console.log("🌧️ Don't forget your umbrella!")
-} else {
-  console.log("☀️ Have a great day!")
-}
-```
-
-### Data Processing
-
-```javascript
-// Parse CSV-like data from a specific command
-let lines = $.commands.dataTable.content.split("\n")
-let total = lines
-  .map(line => parseFloat(line.split(",")[1]))
-  .filter(num => !isNaN(num))
-  .reduce((sum, num) => sum + num, 0)
-console.log("Total:", total)
-```
-
-### Random Selection
-
-```javascript
-// Random item from a command's content
-let options = $.commands.quotes.content.split("\n").filter(Boolean)
-let choice = options[$.lib.random(0, options.length - 1)]
-console.log("Random choice:", choice)
-```
-
-## What Doesn't Work
-
-To avoid confusion, here are common patterns that do NOT work:
-
-### Direct Command Property Access
-
-```javascript
-// ❌ These DON'T work - commands are not direct properties of $
-$.weather
-$.apiDocs
-$["weather"]
-
-// ✅ Use this instead
-$.commands.weather
-$.commands["weather"]
-```
-
-### Function Call Syntax for $
-
-```javascript
-// ❌ This doesn't work - $ is not a function
-$("weather")
-
-// ✅ Use this instead
-$.cmd("weather")
-```
-
-> **Implementation note**:
-> Commands are stored in `$.commands` object, not as direct properties of `$`.
-> The `$` object itself is not callable as a function. See the executor implementation in [`js-executor/executor.ts`](../js-executor/executor.ts) for details.

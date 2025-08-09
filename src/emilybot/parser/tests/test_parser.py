@@ -167,6 +167,34 @@ class TestParser:
         assert result.cmd == "foo"
         assert result.args == ["a", "b", "c"]
 
+    def test_command_with_quoted_arguments(self):
+        """Test that command with quoted arguments is parsed correctly."""
+        result = parse_command('$foo "hello world" "test arg"')
+        assert isinstance(result, Command)
+        assert result.cmd == "foo"
+        assert result.args == ['"hello world"', '"test arg"']
+
+    def test_command_with_special_characters_in_args(self):
+        """Test that command with special characters in arguments is parsed correctly."""
+        result = parse_command("$foo arg1 arg2-with-dashes arg3_with_underscores")
+        assert isinstance(result, Command)
+        assert result.cmd == "foo"
+        assert result.args == ["arg1", "arg2-with-dashes", "arg3_with_underscores"]
+
+    def test_command_with_no_arguments(self):
+        """Test that command with no arguments is parsed correctly."""
+        result = parse_command("$foo")
+        assert isinstance(result, Command)
+        assert result.cmd == "foo"
+        assert result.args == []
+
+    def test_command_with_empty_args(self):
+        """Test that command with empty args is parsed correctly."""
+        result = parse_command("$foo a  b   c")
+        assert isinstance(result, Command)
+        assert result.cmd == "foo"
+        assert result.args == ["a", "b", "c"]
+
     def test_invalid_no_dollar_prefix(self):
         """Test that message without $ prefix raises error."""
         import pytest
@@ -187,13 +215,6 @@ class TestParser:
 
         with pytest.raises(ValueError, match="No content found after"):
             parse_command("$   ")
-
-    def test_command_with_empty_args(self):
-        """Test that command with empty args is parsed correctly."""
-        result = parse_command("$foo a  b   c")
-        assert isinstance(result, Command)
-        assert result.cmd == "foo"
-        assert result.args == ["a", "b", "c"]
 
     def test_dollar_space_javascript(self):
         """Test that $ followed by space and JavaScript is treated as JS."""

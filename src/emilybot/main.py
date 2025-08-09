@@ -41,7 +41,9 @@ async def execute_dollar_javascript(ctx: EmilyContext, message: str) -> None:
         await ctx.send(f"❌ JavaScript error: {output}")
 
 
-async def handle_dollar_command(message: discord.Message, bot: EmilyBot) -> None:
+async def handle_dollar_command(
+    message: discord.Message, bot: EmilyBot, args: list[str]
+) -> None:
     """Handle messages starting with $ prefix"""
 
     # Create a context for the message
@@ -55,9 +57,10 @@ async def handle_dollar_command(message: discord.Message, bot: EmilyBot) -> None
         logging.debug(f"📝 Parsed result: {type(parsed).__name__} = {parsed}")
 
         match parsed:
+            # TODO: if we indeed got all the args correctly we can just remove args parsing from the parser
             case Command(cmd=cmd):
-                logging.debug(f"🚀 Executing command: '{cmd}'")
-                await cmd_cmd(ctx, cmd)
+                logging.debug(f"🚀 Executing command: '{cmd}' with args: {args}")
+                await cmd_cmd(ctx, cmd, args=args)
             case JS(code=code):
                 logging.debug(f"⚡ Executing JavaScript: '{code}'")
                 await execute_dollar_javascript(ctx, code)
@@ -132,8 +135,8 @@ async def init_bot(dev: bool) -> EmilyBot:
             and len(message.content) > 1
             and message.content[1].isspace()
         ):
-            logging.debug("🔍 Handling $ prefix command")
-            await handle_dollar_command(message, bot)
+            logging.debug("🔍 Handling '$ ' JS execution")
+            await handle_dollar_command(message, bot, args=[])
             return
 
         if dev and message.content.startswith("#"):
@@ -187,7 +190,7 @@ async def init_bot(dev: bool) -> EmilyBot:
                     logging.debug(f"✅ Validating alias: '{potential_alias}'")
                     AliasValidator.validate_alias(potential_alias, "lookup")
                     logging.debug(f"🚀 Executing command: '{potential_alias}'")
-                    await cmd_cmd(ctx, potential_alias)
+                    await cmd_cmd(ctx, potential_alias, args=ctx.args)
                     return
                 except ValidationError as e:
                     logging.debug(
@@ -201,7 +204,7 @@ async def init_bot(dev: bool) -> EmilyBot:
 
             elif message_content.startswith("$"):
                 logging.debug("🔍 Checking $ prefix")
-                await handle_dollar_command(ctx.message, ctx.bot)
+                await handle_dollar_command(ctx.message, ctx.bot, ctx.args)
                 return
 
         elif isinstance(error, commands.MissingRequiredArgument):

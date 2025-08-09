@@ -49,11 +49,11 @@ export async function execute(
       const $commandsMap__ = ({})
       const $ = ({
         commands: $commandsMap__,
-        cmd: function(name) {
+        cmd: function(name, ...args) {
           if (!(name in this.commands)) {
             throw new Error("Command not found: " + name)
           }
-          return this.commands[name].run()
+          return this.commands[name].run(...args)
         },
       })
       for (const key in $init__.fields) {
@@ -65,9 +65,11 @@ export async function execute(
           name: command.name,
           content: command.content,
           code: command.run || null,
-          run: function() {
+          run: function(...args) {
             if (this.code && this.code.trim()) {
-              return eval("(() => {\\n" + this.code + "\\n})()")
+              // Create a function that has access to the args parameter and this context
+              const func = new Function('args', this.code)
+              return func.call(this, args)
             } else {
               console.log(this.content)
             }
@@ -82,17 +84,11 @@ export async function execute(
       }
       
       function createCommandObject(name, content, code) {
-        const cmd = function() {
+        const cmd = function(...args) {
           if (code && code.trim()) {
-            // Create a context object with command properties
-            const commandContext = {
-              name: name,
-              content: content,
-              code: code
-            }
-            // Use Function constructor to create a function with proper 'this' binding
-            const func = new Function('name', 'content', 'code', code)
-            return func.call(commandContext, name, content, code)
+            const commandContext = {name, content, code}
+            const func = new Function('args', code)
+            return func.call(commandContext, args)  // "this" will be the commandContext, args as parameter
           } else {
             console.log(content)
           }

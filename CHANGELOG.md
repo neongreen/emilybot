@@ -10,6 +10,7 @@
   - For nested commands, `foo/bar` is available as `$foo.bar`.
     The old `$.cmd("foo/bar")` is still supported but deprecated.
   - For commands with dashes, `foo-bar` is available as `$foo_bar`.
+  - Arguments are passed in `args`, e.g. when running `$foo a b`, `args` will be `["a", "b"]`.
 
 **`$` prefix:**
 

@@ -84,7 +84,7 @@ def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
     if _is_valid_alias(first_word):
         # It looks like a valid alias, treat as command
         cmd_name = first_word
-        args = parts[1].split() if len(parts) > 1 else []
+        args = _parse_arguments(parts[1]) if len(parts) > 1 else []
         return Command(cmd=cmd_name, args=args)
     else:
         # If it doesn't match the alias pattern, treat as JavaScript
@@ -119,10 +119,57 @@ def _parse_dot_command(content: str) -> Union[Command, None]:
                 if _is_valid_alias(parent) and _is_valid_alias(child):
                     # Construct the command as parent/child
                     cmd_name = f"{parent}/{child}"
-                    args = remaining.split() if remaining else []
+                    args = _parse_arguments(remaining) if remaining else []
                     return Command(cmd=cmd_name, args=args)
 
     return None
+
+
+def _parse_arguments(args_string: str) -> list[str]:
+    """
+    Parse command arguments, handling quoted strings properly.
+
+    Args:
+        args_string: The string containing arguments
+
+    Returns:
+        List of parsed arguments
+    """
+    if not args_string.strip():
+        return []
+
+    args: list[str] = []
+    current_arg = ""
+    in_quotes = False
+    quote_char: str | None = None
+    i = 0
+
+    while i < len(args_string):
+        char = args_string[i]
+
+        if not in_quotes:
+            if char in ['"', "'"]:
+                in_quotes = True
+                quote_char = char
+                current_arg += char
+            elif char.isspace():
+                if current_arg:
+                    args.append(current_arg)
+                    current_arg = ""
+            else:
+                current_arg += char
+        else:
+            current_arg += char
+            if char == quote_char:
+                in_quotes = False
+                quote_char = None
+
+        i += 1
+
+    if current_arg:
+        args.append(current_arg)
+
+    return args
 
 
 def _is_valid_alias(alias: str) -> bool:

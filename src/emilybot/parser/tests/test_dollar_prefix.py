@@ -280,3 +280,119 @@ async def test_dollar_prefix_legacy_compatibility():
     assert "$.commands.weather.name: weather" in output
     assert "$.commands.weather.content: Sunny, 75°F" in output
     assert "Sunny, 75°F" in output  # From $.cmd call
+
+
+@pytest.mark.asyncio
+async def test_dollar_prefix_command_arguments():
+    """Test that commands can accept arguments when called with $ prefix"""
+
+    # Create executor
+    from emilybot.execute.javascript_executor import (
+        JavaScriptExecutor,
+        CommandData,
+        Context,
+        CtxMessage,
+        CtxUser,
+        CtxServer,
+    )
+
+    executor = JavaScriptExecutor()
+
+    # Create context
+    context = Context(
+        message=CtxMessage(text="test message content"),
+        user=CtxUser(id="12345", name="TestUser"),
+        server=CtxServer(id="67890"),
+    )
+
+    # Create test commands with argument handling
+    commands = [
+        CommandData(
+            name="greeting",
+            content="Hello, world!",
+            run="console.log('Hello ' + args[0] + ' and ' + args[1] + '!')",
+        ),
+        CommandData(
+            name="echo",
+            content="Echo command",
+            run="console.log('Args:', args); console.log('Args length:', args.length)",
+        ),
+        CommandData(
+            name="welcome",
+            content="Welcome message",
+            run="let name = args[0] || 'Guest'; console.log('Welcome ' + name + '!')",
+        ),
+    ]
+
+    # Test calling commands with arguments
+    success, output, value = await executor.execute(
+        """
+        console.log("Testing command arguments:");
+        $greeting("Alice", "Bob");
+        $echo("Hello", "World", "Test");
+        $welcome("Charlie");
+        $welcome();
+    """,
+        context,
+        commands,
+    )
+
+    print(f"Success: {success}")
+    print(f"Output: {output}")
+    print(f"Value: {value}")
+    assert success
+    assert "Hello Alice and Bob!" in output
+    assert 'Args: [ "Hello", "World", "Test" ]' in output
+    assert "Args length: 3" in output
+    assert "Welcome Charlie!" in output
+    assert "Welcome Guest!" in output
+
+
+@pytest.mark.asyncio
+async def test_dollar_prefix_arguments_via_cmd():
+    """Test that $.cmd() function can pass arguments to commands"""
+
+    # Create executor
+    from emilybot.execute.javascript_executor import (
+        JavaScriptExecutor,
+        CommandData,
+        Context,
+        CtxMessage,
+        CtxUser,
+        CtxServer,
+    )
+
+    executor = JavaScriptExecutor()
+
+    # Create context
+    context = Context(
+        message=CtxMessage(text="test message content"),
+        user=CtxUser(id="12345", name="TestUser"),
+        server=CtxServer(id="67890"),
+    )
+
+    # Create test command
+    commands = [
+        CommandData(
+            name="test-args",
+            content="Test arguments",
+            run="console.log('Received args:', args); console.log('First arg:', args[0])",
+        ),
+    ]
+
+    # Test calling command with arguments via $.cmd()
+    success, output, value = await executor.execute(
+        """
+        console.log("Testing $.cmd() with arguments:");
+        $.cmd("test-args", "first", "second", "third");
+    """,
+        context,
+        commands,
+    )
+
+    print(f"Success: {success}")
+    print(f"Output: {output}")
+    print(f"Value: {value}")
+    assert success
+    assert 'Received args: [ "first", "second", "third" ]' in output
+    assert "First arg: first" in output
