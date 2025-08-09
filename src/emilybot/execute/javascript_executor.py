@@ -130,6 +130,7 @@ class JavaScriptExecutor:
                 cmd = [
                     self.deno_path,
                     "run",
+                    "--quiet",
                     "--allow-env=QTS_DEBUG",
                     f"--allow-read=js-executor/,{temp_path}",
                     self.executor_script,
