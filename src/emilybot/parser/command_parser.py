@@ -1,8 +1,9 @@
+import re
 from typing import Union
 
 from discord.ext.commands.view import StringView  # pyright: ignore[reportMissingTypeStubs]
 
-from emilybot.parser.js_parser import parse_js_code
+from emilybot.execute.javascript_executor import extract_js_code
 from emilybot.parser.list_children_parser import (
     is_list_children_pattern,
     parse_list_children,
@@ -67,32 +68,34 @@ def parse_command_invocation(message_content: str, *, prefix: str = "$") -> Comm
         raise ValueError(f"Invalid command name: '{cmd_name}'")
 
 
-def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
-    """
+def parse_command(
+    message_content: str, extra_command_prefixes: list[str] = []
+) -> Union[Command, JS, ListChildren]:
+    r"""
     Parse a message content into either a Command, JS, or ListChildren.
 
     Args:
         message_content: The message content to parse
+        extra_command_prefixes: The prefixes to expect for the command (default: []).
+          JavaScript code is *only* allowed for "$", not for any other prefix.
 
     Returns:
         Either Command with cmd name and list of arguments, JS with code to execute,
-        or ListChildren with parent command to list children of
+        or ListChildren with parent command to list children of.
 
-    Examples:
+    Command invocation:
         >>> parse_command("$foo a b c")
         Command(cmd='foo', args=['a', 'b', 'c'])
 
         >>> parse_command("$bar")
         Command(cmd='bar', args=[])
 
-        >>> parse_command("$test;")
-        JS(code='$test;')
+        >>> parse_command(".foo a b c", extra_command_prefixes=["."])
+        Command(cmd='foo', args=['a', 'b', 'c'])
 
-        >>> parse_command("$foo.bar a b c")
-        Command(cmd='foo/bar', args=['a', 'b', 'c'])
-
-        >>> parse_command("$foo._bar")
-        JS(code='$foo._bar')
+    List children:
+        >>> parse_command(".foo/x/", extra_command_prefixes=["."])
+        ListChildren(parent='foo/x')
 
         >>> parse_command("$foo.")
         ListChildren(parent='foo')
@@ -102,49 +105,81 @@ def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
 
         >>> parse_command("$foo/")
         ListChildren(parent='foo')
+
+    JavaScript:
+        >>> parse_command("$test;")
+        JS(code='$test;')
+
+        >>> parse_command('''$foo('a b', "c d")''')
+        JS(code='$foo(\'a b\', "c d")')
+
+        >>> parse_command("$foo._bar")  # invalid comment because _bar starts with _
+        JS(code='$foo._bar')
+
+        >>> parse_command("$ f(x)")
+        JS(code='f(x)')
+
+        >>> parse_command("$\nf(x)")
+        JS(code='f(x)')
+
+    Stripping JS code blocks:
+        >>> parse_command("$\n```js\nconsole.log('hello');\n```")
+        JS(code="console.log('hello');")
+
+        >>> parse_command("$```js\nconsole.log('hello');\n```")
+        JS(code="console.log('hello');")
+
+    Normalization:
+        >>> parse_command("$foo.bar a b c")
+        Command(cmd='foo/bar', args=['a', 'b', 'c'])
     """
 
-    if not message_content.startswith("$"):
-        raise ValueError("Message content must start with '$'")
+    # Determine the prefix used
+    all_prefixes = ["$"] + extra_command_prefixes
+    used_prefix = None
 
-    # Check if it's just "$" (no content)
-    if message_content == "$":
-        raise ValueError("No content found after '$'")
+    for prefix in all_prefixes:
+        if message_content.startswith(prefix):
+            used_prefix = prefix
+            break
 
-    content_without_prefix = message_content[1:].strip()
+    if used_prefix is None:
+        raise ValueError(
+            f"Message content must start with one of: {', '.join(all_prefixes)}"
+        )
 
-    # Check if it starts with "$ " (dollar followed by any amount of whitespace) - treat as JavaScript
-    if len(message_content) > 1 and message_content[1].isspace():
-        code = message_content[1:].strip()
-        if not code:
-            raise ValueError("No content found after '$'")
-        return parse_js_code(
-            message_content
-        )  # Strip prefix and whitespace, return as JS
+    # Check if it's just the prefix (no content)
+    if message_content == used_prefix:
+        raise ValueError(f"No content found after '{used_prefix}'")
+
+    content_without_prefix = message_content[len(used_prefix) :]
 
     if not content_without_prefix:
-        raise ValueError("No content found after '$'")
+        raise ValueError(f"No content found after '{used_prefix}'")
+
+    # JavaScript parsing is only allowed for "$" prefix
+    if used_prefix == "$":
+        # Check if it starts with "$ ", "$\n", "$`"
+        if re.match(r"^([\s]+|`)", content_without_prefix, re.UNICODE):
+            code = extract_js_code(content_without_prefix)
+            if not code:
+                raise ValueError("Couldn't extract JavaScript code")
+            return JS(code=code)
+        if not content_without_prefix:
+            raise ValueError("No content found after '$'")
 
     # Check for list children pattern first
     if is_list_children_pattern(content_without_prefix):
         return parse_list_children(content_without_prefix)
 
-    # Check for regex patterns (starts with / and ends with /)
-    if (
-        content_without_prefix.startswith("/")
-        and content_without_prefix.endswith("/")
-        and len(content_without_prefix) > 2
-    ):
-        return JS(code=message_content)
-
-    # Check for comments (starts with //)
-    if content_without_prefix.startswith("//"):
-        return JS(code=message_content)
-
     try:
-        return parse_command_invocation(message_content)
+        return parse_command_invocation(message_content, prefix=used_prefix)
     except ValueError:
-        return JS(code=message_content)
+        # Only treat as JavaScript if using "$" prefix
+        if used_prefix == "$":
+            return JS(code=message_content)
+        else:
+            raise
 
 
 def _parse_arguments(view: StringView) -> list[str]:

@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import discord
-import re
 import sys
 from pathlib import Path
 from typing import Any, Optional, assert_never
@@ -10,8 +9,6 @@ from discord.ext import commands
 from watchfiles import awatch  # type: ignore
 
 from emilybot.discord import EmilyBot, EmilyContext
-from emilybot.parser.command_parser import parse_command_invocation
-from emilybot.validation import validate_path, ValidationError
 from emilybot.commands.save import cmd_add
 from emilybot.commands.show import cmd_list, cmd_random, cmd_show
 from emilybot.commands.edit import cmd_edit
@@ -25,11 +22,12 @@ from emilybot.format import format_show_content
 from emilybot.parser import parse_command, Command, JS, ListChildren
 
 
-async def execute_dollar_javascript(ctx: EmilyContext, message: str) -> None:
-    """Execute a message starting with $ as JavaScript"""
-    logging.debug(f"⚡ execute_dollar_javascript: message='{message}'")
+async def execute_js(ctx: EmilyContext, code: str) -> None:
+    """Execute JavaScript. All wrapping like '$ ', '```js`, etc should be handled by the parser."""
 
-    success, output, value = await run_code(ctx, code=message)
+    logging.debug(f"⚡ execute_js: code='{code}'")
+
+    success, output, value = await run_code(ctx, code=code)
     logging.debug(
         f"📊 JavaScript execution result: success={success}, output='{output}', value='{value}'"
     )
@@ -42,8 +40,11 @@ async def execute_dollar_javascript(ctx: EmilyContext, message: str) -> None:
         await ctx.send(f"❌ JavaScript error: {output}")
 
 
-async def handle_dollar_command(message: discord.Message, bot: EmilyBot) -> None:
-    """Handle messages starting with $ prefix"""
+async def handle_message(message: discord.Message, bot: EmilyBot, dev: bool) -> None:
+    """Handle messages using our own parsing logic.
+    This is used for most of the commands, except the ones defined via @command.
+    (TODO: get rid of @command entirely.)
+    """
 
     # Create a context for the message
     ctx = await bot.get_context(message)
@@ -52,6 +53,10 @@ async def handle_dollar_command(message: discord.Message, bot: EmilyBot) -> None
     logging.debug(f"🔧 Parsing command: '{message_content}'")
 
     try:
+        # In dev mode we use #$ instead of $ for JS
+        if dev and message_content.startswith("#$"):
+            message_content = message_content[1:]
+
         parsed = parse_command(message_content)
         logging.debug(f"📝 Parsed result: {type(parsed).__name__} = {parsed}")
 
@@ -62,12 +67,11 @@ async def handle_dollar_command(message: discord.Message, bot: EmilyBot) -> None
                 await cmd_cmd(ctx, cmd, args=args)
             case JS(code=code):
                 logging.debug(f"⚡ Executing JavaScript: '{code}'")
-                await execute_dollar_javascript(ctx, code)
+                await execute_js(ctx, code)
             case ListChildren(parent=parent):
                 logging.debug(f"📜 Listing children of: '{parent}'")
                 await cmd_show(ctx, f"{parent}/")
             case _:
-                logging.debug(f"❌ Unexpected parsed type: {type(parsed)}")
                 assert_never(parsed)
     except Exception as e:
         logging.debug(f"💥 Exception during parsing: {type(e).__name__}: {e}")
@@ -80,8 +84,8 @@ async def init_bot(dev: bool) -> EmilyBot:
     intents.message_content = True
 
     if dev:
-        logging.info("Running in development mode. Using `##` as command prefix.")
-        command_prefix = ["##", "#$"]
+        logging.info("Running in development mode. Using `#$` as command prefix.")
+        command_prefix = ["#$"]
     else:
         logging.info(
             "Running in production mode. Using `.` and `$` as command prefixes."
@@ -119,21 +123,8 @@ async def init_bot(dev: bool) -> EmilyBot:
             logging.debug("🤖 Skipping bot message")
             return
 
-        # Handle $ prefix commands directly
-        if (
-            not dev
-            and message.content.startswith("$")
-            and len(message.content) > 1
-            and message.content[1].isspace()
-        ):
-            logging.debug("🔍 Handling '$ ' JS execution")
-            await handle_dollar_command(message, bot)
-            return
-
-        if dev and message.content.startswith("#"):
-            logging.debug(f"🔧 Dev mode: converting #{message.content[1:]} to command")
-            message.content = message.content[1:]
-            await bot.process_commands(message)
+        # This is only used when the command is not defined via @command.
+        await handle_message(message, bot, dev)
 
     @bot.listen()
     async def on_command_error(  # pyright: ignore[reportUnusedFunction]
@@ -147,57 +138,41 @@ async def init_bot(dev: bool) -> EmilyBot:
         if isinstance(error, commands.CommandNotFound):
             logging.debug("🔍 CommandNotFound - checking for custom prefixes")
 
-            # skip the dev prefix because it's meant for the dev bot
-            if not dev and ctx.message.content.startswith("##"):
-                logging.info("Ignoring command meant for the dev bot.")
-                return
-
-            # Check if the message starts with any of our prefixes
-            message_content = ctx.message.content
-            potential_alias = None
-
-            # Check for . prefix first
-            if message_content.startswith("."):
-                logging.debug("🔍 Checking . prefix")
-                potential_alias = message_content[1:].split(" ")[0].strip()
-                logging.debug(f"📝 Extracted potential alias: '{potential_alias}'")
-
-                if not potential_alias:
-                    logging.debug("❌ No alias found after . prefix")
-                    return
-
-                # Bot should refuse to handle anything that can annoy people.
-                # Allowed things are: .ab<anything> or $ab<anything>
-                if (
-                    re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_/]", potential_alias)
-                    is None  # avoid .[punctuation] or $[punctuation]
-                    or potential_alias.isdecimal()  # avoid .0123 or $0123
-                ):
-                    logging.info(f"Not treating {potential_alias} as a command.")
-                    return
-
+            # Try to handle . prefix commands using parse_command
+            if not dev and ctx.message.content.startswith("."):
+                logging.debug("🔍 Checking . prefix with parse_command")
                 try:
-                    # If it can be an alias, try looking it up
-                    logging.debug(f"✅ Validating alias: '{potential_alias}'")
-                    validate_path(potential_alias, allow_trailing_slash=False)
-                    logging.debug(f"🚀 Executing command: '{potential_alias}'")
-                    parsed = parse_command_invocation(potential_alias)
-                    await cmd_cmd(ctx, parsed.cmd, args=parsed.args)
-                    return
-                except ValidationError as e:
-                    logging.debug(
-                        f"❌ Alias validation failed: '{potential_alias}' - {e}"
+                    parsed = parse_command(
+                        ctx.message.content, extra_command_prefixes=["."]
                     )
-
-                logging.debug(f"❓ Unknown . command: '{potential_alias}'")
-                await ctx.send(
-                    f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
-                )
-
-            elif message_content.startswith("$"):
-                logging.debug("🔍 Checking $ prefix")
-                await handle_dollar_command(ctx.message, ctx.bot)
-                return
+                    match parsed:
+                        case Command(cmd=cmd, args=args):
+                            logging.debug(
+                                f"🚀 Executing . command: '{cmd}' with args: {args}"
+                            )
+                            await cmd_cmd(ctx, cmd, args=args)
+                            return
+                        case ListChildren(parent=parent):
+                            logging.debug(f"📜 Listing children of: '{parent}'")
+                            await cmd_show(ctx, f"{parent}/")
+                            return
+                        case JS():
+                            # This shouldn't happen for . prefix, but handle it gracefully
+                            logging.debug(
+                                "❌ Unexpected JS result for . prefix command"
+                            )
+                            await ctx.send(
+                                f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
+                            )
+                            return
+                except Exception as e:
+                    logging.debug(
+                        f"❌ Error parsing . command: {type(e).__name__}: {e}"
+                    )
+                    await ctx.send(
+                        f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
+                    )
+                    return
 
         elif isinstance(error, commands.MissingRequiredArgument):
             logging.debug(f"❌ MissingRequiredArgument: {error}")

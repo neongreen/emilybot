@@ -1,21 +1,3 @@
-from emilybot.parser.types import JS
-
-
-def parse_js_code(message_content: str) -> JS:
-    """
-    Parse message content as JavaScript code.
-
-    Args:
-        message_content: The message content to parse as JavaScript
-
-    Returns:
-        JS object with the code to execute
-    """
-    # Remove the '$' prefix and any leading whitespace
-    code = message_content[1:].strip()
-    return JS(code=code)
-
-
 def is_js_pattern(content: str) -> bool:
     """
     Check if content looks like JavaScript code rather than a command.

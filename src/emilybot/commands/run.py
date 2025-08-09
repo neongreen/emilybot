@@ -4,6 +4,7 @@ import json
 from discord.ext import commands
 from emilybot.commands.show import format_not_found_message, format_validation_error
 from emilybot.discord import EmilyContext
+from emilybot.execute.javascript_executor import extract_js_code
 from emilybot.execute.run_code import run_code
 from emilybot.format import format_show_content
 from emilybot.utils.list import first
@@ -19,7 +20,7 @@ async def cmd_run(
     """`.run [JS code]`: Execute JavaScript code directly."""
 
     try:
-        success, output, value = await run_code(ctx, code=code)
+        success, output, value = await run_code(ctx, code=extract_js_code(code))
         if success:
             await ctx.send(format_show_content(output, value))
         else:

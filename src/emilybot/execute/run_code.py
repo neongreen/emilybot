@@ -3,7 +3,6 @@
 from emilybot.discord import EmilyContext
 from emilybot.execute.javascript_executor import (
     JavaScriptExecutor,
-    extract_js_code,
     Context,
     CtxMessage,
     CtxUser,
@@ -14,13 +13,10 @@ from emilybot.command_query_service import CommandQueryService
 
 async def run_code(
     ctx: EmilyContext,
-    *,  # treat the rest as a single string
+    *,
     code: str,
 ) -> tuple[bool, str, str | None]:
     """Run JavaScript code directly and return the result."""
-
-    # Parse and clean JavaScript code
-    cleaned_code = extract_js_code(code)
 
     # Create JavaScript executor
     js_executor = JavaScriptExecutor()
@@ -40,7 +36,7 @@ async def run_code(
 
     # Execute JavaScript code with available commands
     success, output, value = await js_executor.execute(
-        cleaned_code, context, available_commands
+        code, context, available_commands
     )
 
     return success, output, value

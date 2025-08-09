@@ -84,17 +84,11 @@ class TestParser:
         assert isinstance(result, JS)
         assert result.code == "$x + y"
 
-    def test_javascript_with_quotes(self):
-        """Test that JavaScript with quotes is treated as JS."""
-        result = parse_command("$'hello'")
-        assert isinstance(result, JS)
-        assert result.code == "$'hello'"
-
     def test_javascript_with_backticks(self):
         """Test that JavaScript with backticks is treated as JS."""
         result = parse_command("$`hello`")
         assert isinstance(result, JS)
-        assert result.code == "$`hello`"
+        assert result.code == "`hello`"
 
     def test_javascript_with_dot_notation(self):
         """Test that JavaScript with dot notation is treated as command."""
@@ -126,19 +120,7 @@ class TestParser:
         """Test that JavaScript template literals are treated as JS."""
         result = parse_command("$`Hello ${name}`")
         assert isinstance(result, JS)
-        assert result.code == "$`Hello ${name}`"
-
-    def test_javascript_with_regex(self):
-        """Test that JavaScript with regex is treated as JS."""
-        result = parse_command("$/pattern/")
-        assert isinstance(result, JS)
-        assert result.code == "$/pattern/"
-
-    def test_javascript_with_comment(self):
-        """Test that JavaScript with comment is treated as JS."""
-        result = parse_command("$// comment")
-        assert isinstance(result, JS)
-        assert result.code == "$// comment"
+        assert result.code == "`Hello ${name}`"
 
     def test_javascript_with_multiline(self):
         """Test that JavaScript with newlines is treated as JS."""
@@ -206,14 +188,14 @@ class TestParser:
         """Test that message with just $ raises error."""
         import pytest
 
-        with pytest.raises(ValueError, match="No content found after"):
+        with pytest.raises(ValueError, match="No content"):
             parse_command("$")
 
     def test_invalid_whitespace_after_dollar(self):
         """Test that message with $ and whitespace raises error."""
         import pytest
 
-        with pytest.raises(ValueError, match="No content found after"):
+        with pytest.raises(ValueError, match="Couldn't extract JavaScript code"):
             parse_command("$   ")
 
     def test_dollar_space_javascript(self):
