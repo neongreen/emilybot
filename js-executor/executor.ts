@@ -59,6 +59,7 @@ export async function execute(
       for (const key in $init__.fields) {
         $[key] = $init__.fields[key]
       }
+
       for (const command of $init__.commands) {
         const obj = ({
           name: command.name,
@@ -83,7 +84,15 @@ export async function execute(
       function createCommandObject(name, content, code) {
         const cmd = function() {
           if (code && code.trim()) {
-            return eval("(() => {\\n" + code + "\\n})()")
+            // Create a context object with command properties
+            const commandContext = {
+              name: name,
+              content: content,
+              code: code
+            }
+            // Use Function constructor to create a function with proper 'this' binding
+            const func = new Function('name', 'content', 'code', code)
+            return func.call(commandContext, name, content, code)
           } else {
             console.log(content)
           }
@@ -99,15 +108,9 @@ export async function execute(
       
       // Build global command objects
       const commandGlobals = {}
+      
+      // First pass: handle nested commands (with slashes)
       for (const command of $init__.commands) {
-        const normalizedName = normalizeCommandName(command.name)
-        
-        // Handle direct mapping (no slashes)
-        if (!command.name.includes('/')) {
-          commandGlobals[normalizedName] = createCommandObject(command.name, command.content, command.code)
-        }
-        
-        // Handle nested commands (with slashes)
         const parts = command.name.split('/')
         if (parts.length > 1) {
           let current = commandGlobals
@@ -119,7 +122,31 @@ export async function execute(
             current = current[part]
           }
           const lastPart = normalizeCommandName(parts[parts.length - 1])
-          current[lastPart] = createCommandObject(command.name, command.content, command.code)
+          current[lastPart] = createCommandObject(command.name, command.content, command.run)
+        }
+      }
+      
+      // Second pass: handle direct commands (no slashes)
+      for (const command of $init__.commands) {
+        if (!command.name.includes('/')) {
+          const normalizedName = normalizeCommandName(command.name)
+          // Check if this name already exists as a container for nested commands
+          if (commandGlobals[normalizedName] && typeof commandGlobals[normalizedName] === 'object' && !commandGlobals[normalizedName]._name) {
+            // This is a container object for nested commands, don't overwrite it
+            // Instead, add the command as a property and make the container callable
+            const selfCommand = createCommandObject(command.name, command.content, command.run)
+            commandGlobals[normalizedName]._self = selfCommand
+            // Make the container callable by delegating to the self command
+            const container = commandGlobals[normalizedName]
+            const callableContainer = function() {
+              return selfCommand.apply(this, arguments)
+            }
+            // Copy all properties from the container to the callable
+            Object.assign(callableContainer, container)
+            commandGlobals[normalizedName] = callableContainer
+          } else {
+            commandGlobals[normalizedName] = createCommandObject(command.name, command.content, command.run)
+          }
         }
       }
       

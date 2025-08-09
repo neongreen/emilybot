@@ -5,3 +5,21 @@
 # ✅ create a type for the result of command/message parsing so that it's unit-testable
 
 # ✅ handle $foo a b c to be $foo("a", "b", "c")
+
+# forbid foo.name ("name" cant be set on functions)
+
+# check what other properties cannot be set on functions
+
+# add syntax like $foo = "bar"
+
+# have args in the context
+
+e.g. give the function stuff like 'args' when called like $foo
+
+# $ whitespace
+
+any whitespace should work, e.g `$ foo`, `$\nfoo`, etc
+
+# handle nested commands in a nicer way
+
+just give Deno a tree, don't make it reconstruct the tree by itself

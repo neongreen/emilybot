@@ -21,7 +21,7 @@ from emilybot.commands.set import cmd_set
 from emilybot.commands.run import cmd_cmd, cmd_run
 from emilybot.execute.run_code import run_code
 from emilybot.format import format_show_content
-from emilybot.parser import parse_command, Command, JS
+from emilybot.parser import parse_command, Command, JS, ListChildren
 
 
 async def execute_dollar_javascript(ctx: EmilyContext, message: str) -> None:
@@ -61,6 +61,9 @@ async def handle_dollar_command(message: discord.Message, bot: EmilyBot) -> None
             case JS(code=code):
                 logging.debug(f"⚡ Executing JavaScript: '{code}'")
                 await execute_dollar_javascript(ctx, code)
+            case ListChildren(parent=parent):
+                logging.debug(f"📜 Listing children of: '{parent}'")
+                await cmd_show(ctx, f"{parent}/")
             case _:
                 logging.debug(f"❌ Unexpected parsed type: {type(parsed)}")
                 assert_never(parsed)
