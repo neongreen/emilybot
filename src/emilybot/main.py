@@ -41,6 +41,35 @@ async def execute_dollar_javascript(ctx: EmilyContext, message: str) -> None:
         await ctx.send(f"❌ JavaScript error: {output}")
 
 
+async def handle_dollar_command(message: discord.Message, bot: EmilyBot) -> None:
+    """Handle messages starting with $ prefix"""
+
+    # Create a context for the message
+    ctx = await bot.get_context(message)
+
+    message_content = message.content
+    logging.debug(f"🔧 Parsing command: '{message_content}'")
+
+    try:
+        parsed = parse_command(message_content)
+        logging.debug(f"📝 Parsed result: {type(parsed).__name__} = {parsed}")
+
+        match parsed:
+            case Command(cmd=cmd):
+                logging.debug(f"🚀 Executing command: '{cmd}'")
+                await cmd_cmd(ctx, cmd)
+            case JS(code=code):
+                logging.debug(f"⚡ Executing JavaScript: '{code}'")
+                await execute_dollar_javascript(ctx, code)
+            case _:
+                logging.debug(f"❌ Unexpected parsed type: {type(parsed)}")
+                assert_never(parsed)
+    except Exception as e:
+        logging.debug(f"💥 Exception during parsing: {type(e).__name__}: {e}")
+        logging.error("Error parsing command", exc_info=True)
+        await ctx.send(f"❌ Error parsing command: {str(e)}")
+
+
 async def init_bot(dev: bool) -> EmilyBot:
     intents = discord.Intents.default()
     intents.message_content = True
@@ -93,6 +122,12 @@ async def init_bot(dev: bool) -> EmilyBot:
         if dev and message.content.startswith("$"):
             logging.debug("🚫 Dev mode: skipping $ message (meant for prod bot)")
             return  # meant for the prod bot
+
+        # Handle $ prefix commands directly
+        if message.content.startswith("$ "):
+            logging.debug("🔍 Handling $ prefix command")
+            await handle_dollar_command(message, bot)
+            return
 
         if dev and message.content.startswith("#"):
             logging.debug(f"🔧 Dev mode: converting #{message.content[1:]} to command")
@@ -156,42 +191,6 @@ async def init_bot(dev: bool) -> EmilyBot:
                 await ctx.send(
                     f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
                 )
-
-            # Then check for $ prefix
-            elif message_content.startswith("$"):
-                logging.debug("🔍 Checking $ prefix")
-                # First we check if we have smth like $foo a b c or just plain $foo,
-                # which we'll treat as $foo("a", "b", "c")
-
-                try:
-                    logging.debug(f"🔧 Parsing command: '{message_content}'")
-                    parsed = parse_command(message_content)
-                    logging.debug(
-                        f"📝 Parsed result: {type(parsed).__name__} = {parsed}"
-                    )
-
-                    match parsed:
-                        case Command(cmd=cmd):
-                            logging.debug(f"🚀 Executing command: '{cmd}'")
-                            # For commands, we need to construct the full command string
-                            # since cmd_cmd expects just the alias
-                            # The args are handled internally by the command system
-                            await cmd_cmd(ctx, cmd)
-                            return
-                        case JS(code=code):
-                            logging.debug(f"⚡ Executing JavaScript: '{code}'")
-                            await execute_dollar_javascript(ctx, code)
-                            return
-                        case _:
-                            logging.debug(f"❌ Unexpected parsed type: {type(parsed)}")
-                            assert_never(parsed)
-                except Exception as e:
-                    logging.debug(
-                        f"💥 Exception during parsing: {type(e).__name__}: {e}"
-                    )
-                    logging.error("Error parsing command", exc_info=True)
-                    await ctx.send(f"❌ Error parsing command: {str(e)}")
-                    return
 
         elif isinstance(error, commands.MissingRequiredArgument):
             logging.debug(f"❌ MissingRequiredArgument: {error}")
