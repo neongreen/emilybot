@@ -47,3 +47,11 @@ run = "dprint check"
 description = "Typecheck js-executor/ JS code"
 dir = "js-executor"
 run = "deno check"
+
+[tasks."check:ruff"]
+description = "Check python code"
+run = "ruff check"
+
+[tasks."check:ruff:fix"]
+description = "Fix python code"
+run = "ruff check --fix"

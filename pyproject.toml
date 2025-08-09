@@ -46,4 +46,11 @@ addopts = [
 [tool.ruff]
 line-length = 88
 indent-width = 4
-lint.ignore = ["F541"]
+exclude = ["typings/"]
+
+[tool.ruff.lint]
+ignore = ["E402", "F541"]
+select = ["TID252"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"

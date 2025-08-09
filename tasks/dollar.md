@@ -12,7 +12,34 @@
 
 # add syntax like $foo = "bar"
 
-btw unclear how to make it so that you can set both run() and content()
+let's be conservative and not allow $foo = "bar" but instead have
+- $foo.text = "bar"
+- $foo() { ... }
+  - must work even if the command is not defined yet
+  - if the command is defined, it should not create a new function but set .run
+  - $foo() { } resets / removes the code
+
+# add function definition syntax with backticks
+
+for example,
+
+```js
+$foo() {
+  return "bar"
+}
+```
+
+should be the same as 
+
+`$foo() { ... }`
+
+also we should detect if the person tries to define multiple functions in the same block and allow it also
+
+# when editing a message, also edit the output of the JS
+
+# add smth like .children()
+
+# rename .content to .text
 
 # have args in the context
 

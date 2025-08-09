@@ -1,28 +1,12 @@
-from typing import List, Union
-from dataclasses import dataclass
 import re
+from typing import Union
 
-
-@dataclass
-class Command:
-    """Represents a parsed command"""
-
-    cmd: str
-    args: List[str]
-
-
-@dataclass
-class JS:
-    """Represents JavaScript code to execute"""
-
-    code: str
-
-
-@dataclass
-class ListChildren:
-    """Represents a request to list children of a command"""
-
-    parent: str
+from emilybot.parser.js_parser import is_js_pattern, is_quoted_content, parse_js_code
+from emilybot.parser.list_children_parser import (
+    is_list_children_pattern,
+    parse_list_children,
+)
+from emilybot.parser.types import JS, Command, ListChildren
 
 
 def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
@@ -74,7 +58,7 @@ def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
         code = message_content[1:].strip()
         if not code:
             raise ValueError("No content found after '$'")
-        return JS(code=code)  # Strip "$" and whitespace, return as JS
+        return parse_js_code(message_content)  # Strip "$" and whitespace, return as JS
 
     # Remove the '$' prefix
     content = message_content[1:].strip()
@@ -82,14 +66,41 @@ def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
     if not content:
         raise ValueError("No content found after '$'")
 
-    # Handle dot notation patterns
-    # Check for $foo. (with optional trailing dots or slashes)
-    dot_listing_pattern = r"^([a-zA-Z0-9_][a-zA-Z0-9_/\-]*[a-zA-Z0-9_/])[./]+$"
-    dot_listing_match = re.match(dot_listing_pattern, content)
-    if dot_listing_match:
-        parent = dot_listing_match.group(1)
-        return ListChildren(parent=parent)
+    # Check for list children pattern first
+    if is_list_children_pattern(content):
+        return parse_list_children(content)
 
+    # Check for dot notation command patterns
+    if "." in content and not is_js_pattern(content):
+        dot_command = _parse_dot_command(content)
+        if dot_command:
+            return dot_command
+
+    # Split by whitespace to get the first word (potential command name)
+    parts = content.split(None, 1)  # Split on whitespace, max 1 split
+    first_word = parts[0]
+
+    # Check if the first word looks like a valid alias
+    if _is_valid_alias(first_word):
+        # It looks like a valid alias, treat as command
+        cmd_name = first_word
+        args = parts[1].split() if len(parts) > 1 else []
+        return Command(cmd=cmd_name, args=args)
+    else:
+        # If it doesn't match the alias pattern, treat as JavaScript
+        return JS(code=message_content)
+
+
+def _parse_dot_command(content: str) -> Union[Command, None]:
+    """
+    Parse dot notation command patterns like $foo.bar args.
+
+    Args:
+        content: The content to parse (without the '$' prefix)
+
+    Returns:
+        Command object if it's a valid dot command, None otherwise
+    """
     # Check for $foo.bar pattern (but not $foo._bar)
     # Only apply this if the content looks like a simple command pattern
     # and doesn't contain JavaScript-like patterns (but allow / for commands)
@@ -103,33 +114,29 @@ def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
 
             # Additional check: only treat as command if it looks like a simple command
             # (no quotes, no complex patterns)
-            if not any(char in content for char in "'\"`"):
+            if not is_quoted_content(content):
                 # Additional check: only treat as command if both parent and child look like valid aliases
-                if re.match(
-                    r"^[a-zA-Z0-9_][a-zA-Z0-9_/\-]*[a-zA-Z0-9_/]$", parent
-                ) and re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_/\-]*[a-zA-Z0-9_/]$", child):
+                if _is_valid_alias(parent) and _is_valid_alias(child):
                     # Construct the command as parent/child
                     cmd_name = f"{parent}/{child}"
                     args = remaining.split() if remaining else []
-
                     return Command(cmd=cmd_name, args=args)
 
-    # Split by whitespace to get the first word (potential command name)
-    parts = content.split(None, 1)  # Split on whitespace, max 1 split
-    first_word = parts[0]
+    return None
 
-    # Check if the first word looks like a valid alias
+
+def _is_valid_alias(alias: str) -> bool:
+    """
+    Check if a string looks like a valid alias.
+
+    Args:
+        alias: The string to check
+
+    Returns:
+        True if the string matches the alias pattern
+    """
     # A valid alias follows the same rules as the AliasValidator
     # It must start with alphanumeric or underscore, contain only alphanumeric, underscore, hyphen, or slash
     # and end with alphanumeric, underscore, or slash
     alias_pattern = r"^[a-zA-Z0-9_][a-zA-Z0-9_/\-]*[a-zA-Z0-9_/]$"
-
-    if re.match(alias_pattern, first_word):
-        # It looks like a valid alias, treat as command
-        cmd_name = first_word
-        args = parts[1].split() if len(parts) > 1 else []
-
-        return Command(cmd=cmd_name, args=args)
-    else:
-        # If it doesn't match the alias pattern, treat as JavaScript
-        return JS(code=message_content)
+    return bool(re.match(alias_pattern, alias))

@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
 """Unit tests for command parser functionality."""
 
-import pytest
 from emilybot.parser import parse_command, Command, JS, ListChildren
 
 
