@@ -5,7 +5,6 @@ import discord
 import sys
 from pathlib import Path
 from typing import Any, Optional, assert_never
-from discord.ext import commands
 from watchfiles import awatch  # type: ignore
 
 from emilybot.discord import EmilyBot, EmilyContext
@@ -38,48 +37,6 @@ async def execute_js(ctx: EmilyContext, code: str) -> None:
     else:
         logging.debug(f"❌ JavaScript execution failed: {output}")
         await ctx.send(f"❌ JavaScript error: {output}")
-
-
-async def handle_message(message: discord.Message, bot: EmilyBot, dev: bool) -> None:
-    """Handle messages using our own parsing logic.
-    This is used for most of the commands, except the ones defined via @command.
-    (TODO: get rid of @command entirely.)
-    """
-
-    # Create a context for the message
-    ctx = await bot.get_context(message)
-
-    message_content = message.content
-    logging.debug(f"🔧 Parsing command: '{message_content}'")
-
-    try:
-        # In dev mode we use #$ instead of $ for JS
-        if dev and message_content.startswith("#$"):
-            message_content = message_content[1:]
-
-        parsed = parse_message(message_content)
-        logging.debug(f"📝 Parsed result: {type(parsed).__name__} = {parsed}")
-
-        # Note: ctx.args doesn't give us args :(
-        match parsed:
-            case Command(cmd=cmd, args=args):
-                logging.debug(f"🚀 Executing command: '{cmd}' with args: {args}")
-                await cmd_cmd(ctx, cmd, args=args)
-            case JS(code=code):
-                logging.debug(f"⚡ Executing JavaScript: '{code}'")
-                await execute_js(ctx, code)
-            case ListChildren(parent=parent):
-                logging.debug(f"📜 Listing children of: '{parent}'")
-                await cmd_show(ctx, f"{parent}/")
-            case None:
-                logging.debug("🔍 No action found")
-                return
-            case _:
-                assert_never(parsed)
-    except Exception as e:
-        logging.debug(f"💥 Exception during parsing: {type(e).__name__}: {e}")
-        logging.error("Error parsing command", exc_info=True)
-        await ctx.send(f"❌ Error parsing command: {str(e)}")
 
 
 async def init_bot(dev: bool) -> EmilyBot:
@@ -120,77 +77,56 @@ async def init_bot(dev: bool) -> EmilyBot:
     async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]
         logging.info(f"We have logged in as {bot.user}")
 
-    @bot.listen()
-    async def on_message(message: discord.Message) -> None:  # pyright: ignore[reportUnusedFunction]
+    async def on_message(message: discord.Message) -> None:
+        """
+        Override the default on_message handler to handle our own commands.
+        """
+
         if message.author.bot:
             logging.debug("🤖 Skipping bot message")
             return
 
-        # This is only used when the command is not defined via @command.
-        await handle_message(message, bot, dev)
+        ctx = await bot.get_context(message)
+        if ctx.command:
+            logging.debug(f"🔍 Command: {ctx.command.name}")
+            await bot.invoke(ctx)
+            return
 
-    @bot.listen()
-    async def on_command_error(  # pyright: ignore[reportUnusedFunction]
-        ctx: EmilyContext,
-        error: commands.CommandError,
-    ) -> None:
-        """Handle command errors gracefully"""
-        logging.info(
-            f"on_command_error called with error: {error}, message: {ctx.message.content}"
-        )
-        if isinstance(error, commands.CommandNotFound):
-            logging.debug("🔍 CommandNotFound - checking for custom prefixes")
+        # If we get here, it's not a built-in command (registered via @command).
+        # We use our own parsing logic then.
 
-            # Try to handle . prefix commands using parse_command
-            if not dev and ctx.message.content.startswith("."):
-                logging.debug("🔍 Checking . prefix with parse_command")
-                try:
-                    parsed = parse_message(ctx.message.content, extra_prefixes=["."])
-                    match parsed:
-                        case Command(cmd=cmd, args=args):
-                            logging.debug(
-                                f"🚀 Executing . command: '{cmd}' with args: {args}"
-                            )
-                            await cmd_cmd(ctx, cmd, args=args)
-                            return
-                        case ListChildren(parent=parent):
-                            logging.debug(f"📜 Listing children of: '{parent}'")
-                            await cmd_show(ctx, f"{parent}/")
-                            return
-                        case JS():
-                            # This shouldn't happen for . prefix, but handle it gracefully
-                            logging.debug(
-                                "❌ Unexpected JS result for . prefix command"
-                            )
-                            await ctx.send(
-                                f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
-                            )
-                            return
-                        case None:
-                            logging.debug("🔍 No action found")
-                            return
-                        case _:
-                            assert_never(parsed)
-                except Exception as e:
-                    logging.debug(
-                        f"❌ Error parsing . command: {type(e).__name__}: {e}"
-                    )
-                    await ctx.send(
-                        f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
-                    )
+        message_content = message.content
+
+        try:
+            # In dev mode we use #$ instead of $ for JS
+            if dev and message_content.startswith("#$"):
+                message_content = message_content[1:]
+
+            parsed = parse_message(message_content)
+            logging.debug(f"📝 Parsed result: {type(parsed).__name__} = {parsed}")
+
+            # Note: ctx.args doesn't give us args :(
+            match parsed:
+                case Command(cmd=cmd, args=args):
+                    logging.debug(f"🚀 Executing command: '{cmd}' with args: {args}")
+                    await cmd_cmd(ctx, cmd, args=args)
+                case JS(code=code):
+                    logging.debug(f"⚡ Executing JavaScript: '{code}'")
+                    await execute_js(ctx, code)
+                case ListChildren(parent=parent):
+                    logging.debug(f"📜 Listing children of: '{parent}'")
+                    await cmd_show(ctx, f"{parent}/")
+                case None:
                     return
+                case _:
+                    assert_never(parsed)
 
-        elif isinstance(error, commands.MissingRequiredArgument):
-            logging.debug(f"❌ MissingRequiredArgument: {error}")
-            param_name = getattr(error, "param", None)
-            if param_name:
-                await ctx.send(f"❌ Missing required argument: {param_name.name}")
-            else:
-                await ctx.send("❌ Missing required argument")
-        else:
-            logging.debug(f"❌ Other command error: {type(error).__name__}: {error}")
-            await ctx.send(f"❌ An error occurred: {str(error)}")
-            logging.error("An error occurred", exc_info=error)
+        except Exception as e:
+            logging.debug(f"💥 Exception during parsing: {type(e).__name__}: {e}")
+            logging.error("Error parsing command", exc_info=True)
+            await ctx.send(f"❌ Error parsing command: {str(e)}")
+
+    bot.on_message = on_message
 
     return bot
 
