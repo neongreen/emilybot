@@ -2,7 +2,8 @@
 
 import pytest
 from emilybot.execute.run_code import run_code
-from emilybot.conftest import MakeCtx
+from emilybot.conftest import MakeCtx, make_ctx_with_reply
+from emilybot.database import DB
 
 
 @pytest.mark.asyncio
@@ -38,6 +39,7 @@ async def test_dollar_prefix_global_commands():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
+        reply_to=None,
         user=create_test_user(
             id="12345",
             handle="TestUser",
@@ -119,6 +121,7 @@ async def test_dollar_prefix_command_execution():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
+        reply_to=None,
         user=create_test_user(
             id="12345",
             handle="TestUser",
@@ -185,6 +188,7 @@ async def test_dollar_prefix_nested_commands():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
+        reply_to=None,
         user=create_test_user(
             id="12345",
             handle="TestUser",
@@ -257,6 +261,7 @@ async def test_dollar_prefix_legacy_compatibility():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
+        reply_to=None,
         user=create_test_user(
             id="12345",
             handle="TestUser",
@@ -314,6 +319,7 @@ async def test_dollar_prefix_command_arguments():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
+        reply_to=None,
         user=create_test_user(
             id="12345",
             handle="TestUser",
@@ -386,6 +392,7 @@ async def test_dollar_prefix_arguments_via_cmd():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
+        reply_to=None,
         user=create_test_user(
             id="12345",
             handle="TestUser",
@@ -421,3 +428,46 @@ async def test_dollar_prefix_arguments_via_cmd():
     assert success
     assert 'Received args: [ "first", "second", "third" ]' in output
     assert "First arg: first" in output
+
+
+@pytest.mark.asyncio
+async def test_message_reply_access(db: DB):
+    """Test that message.reply_to is available in JavaScript context when replying to a message"""
+
+    # Create a context with a reply
+    ctx = make_ctx_with_reply(
+        db=db,
+        message="$ console.log('Reply text:', reply_to.text); console.log('Reply author:', reply_to.user)",
+        reply_text="This is the original message being replied to",
+        reply_author_name="OriginalAuthor",
+    )
+
+    # Test JavaScript execution with reply access
+    success, output, _value = await run_code(
+        ctx,
+        code="console.log('Reply text:', reply_to.text); console.log('Reply author:', reply_to.user)",
+    )
+
+    print(f"Success: {success}")
+    print(f"Output: {output}")
+    print(f"Value: {_value}")
+    assert success
+    assert "Reply text: This is the original message being replied to" in output
+    assert "OriginalAuthor" in output
+
+
+@pytest.mark.asyncio
+async def test_message_no_reply_access(make_ctx: MakeCtx):
+    """Test that reply_to is null when not replying to a message"""
+
+    # Create a context without a reply
+    ctx = make_ctx("$ console.log('Reply exists:', reply_to !== null)", None)
+
+    # Test JavaScript execution without reply
+    success, output, _value = await run_code(
+        ctx,
+        code="console.log('Reply exists:', reply_to !== null)",
+    )
+
+    assert success
+    assert "Reply exists: false" in output

@@ -21,6 +21,7 @@ async def test_error_handling():
     # Create a test context directly
     test_context = Context(
         message=CtxMessage(text="test message"),
+        reply_to=None,
         user=create_test_user(id="123", name="TestUser"),
         server=CtxServer(id="12345"),
     )

@@ -11,6 +11,8 @@
     The old `$.cmd("foo/bar")` is still supported but deprecated.
   - For commands with dashes, `foo-bar` is available as `$foo_bar`.
   - Arguments are passed in `args`, e.g. when running `$foo a b`, `args` will be `["a", "b"]`.
+- Message, user, and server info are now available as `message`, `user`, and `server` objects.
+- Reply info is now available as `reply_to` object.
 
 **`$` prefix:**
 

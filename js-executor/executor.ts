@@ -46,19 +46,23 @@ export async function execute(
     // TODO: rename code run etc
     // TODO: forbid 'console' etc
     arena.evalCode(`
-      const $commandsMap__ = ({})
-      const $ = ({
-        commands: $commandsMap__,
-        cmd: function(name, ...args) {
-          if (!(name in this.commands)) {
-            throw new Error("Command not found: " + name)
-          }
-          return this.commands[name].run(...args)
-        },
-      })
-      for (const key in $init__.fields) {
-        $[key] = $init__.fields[key]
-      }
+        const $commandsMap__ = ({})
+        const $ = ({
+          commands: $commandsMap__,
+          cmd: function(name, ...args) {
+            if (!(name in this.commands)) {
+              throw new Error("Command not found: " + name)
+            }
+            return this.commands[name].run(...args)
+          },
+        })
+        
+        // Inject context variables as globals
+        for (const key in $init__.fields) {
+          $[key] = $init__.fields[key]
+          // Also make them available as global variables
+          globalThis[key] = $init__.fields[key]
+        }
 
       for (const command of $init__.commands) {
         const obj = ({

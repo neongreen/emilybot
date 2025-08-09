@@ -108,6 +108,7 @@ def test_argument_handling_integration():
         executor = JavaScriptExecutor()
         context = Context(
             message=CtxMessage(text="$greeting Alice Bob"),
+            reply_to=None,
             user=create_test_user(
                 id="12345",
                 handle="TestUser",

@@ -72,6 +72,7 @@ async def test_nested_commands_with_js_code():
 
     test_context = Context(
         message=CtxMessage(text="test message"),
+        reply_to=None,
         user=create_test_user(id="123", name="TestUser"),
         server=CtxServer(id="12345"),
     )
@@ -161,6 +162,7 @@ async def test_nested_commands_reverse_order():
 
     test_context = Context(
         message=CtxMessage(text="test message"),
+        reply_to=None,
         user=create_test_user(id="123", name="TestUser"),
         server=CtxServer(id="12345"),
     )
@@ -273,6 +275,7 @@ async def test_javascript_execution():
     test_code = "console.log('Hello from JavaScript!');"
     test_context = Context(
         message=CtxMessage(text="test message"),
+        reply_to=None,
         user=create_test_user(id="123", name="TestUser"),
         server=CtxServer(id="12345"),
     )

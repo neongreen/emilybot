@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
@@ -26,6 +26,9 @@ class CtxUser:
     avatar_url: str
     """User's avatar URL as shown in the server"""
 
+    def as_json(self) -> dict[str, Any]:
+        return asdict(self)
+
 
 def create_test_user(**kwargs: Any) -> CtxUser:
     return CtxUser(
@@ -44,6 +47,18 @@ def create_test_user(**kwargs: Any) -> CtxUser:
 class CtxServer:
     id: str
 
+    def as_json(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class CtxReplyTo:
+    user: CtxUser
+    text: str
+
+    def as_json(self) -> dict[str, Any]:
+        return asdict(self)
+
 
 @dataclass
 class CtxMessage:
@@ -53,21 +68,24 @@ class CtxMessage:
 @dataclass
 class Context:
     message: CtxMessage
+    reply_to: CtxReplyTo | None
     user: CtxUser
     server: CtxServer | None
 
     def as_json(self) -> dict[str, Any]:
         """Serialize Context to JSON string."""
         return {
-            "message": self.message.__dict__,
-            "user": self.user.__dict__,
-            "server": self.server.__dict__ if self.server else None,
+            "message": asdict(self.message),
+            "reply_to": self.reply_to.as_json() if self.reply_to else None,
+            "user": asdict(self.user),
+            "server": asdict(self.server) if self.server else None,
         }
 
 
 def run_code_context(code: str) -> Context:
     return Context(
         message=CtxMessage(text=f".run {code}"),
+        reply_to=None,
         user=CtxUser(
             id="1",
             handle="Test user",

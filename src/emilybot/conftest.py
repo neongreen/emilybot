@@ -1,7 +1,7 @@
 """Pytest configuration and fixtures."""
 
 import uuid
-from discord import Asset, Guild, Member, Message
+from discord import Asset, Guild, Member, Message, MessageReference
 import pytest
 import tempfile
 from pathlib import Path
@@ -151,7 +151,59 @@ def make_ctx(db: DB):
 
         mock.message = cast(Message, MagicMock(spec=Message))
         mock.message.content = message
+        mock.message.reference = None  # Default to no reference
 
         return mock
 
     return _make_ctx
+
+
+def make_ctx_with_reply(
+    db: DB,
+    message: str,
+    reply_text: str,
+    reply_author_name: str,
+    entry: Entry | None = None,
+) -> EmilyContext:
+    """Create a mock context object with a reply to another message."""
+    mock = cast(EmilyContext, MagicMock(spec=EmilyContext))
+    mock.bot = cast(EmilyBot, MagicMock(spec=EmilyBot))
+    mock.bot.db = db
+    db.remember.add(entry) if entry else None
+
+    # These must correspond to Discord types, *not* to the Ctx* types
+
+    mock.author = cast(Member, MagicMock(spec=Member))
+    mock.author.id = 67890
+    mock.author.name = "TestUser_123"  # pyright: ignore[reportAttributeAccessIssue]
+    mock.author.display_name = "TestUser"  # pyright: ignore[reportAttributeAccessIssue]
+    mock.author.global_name = "TestUser Global"  # pyright: ignore[reportAttributeAccessIssue]
+    mock.author.display_avatar = cast(Asset, MagicMock(spec=Asset))  # pyright: ignore[reportAttributeAccessIssue]
+    mock.author.display_avatar.url = (
+        "https://cdn.discordapp.com/avatars/12345/1234567890.png"  # pyright: ignore[reportAttributeAccessIssue]
+    )
+
+    mock.guild = cast(Guild, MagicMock(spec=Guild))
+    mock.guild.id = 12345
+
+    # Create the original message that's being replied to
+    original_message = cast(Message, MagicMock(spec=Message))
+    original_message.content = reply_text
+    original_message.author = cast(Member, MagicMock(spec=Member))
+    original_message.author.display_name = reply_author_name  # pyright: ignore[reportAttributeAccessIssue]
+    original_message.author.global_name = reply_author_name  # pyright: ignore[reportAttributeAccessIssue]
+    original_message.author.display_avatar = cast(Asset, MagicMock(spec=Asset))  # pyright: ignore[reportAttributeAccessIssue]
+    original_message.author.display_avatar.url = (
+        "https://cdn.discordapp.com/avatars/12345/1234567890.png"  # pyright: ignore[reportAttributeAccessIssue]
+    )
+    original_message.author.id = 90009
+
+    # Create the message reference
+    message_ref = cast(MessageReference, MagicMock(spec=MessageReference))
+    message_ref.resolved = original_message
+
+    mock.message = cast(Message, MagicMock(spec=Message))
+    mock.message.content = message
+    mock.message.reference = message_ref
+
+    return mock
