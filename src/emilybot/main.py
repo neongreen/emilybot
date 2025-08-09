@@ -19,7 +19,7 @@ from emilybot.commands.set import cmd_set
 from emilybot.commands.run import cmd_cmd, cmd_run
 from emilybot.execute.run_code import run_code
 from emilybot.format import format_show_content
-from emilybot.parser import parse_command, Command, JS, ListChildren
+from emilybot.parser import parse_message, Command, JS, ListChildren
 
 
 async def execute_js(ctx: EmilyContext, code: str) -> None:
@@ -57,7 +57,7 @@ async def handle_message(message: discord.Message, bot: EmilyBot, dev: bool) -> 
         if dev and message_content.startswith("#$"):
             message_content = message_content[1:]
 
-        parsed = parse_command(message_content)
+        parsed = parse_message(message_content)
         logging.debug(f"📝 Parsed result: {type(parsed).__name__} = {parsed}")
 
         # Note: ctx.args doesn't give us args :(
@@ -71,6 +71,9 @@ async def handle_message(message: discord.Message, bot: EmilyBot, dev: bool) -> 
             case ListChildren(parent=parent):
                 logging.debug(f"📜 Listing children of: '{parent}'")
                 await cmd_show(ctx, f"{parent}/")
+            case None:
+                logging.debug("🔍 No action found")
+                return
             case _:
                 assert_never(parsed)
     except Exception as e:
@@ -142,9 +145,7 @@ async def init_bot(dev: bool) -> EmilyBot:
             if not dev and ctx.message.content.startswith("."):
                 logging.debug("🔍 Checking . prefix with parse_command")
                 try:
-                    parsed = parse_command(
-                        ctx.message.content, extra_command_prefixes=["."]
-                    )
+                    parsed = parse_message(ctx.message.content, extra_prefixes=["."])
                     match parsed:
                         case Command(cmd=cmd, args=args):
                             logging.debug(
@@ -165,6 +166,11 @@ async def init_bot(dev: bool) -> EmilyBot:
                                 f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
                             )
                             return
+                        case None:
+                            logging.debug("🔍 No action found")
+                            return
+                        case _:
+                            assert_never(parsed)
                 except Exception as e:
                     logging.debug(
                         f"❌ Error parsing . command: {type(e).__name__}: {e}"

@@ -14,7 +14,7 @@
 
 **`$` prefix:**
 
-- When a message looks like a command and not as JS, e.g. `$hello` or `$rand 1 2`, it's treated as a command invocation.
+- When a message looks like a command and not like JS, e.g. `$hello` or `$rand 1 2`, it's treated as a command invocation.
 
 **Listing children:**
 
@@ -30,7 +30,11 @@
 **Dev:**
 
 - Added more debug logging.
-- `#$` is now the debug prefix in addition to `##`.
+- `#$` is now the debug prefix.
+
+**Other:**
+
+- The message is now truncated to 2000 characters.
 
 ## 2025-08-02
 

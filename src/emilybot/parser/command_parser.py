@@ -9,74 +9,72 @@ from emilybot.parser.list_children_parser import (
     parse_list_children,
 )
 from emilybot.parser.types import JS, Command, ListChildren
-from emilybot.validation import validate_path, ValidationError
+from emilybot.validation import validate_path
 
 
-def parse_command_invocation(message_content: str, *, prefix: str = "$") -> Command:
+def parse_command_invocation(content: str) -> Command | None:
     """
     Parse a message content into a command invocation.
 
     Args:
-        message_content: The message content to parse
-        prefix: The prefix to expect for the command (default: "$")
+        content: The message content to parse, without the prefix
 
     Returns:
         Command with cmd name and list of arguments
 
     Examples:
-        >>> parse_command_invocation("$foo a b c")
+        >>> parse_command_invocation("foo a b c")
         Command(cmd='foo', args=['a', 'b', 'c'])
 
-        >>> parse_command_invocation("##foo a b c", prefix="##")
-        Command(cmd='foo', args=['a', 'b', 'c'])
-
-        >>> parse_command_invocation("$foo")
+        >>> parse_command_invocation("foo")
         Command(cmd='foo', args=[])
 
-        >>> parse_command_invocation("$foo.bar a b c")
+        >>> parse_command_invocation("foo.bar a b c")
         Command(cmd='foo/bar', args=['a', 'b', 'c'])
 
-        >>> parse_command_invocation("$foo/bar a b c")
+        >>> parse_command_invocation("foo/bar a b c")
         Command(cmd='foo/bar', args=['a', 'b', 'c'])
+
+        >>> parse_command_invocation("") is None
+        True
+
+        >>> parse_command_invocation("$$") is None
+        True
     """
 
-    if not message_content.startswith(prefix):
-        raise ValueError(f"Message content must start with '{prefix}'")
-
-    content_without_prefix = message_content[len(prefix) :].strip()
-
-    if not content_without_prefix:
-        raise ValueError(f"No content found after '{prefix}'")
+    if not content:
+        return None
 
     # Use StringView to parse the command and arguments
-    view = StringView(content_without_prefix)
+    view = StringView(content)
 
     # Get the command name (first word)
     cmd_name = view.get_word()
-
     if not cmd_name:
-        raise ValueError("No command name found")
+        return None
 
-    # Check if the command name looks like a valid alias
     try:
         cmd_name = validate_path(
-            cmd_name, allow_trailing_slash=True, normalize_dots=True
+            cmd_name,
+            allow_trailing_slash=False,
+            normalize_dots=True,
+            normalize_dashes=False,
         )
         args = _parse_arguments(view)
         return Command(cmd=cmd_name, args=args)
-    except ValidationError:
-        raise ValueError(f"Invalid command name: '{cmd_name}'")
+    except Exception:
+        return None
 
 
-def parse_command(
-    message_content: str, extra_command_prefixes: list[str] = []
-) -> Union[Command, JS, ListChildren]:
+def parse_message(
+    message: str, extra_prefixes: list[str] = []
+) -> Union[Command, JS, ListChildren, None]:
     r"""
     Parse a message content into either a Command, JS, or ListChildren.
 
     Args:
-        message_content: The message content to parse
-        extra_command_prefixes: The prefixes to expect for the command (default: []).
+        message: The message content to parse
+        extra_prefixes: The prefixes to expect for the command (default: []).
           JavaScript code is *only* allowed for "$", not for any other prefix.
 
     Returns:
@@ -84,102 +82,134 @@ def parse_command(
         or ListChildren with parent command to list children of.
 
     Command invocation:
-        >>> parse_command("$foo a b c")
+        >>> parse_message("$foo a b c")
         Command(cmd='foo', args=['a', 'b', 'c'])
 
-        >>> parse_command("$bar")
+        >>> parse_message("$bar")
         Command(cmd='bar', args=[])
 
-        >>> parse_command(".foo a b c", extra_command_prefixes=["."])
+        >>> parse_message(".foo a b c", extra_prefixes=["."])
         Command(cmd='foo', args=['a', 'b', 'c'])
 
     List children:
-        >>> parse_command(".foo/x/", extra_command_prefixes=["."])
+        >>> parse_message(".foo/x/", extra_prefixes=["."])
         ListChildren(parent='foo/x')
 
-        >>> parse_command("$foo.")
+        >>> parse_message("$foo.")
         ListChildren(parent='foo')
 
-        >>> parse_command("$foo..")
+        >>> parse_message("$foo..")
         ListChildren(parent='foo')
 
-        >>> parse_command("$foo/")
+        >>> parse_message("$foo/")
         ListChildren(parent='foo')
 
     JavaScript:
-        >>> parse_command("$test;")
+        >>> parse_message("$test;")
         JS(code='$test;')
 
-        >>> parse_command('''$foo('a b', "c d")''')
+        >>> parse_message('''$foo('a b', "c d")''')
         JS(code='$foo(\'a b\', "c d")')
 
-        >>> parse_command("$foo._bar")  # invalid comment because _bar starts with _
+        >>> parse_message("$foo._bar")  # invalid command because _bar starts with _
         JS(code='$foo._bar')
 
-        >>> parse_command("$ f(x)")
+        >>> parse_message("$ f(x)")
         JS(code='f(x)')
 
-        >>> parse_command("$\nf(x)")
+        >>> parse_message("$\nf(x)")
         JS(code='f(x)')
 
     Stripping JS code blocks:
-        >>> parse_command("$\n```js\nconsole.log('hello');\n```")
+        >>> parse_message("$\n```js\nconsole.log('hello');\n```")
         JS(code="console.log('hello');")
 
-        >>> parse_command("$```js\nconsole.log('hello');\n```")
+        >>> parse_message("$```js\nconsole.log('hello');\n```")
         JS(code="console.log('hello');")
 
     Normalization:
-        >>> parse_command("$foo.bar a b c")
+        >>> parse_message("$foo.bar a b c")
         Command(cmd='foo/bar', args=['a', 'b', 'c'])
+
+    Not a command:
+        >>> parse_message("foo a b c") is None
+        True
+        >>> parse_message("$$$") is None
+        True
+        >>> parse_message("$") is None
+        True
+        >>> parse_message("/foo/bar") is None
+        True
+        >>> parse_message("//") is None
+        True
+        >>> parse_message("") is None
+        True
+        >>> parse_message("  ") is None
+        True
+        >>> parse_message("this is $dollar") is None
+        True
+        >>> parse_message("foo.bar a b c") is None
+        True
+        >>> parse_message("foo/bar a b c") is None
+        True
+        >>> parse_message("`js`") is None
+        True
+        >>> parse_message("```js\nconsole.log('hello');\n```") is None
+        True
+        >>> parse_message("$888") is None  # Just digits
+        True
+        >>> parse_message("$13.2") is None  # Dollar amount
+        True
+        >>> parse_message("$.12") is None  # Dollar amount
+        True
+        >>> parse_message("$/foo/") is None  # Just slashes
+        True
     """
 
     # Determine the prefix used
-    all_prefixes = ["$"] + extra_command_prefixes
+    all_prefixes = ["$"] + extra_prefixes
     used_prefix = None
 
     for prefix in all_prefixes:
-        if message_content.startswith(prefix):
+        if message.startswith(prefix):
             used_prefix = prefix
             break
 
     if used_prefix is None:
-        raise ValueError(
-            f"Message content must start with one of: {', '.join(all_prefixes)}"
-        )
+        return None
 
-    # Check if it's just the prefix (no content)
-    if message_content == used_prefix:
-        raise ValueError(f"No content found after '{used_prefix}'")
+    content = message[len(used_prefix) :]
 
-    content_without_prefix = message_content[len(used_prefix) :]
+    if not content:
+        return None
 
-    if not content_without_prefix:
-        raise ValueError(f"No content found after '{used_prefix}'")
-
-    # JavaScript parsing is only allowed for "$" prefix
-    if used_prefix == "$":
-        # Check if it starts with "$ ", "$\n", "$`"
-        if re.match(r"^([\s]+|`)", content_without_prefix, re.UNICODE):
-            code = extract_js_code(content_without_prefix)
-            if not code:
-                raise ValueError("Couldn't extract JavaScript code")
-            return JS(code=code)
-        if not content_without_prefix:
-            raise ValueError("No content found after '$'")
+    if command := parse_command_invocation(content):
+        return command
 
     # Check for list children pattern first
-    if is_list_children_pattern(content_without_prefix):
-        return parse_list_children(content_without_prefix)
+    if is_list_children_pattern(content):
+        return parse_list_children(content)
 
-    try:
-        return parse_command_invocation(message_content, prefix=used_prefix)
-    except ValueError:
-        # Only treat as JavaScript if using "$" prefix
-        if used_prefix == "$":
-            return JS(code=message_content)
-        else:
-            raise
+    # JavaScript parsing is only allowed for "$" prefix
+    if message.startswith("$"):
+        # The only valid JS patterns are:
+        # 1. Letters: $foo("a", "b")
+        # 2. Digits followed by underscore or letter: $8ball(), $123abc()
+        # 3. Whitespace followed by anything: $ console.log()
+        # 4. Code blocks: $```js...```
+        if (
+            re.match(r"^\$[a-zA-Z]", message)  # $foo("x")
+            or re.match(r"^\$\d+[a-zA-Z_]", message)  # $8ball(), $123abc(), $123_abc()
+        ):
+            return JS(code=message)
+        elif (
+            re.match(r"^\$\s+[^\s]", message)  # $ console.log()
+            or re.match(r"^\$```", message)  # $```js...```
+        ):
+            if code := extract_js_code(message[1:]):
+                return JS(code=code)
+
+    return None
 
 
 def _parse_arguments(view: StringView) -> list[str]:

@@ -14,10 +14,19 @@ class EmilyContext(commands.Context["EmilyBot"]):
         super().__init__(*args, **kwargs)
 
     async def send(
-        self, *args: Any, suppress_embeds: bool = True, **kwargs: Any
+        self,
+        content: str | None = None,
+        *args: Any,
+        suppress_embeds: bool = True,
+        **kwargs: Any,
     ) -> Message:
-        """Like the normal send, but suppresses embeds by default"""
-        return await super().send(*args, suppress_embeds=suppress_embeds, **kwargs)
+        """Like the normal send, but suppresses embeds by default and truncates the message to 2000 characters"""
+        if content and len(content) > 2000:
+            content = content[: 2000 - 3] + "..."
+
+        return await super().send(
+            content, *args, suppress_embeds=suppress_embeds, **kwargs
+        )
 
 
 class EmilyBot(commands.Bot):

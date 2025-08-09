@@ -14,134 +14,6 @@ class ValidationError(Exception):
 # Validation constraints
 MIN_LENGTH = 2
 MAX_LENGTH = 100
-VALID_PATTERN = re.compile(r"^[a-zA-Z0-9_/\-]+$")
-
-
-def get_path_components(
-    path: str, *, normalize_dots: bool = False, normalize_dashes: bool = False
-) -> list[str]:
-    """
-    Get path components by splitting on slashes, with optional normalization.
-
-    Args:
-        path: The path string to split
-        normalize_dots: Whether to normalize dots (replace with slashes)
-        normalize_dashes: Whether to normalize dashes (replace with underscores)
-
-    Returns:
-        List of path components
-
-    Examples:
-        >>> get_path_components("foo/bar")
-        ['foo', 'bar']
-        >>> get_path_components("foo.bar", normalize_dots=True)
-        ['foo', 'bar']
-        >>> get_path_components("foo-bar", normalize_dashes=True)
-        ['foo_bar']
-    """
-    normalized_path = path
-
-    if normalize_dots:
-        normalized_path = normalized_path.replace(".", "/")
-
-    if normalize_dashes:
-        normalized_path = normalized_path.replace("-", "_")
-
-    # Split on slashes and filter out empty components
-    components = [comp for comp in normalized_path.split("/") if comp]
-
-    return components
-
-
-def get_top_level_name(
-    path: str, *, normalize_dots: bool = False, normalize_dashes: bool = False
-) -> str:
-    """
-    Get the top-level name from a path.
-
-    Args:
-        path: The path string
-        normalize_dots: Whether to normalize dots (replace with slashes)
-        normalize_dashes: Whether to normalize dashes (replace with underscores)
-
-    Returns:
-        The top-level component of the path
-
-    Examples:
-        >>> get_top_level_name("foo/bar")
-        'foo'
-        >>> get_top_level_name("foo.bar", normalize_dots=True)
-        'foo'
-        >>> get_top_level_name("foo")
-        'foo'
-    """
-    components = get_path_components(
-        path, normalize_dots=normalize_dots, normalize_dashes=normalize_dashes
-    )
-    return components[0] if components else ""
-
-
-def has_trailing_slash(path: str) -> bool:
-    """
-    Check if a path has a trailing slash.
-
-    Args:
-        path: The path string
-
-    Returns:
-        True if the path ends with a slash, False otherwise
-
-    Examples:
-        >>> has_trailing_slash("foo/")
-        True
-        >>> has_trailing_slash("foo")
-        False
-        >>> has_trailing_slash("foo/bar/")
-        True
-    """
-    return path.endswith("/")
-
-
-def is_child_path(
-    parent: str,
-    child: str,
-    *,
-    normalize_dots: bool = False,
-    normalize_dashes: bool = False,
-) -> bool:
-    """
-    Check if a path is a child of another path.
-
-    Args:
-        parent: The parent path
-        child: The child path to check
-        normalize_dots: Whether to normalize dots (replace with slashes)
-        normalize_dashes: Whether to normalize dashes (replace with underscores)
-
-    Returns:
-        True if child is a direct child of parent, False otherwise
-
-    Examples:
-        >>> is_child_path("foo", "foo/bar")
-        True
-        >>> is_child_path("foo", "foo/bar/baz")
-        False
-        >>> is_child_path("foo", "bar")
-        False
-        >>> is_child_path("foo", "foo.bar", normalize_dots=True)
-        True
-    """
-    parent_components = get_path_components(
-        parent, normalize_dots=normalize_dots, normalize_dashes=normalize_dashes
-    )
-    child_components = get_path_components(
-        child, normalize_dots=normalize_dots, normalize_dashes=normalize_dashes
-    )
-
-    if len(child_components) != len(parent_components) + 1:
-        return False
-
-    return child_components[: len(parent_components)] == parent_components
 
 
 def validate_path(
@@ -169,6 +41,8 @@ def validate_path(
         ValidationError: If any path component is invalid
 
     Examples:
+        >>> validate_path("foo")
+        'foo'
         >>> validate_path("user/data")  # Valid path
         'user/data'
         >>> validate_path("dir/", allow_trailing_slash=True)  # Valid - empty last component allowed
@@ -201,56 +75,65 @@ def validate_path(
     if normalize_dashes:
         normalized_path = normalized_path.replace("-", "_")
 
-    # Check for consecutive slashes (which create empty components)
-    if "//" in normalized_path:
-        raise ValidationError("Path components cannot be empty")
-
-    # Split on slashes and filter out empty strings (but keep track of trailing slash)
+    # Split on slashes and check for empty components
     components: list[str] = normalized_path.split("/")
-    has_trailing_slash = normalized_path.endswith("/")
-
-    # Remove empty components from the middle, but preserve the last one if it's empty due to trailing slash
-    filtered_components: list[str] = []
-    for i, component in enumerate(components):
-        if component or (i == len(components) - 1 and has_trailing_slash):
-            filtered_components.append(component)
 
     # Validate each component
-    for i, component in enumerate(filtered_components):
-        is_last_component = i == len(filtered_components) - 1
+    for i, component in enumerate(components):
+        is_last_component = i == len(components) - 1
 
-        # Check if component is empty (only allowed for last component if allow_trailing_slash is True)
-        if not component:
-            if allow_trailing_slash and is_last_component:
-                continue  # Allow empty last component when trailing slash is allowed
-            else:
-                raise ValidationError("Path components cannot be empty")
+        # Skip empty last component if trailing slash is allowed
+        if not component and is_last_component and allow_trailing_slash:
+            continue
 
         # Check that component doesn't start with underscore
         if component.startswith("_"):
-            raise ValidationError("Path components cannot start with underscore")
+            raise ValidationError(
+                f"Commands and subcommands cannot start with underscore, got {repr(component)}"
+            )
 
         # Apply validation rules to each component
         if check_component_length:
             if len(component) < MIN_LENGTH:
                 raise ValidationError(
                     inflect(
-                        f"Path component must be at least no('character', {MIN_LENGTH}) long"
+                        f"Command and subcommand names must be at least no('character', {MIN_LENGTH}) long, got {repr(component)}"
                     )
                 )
 
             if len(component) > MAX_LENGTH:
                 raise ValidationError(
-                    f"Path component cannot exceed {MAX_LENGTH} characters"
+                    f"Command and subcommand names cannot exceed {MAX_LENGTH} characters, got {repr(component)}"
                 )
 
-        if not VALID_PATTERN.match(component):
+        # All components must start with a letter or digit
+        if not re.match(r"^[a-zA-Z0-9]", component):
             raise ValidationError(
-                "Path components can only contain alphanumeric characters and `_`, `-`, or `/`"
+                f"Command and subcommand names must start with a letter or digit, got {repr(component)}"
             )
 
-        # All components must start with a letter or digit
-        if not re.match(r"^[a-zA-Z0-9].*", component):
-            raise ValidationError("Path components must start with a letter or digit")
+        # All components must end with a letter or digit
+        if not re.match(r".*[a-zA-Z0-9]$", component):
+            raise ValidationError(
+                f"Command and subcommand names must end with a letter or digit, got {repr(component)}"
+            )
+
+        # All components must contain only alphanumeric characters, underscores, or hyphens
+        if not re.match(r"^[a-zA-Z0-9_-]+$", component):
+            raise ValidationError(
+                f"Command and subcommand names can only contain letters, digits, underscores, or hyphens, got {repr(component)}"
+            )
+
+        # Component cannot be just a number
+        if re.match(r"^\d+$", component):
+            raise ValidationError(
+                f"Command and subcommand names cannot be just a number, got {repr(component)}"
+            )
+
+        # Only the first component can start with a number
+        if i > 0 and re.match(r"^\d", component):
+            raise ValidationError(
+                f"Subcommand names cannot start with a number, got {repr(component)}"
+            )
 
     return normalized_path

@@ -7,7 +7,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Entry
 from emilybot.utils.list import first
-from emilybot.validation import validate_path, ValidationError, has_trailing_slash
+from emilybot.validation import validate_path, ValidationError
 from emilybot.utils.inflect import inflect
 
 
@@ -60,7 +60,7 @@ async def cmd_show(ctx: EmilyContext, alias: str) -> None:
     server_id = ctx.guild.id if ctx.guild else None
 
     # `.show foo/` - list all aliases starting with "foo/"
-    if has_trailing_slash(alias):
+    if alias.endswith("/"):
         # list by prefix
         results = db.find_alias(
             re.compile("^" + re.escape(alias), re.IGNORECASE),
