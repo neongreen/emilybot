@@ -204,3 +204,17 @@ class TestParser:
         result = parse_command("$ foo bar baz")
         assert isinstance(result, JS)
         assert result.code == "foo bar baz"
+
+    def test_dollar_space_arithmetic(self):
+        """Test that messages starting with '$ ' handle arithmetic expressions."""
+        result = parse_command("$ console.log(2+4)")
+        assert isinstance(result, JS)
+        assert result.code == "console.log(2+4)"
+
+        result = parse_command("$ console.log(2 + 4)")
+        assert isinstance(result, JS)
+        assert result.code == "console.log(2 + 4)"
+
+        result = parse_command("$ 2 + 2")
+        assert isinstance(result, JS)
+        assert result.code == "2 + 2"

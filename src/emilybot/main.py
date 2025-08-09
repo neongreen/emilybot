@@ -26,11 +26,18 @@ from emilybot.parser import parse_command, Command, JS
 
 async def execute_dollar_javascript(ctx: EmilyContext, message: str) -> None:
     """Execute a message starting with $ as JavaScript"""
+    logging.debug(f"⚡ execute_dollar_javascript: message='{message}'")
 
     success, output, value = await run_code(ctx, code=message)
+    logging.debug(
+        f"📊 JavaScript execution result: success={success}, output='{output}', value='{value}'"
+    )
+
     if success:
+        logging.debug("✅ JavaScript executed successfully")
         await ctx.send(format_show_content(output, value))
     else:
+        logging.debug(f"❌ JavaScript execution failed: {output}")
         await ctx.send(f"❌ JavaScript error: {output}")
 
 
@@ -74,11 +81,21 @@ async def init_bot(dev: bool) -> EmilyBot:
 
     @bot.listen()
     async def on_message(message: discord.Message) -> None:  # pyright: ignore[reportUnusedFunction]
+        logging.debug(
+            f"🔍 on_message: content='{message.content}', author={message.author.display_name}"
+        )
+
         if message.author.bot:
+            logging.debug("🤖 Skipping bot message")
             return
+
+        # TODO this doesn't actually seem to do anything
         if dev and message.content.startswith("$"):
+            logging.debug("🚫 Dev mode: skipping $ message (meant for prod bot)")
             return  # meant for the prod bot
+
         if dev and message.content.startswith("#"):
+            logging.debug(f"🔧 Dev mode: converting #{message.content[1:]} to command")
             message.content = message.content[1:]
             await bot.process_commands(message)
 
@@ -92,6 +109,8 @@ async def init_bot(dev: bool) -> EmilyBot:
             f"on_command_error called with error: {error}, message: {ctx.message.content}"
         )
         if isinstance(error, commands.CommandNotFound):
+            logging.debug("🔍 CommandNotFound - checking for custom prefixes")
+
             # skip the dev prefix because it's meant for the dev bot
             if not dev and ctx.message.content.startswith("##"):
                 logging.info("Ignoring command meant for the dev bot.")
@@ -103,9 +122,12 @@ async def init_bot(dev: bool) -> EmilyBot:
 
             # Check for . prefix first
             if message_content.startswith("."):
+                logging.debug("🔍 Checking . prefix")
                 potential_alias = message_content[1:].split(" ")[0].strip()
+                logging.debug(f"📝 Extracted potential alias: '{potential_alias}'")
 
                 if not potential_alias:
+                    logging.debug("❌ No alias found after . prefix")
                     return
 
                 # Bot should refuse to handle anything that can annoy people.
@@ -120,47 +142,66 @@ async def init_bot(dev: bool) -> EmilyBot:
 
                 try:
                     # If it can be an alias, try looking it up
+                    logging.debug(f"✅ Validating alias: '{potential_alias}'")
                     AliasValidator.validate_alias(potential_alias, "lookup")
+                    logging.debug(f"🚀 Executing command: '{potential_alias}'")
                     await cmd_cmd(ctx, potential_alias)
                     return
-                except ValidationError:
-                    pass
+                except ValidationError as e:
+                    logging.debug(
+                        f"❌ Alias validation failed: '{potential_alias}' - {e}"
+                    )
 
+                logging.debug(f"❓ Unknown . command: '{potential_alias}'")
                 await ctx.send(
                     f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
                 )
 
             # Then check for $ prefix
             elif message_content.startswith("$"):
+                logging.debug("🔍 Checking $ prefix")
                 # First we check if we have smth like $foo a b c or just plain $foo,
                 # which we'll treat as $foo("a", "b", "c")
 
                 try:
+                    logging.debug(f"🔧 Parsing command: '{message_content}'")
                     parsed = parse_command(message_content)
+                    logging.debug(
+                        f"📝 Parsed result: {type(parsed).__name__} = {parsed}"
+                    )
+
                     match parsed:
                         case Command(cmd=cmd):
+                            logging.debug(f"🚀 Executing command: '{cmd}'")
                             # For commands, we need to construct the full command string
                             # since cmd_cmd expects just the alias
                             # The args are handled internally by the command system
                             await cmd_cmd(ctx, cmd)
                             return
                         case JS(code=code):
+                            logging.debug(f"⚡ Executing JavaScript: '{code}'")
                             await execute_dollar_javascript(ctx, code)
                             return
                         case _:
+                            logging.debug(f"❌ Unexpected parsed type: {type(parsed)}")
                             assert_never(parsed)
                 except Exception as e:
+                    logging.debug(
+                        f"💥 Exception during parsing: {type(e).__name__}: {e}"
+                    )
                     logging.error("Error parsing command", exc_info=True)
                     await ctx.send(f"❌ Error parsing command: {str(e)}")
                     return
 
         elif isinstance(error, commands.MissingRequiredArgument):
+            logging.debug(f"❌ MissingRequiredArgument: {error}")
             param_name = getattr(error, "param", None)
             if param_name:
                 await ctx.send(f"❌ Missing required argument: {param_name.name}")
             else:
                 await ctx.send("❌ Missing required argument")
         else:
+            logging.debug(f"❌ Other command error: {type(error).__name__}: {error}")
             await ctx.send(f"❌ An error occurred: {str(error)}")
             logging.error("An error occurred", exc_info=error)
 
@@ -242,7 +283,7 @@ async def run_bot_with_autoreload() -> None:
 
 async def main_async() -> None:
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[logging.StreamHandler()],
     )
