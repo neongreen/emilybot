@@ -41,9 +41,7 @@ async def execute_dollar_javascript(ctx: EmilyContext, message: str) -> None:
         await ctx.send(f"❌ JavaScript error: {output}")
 
 
-async def handle_dollar_command(
-    message: discord.Message, bot: EmilyBot, args: list[str]
-) -> None:
+async def handle_dollar_command(message: discord.Message, bot: EmilyBot) -> None:
     """Handle messages starting with $ prefix"""
 
     # Create a context for the message
@@ -59,8 +57,8 @@ async def handle_dollar_command(
         match parsed:
             # TODO: if we indeed got all the args correctly we can just remove args parsing from the parser
             case Command(cmd=cmd):
-                logging.debug(f"🚀 Executing command: '{cmd}' with args: {args}")
-                await cmd_cmd(ctx, cmd, args=args)
+                logging.debug(f"🚀 Executing command: '{cmd}' with args: {ctx.args}")
+                await cmd_cmd(ctx, cmd, args=ctx.args)
             case JS(code=code):
                 logging.debug(f"⚡ Executing JavaScript: '{code}'")
                 await execute_dollar_javascript(ctx, code)
@@ -136,7 +134,7 @@ async def init_bot(dev: bool) -> EmilyBot:
             and message.content[1].isspace()
         ):
             logging.debug("🔍 Handling '$ ' JS execution")
-            await handle_dollar_command(message, bot, args=[])
+            await handle_dollar_command(message, bot)
             return
 
         if dev and message.content.startswith("#"):
@@ -204,7 +202,7 @@ async def init_bot(dev: bool) -> EmilyBot:
 
             elif message_content.startswith("$"):
                 logging.debug("🔍 Checking $ prefix")
-                await handle_dollar_command(ctx.message, ctx.bot, ctx.args)
+                await handle_dollar_command(ctx.message, ctx.bot)
                 return
 
         elif isinstance(error, commands.MissingRequiredArgument):
