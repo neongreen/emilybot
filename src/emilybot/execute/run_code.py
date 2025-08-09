@@ -27,10 +27,17 @@ async def run_code(
         user_id=ctx.author.id, server_id=ctx.guild.id if ctx.guild else None
     )
 
-    # Create Context for direct execution
+    # Create Context for direct execution.
+    # When changing this, also change `make_ctx` in conftest.py
     context = Context(
         message=CtxMessage(text=ctx.message.content),
-        user=CtxUser(id=str(ctx.author.id), name=ctx.author.display_name),
+        user=CtxUser(
+            id=str(ctx.author.id),
+            handle=ctx.author.name,
+            name=ctx.author.display_name,
+            global_name=ctx.author.global_name,
+            avatar_url=ctx.author.display_avatar.url,
+        ),
         server=CtxServer(id=str(ctx.guild.id)) if ctx.guild else None,
     )
 

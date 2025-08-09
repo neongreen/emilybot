@@ -1,29 +1,18 @@
 """Test dollar prefix functionality"""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from emilybot.discord import EmilyContext
 from emilybot.execute.run_code import run_code
+from emilybot.conftest import MakeCtx
 
 
 @pytest.mark.asyncio
-async def test_dollar_prefix_javascript_execution():
+async def test_dollar_prefix_javascript_execution(make_ctx: MakeCtx):
     """Test that $unknown executes as JavaScript"""
-
-    # Create a mock context
-    ctx = MagicMock(spec=EmilyContext)
-    ctx.bot = MagicMock()
-    ctx.bot.db = MagicMock()
-    ctx.guild = None  # DM context
-    ctx.author.id = 12345
-    ctx.author.display_name = "TestUser"
-    ctx.message = MagicMock()
-    ctx.message.content = "$console.log('Hello from JavaScript!')"
-    ctx.send = AsyncMock()
 
     # Test JavaScript execution
     success, output, _value = await run_code(
-        ctx, code="console.log('Hello from JavaScript!')"
+        make_ctx("$ console.log('Hello from JavaScript!')", None),
+        code="console.log('Hello from JavaScript!')",
     )
 
     assert success
@@ -40,7 +29,7 @@ async def test_dollar_prefix_global_commands():
         CommandData,
         Context,
         CtxMessage,
-        CtxUser,
+        create_test_user,
         CtxServer,
     )
 
@@ -49,7 +38,13 @@ async def test_dollar_prefix_global_commands():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
-        user=CtxUser(id="12345", name="TestUser"),
+        user=create_test_user(
+            id="12345",
+            handle="TestUser",
+            name="TestUser",
+            global_name="TestUser",
+            avatar_url="https://cdn.discordapp.com/avatars/12345/1234567890.png",
+        ),
         server=CtxServer(id="67890"),
     )
 
@@ -115,7 +110,7 @@ async def test_dollar_prefix_command_execution():
         CommandData,
         Context,
         CtxMessage,
-        CtxUser,
+        create_test_user,
         CtxServer,
     )
 
@@ -124,7 +119,13 @@ async def test_dollar_prefix_command_execution():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
-        user=CtxUser(id="12345", name="TestUser"),
+        user=create_test_user(
+            id="12345",
+            handle="TestUser",
+            name="TestUser",
+            global_name="TestUser",
+            avatar_url="https://cdn.discordapp.com/avatars/12345/1234567890.png",
+        ),
         server=CtxServer(id="67890"),
     )
 
@@ -175,7 +176,7 @@ async def test_dollar_prefix_nested_commands():
         CommandData,
         Context,
         CtxMessage,
-        CtxUser,
+        create_test_user,
         CtxServer,
     )
 
@@ -184,7 +185,13 @@ async def test_dollar_prefix_nested_commands():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
-        user=CtxUser(id="12345", name="TestUser"),
+        user=create_test_user(
+            id="12345",
+            handle="TestUser",
+            name="TestUser",
+            global_name="TestUser",
+            avatar_url="https://cdn.discordapp.com/avatars/12345/1234567890.png",
+        ),
         server=CtxServer(id="67890"),
     )
 
@@ -241,7 +248,7 @@ async def test_dollar_prefix_legacy_compatibility():
         CommandData,
         Context,
         CtxMessage,
-        CtxUser,
+        create_test_user,
         CtxServer,
     )
 
@@ -250,7 +257,13 @@ async def test_dollar_prefix_legacy_compatibility():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
-        user=CtxUser(id="12345", name="TestUser"),
+        user=create_test_user(
+            id="12345",
+            handle="TestUser",
+            name="TestUser",
+            global_name="TestUser",
+            avatar_url="https://cdn.discordapp.com/avatars/12345/1234567890.png",
+        ),
         server=CtxServer(id="67890"),
     )
 
@@ -292,7 +305,7 @@ async def test_dollar_prefix_command_arguments():
         CommandData,
         Context,
         CtxMessage,
-        CtxUser,
+        create_test_user,
         CtxServer,
     )
 
@@ -301,7 +314,13 @@ async def test_dollar_prefix_command_arguments():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
-        user=CtxUser(id="12345", name="TestUser"),
+        user=create_test_user(
+            id="12345",
+            handle="TestUser",
+            name="TestUser",
+            global_name="TestUser",
+            avatar_url="https://cdn.discordapp.com/avatars/12345/1234567890.png",
+        ),
         server=CtxServer(id="67890"),
     )
 
@@ -358,7 +377,7 @@ async def test_dollar_prefix_arguments_via_cmd():
         CommandData,
         Context,
         CtxMessage,
-        CtxUser,
+        create_test_user,
         CtxServer,
     )
 
@@ -367,7 +386,13 @@ async def test_dollar_prefix_arguments_via_cmd():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
-        user=CtxUser(id="12345", name="TestUser"),
+        user=create_test_user(
+            id="12345",
+            handle="TestUser",
+            name="TestUser",
+            global_name="TestUser",
+            avatar_url="https://cdn.discordapp.com/avatars/12345/1234567890.png",
+        ),
         server=CtxServer(id="67890"),
     )
 

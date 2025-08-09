@@ -10,15 +10,34 @@ from tempfile import TemporaryDirectory
 from typing import Any, Tuple, TypedDict, Literal
 
 
-# Type definitions matching TypeScript context types
-
-# TODO: autogenerate?
-
-
 @dataclass
 class CtxUser:
     id: str  # instead of 'int' because in JS it overflows 'number'
+
+    handle: str
+    """Discord username, e.g. `availablegreen`"""
+
     name: str
+    """Display name as shown in the server"""
+
+    global_name: str | None
+    """Global display name as shown in the user's profile. Not sure when it might be None."""
+
+    avatar_url: str
+    """User's avatar URL as shown in the server"""
+
+
+def create_test_user(**kwargs: Any) -> CtxUser:
+    return CtxUser(
+        **{
+            "id": "1",
+            "handle": "Test user",
+            "name": "Test user",
+            "global_name": "Test user",
+            "avatar_url": "https://cdn.discordapp.com/avatars/1/1234567890.png",
+            **kwargs,
+        },
+    )
 
 
 @dataclass
@@ -49,13 +68,19 @@ class Context:
 def run_code_context(code: str) -> Context:
     return Context(
         message=CtxMessage(text=f".run {code}"),
-        user=CtxUser(id="1", name="Test user"),
+        user=CtxUser(
+            id="1",
+            handle="Test user",
+            name="Test user",
+            global_name="Test user",
+            avatar_url="https://cdn.discordapp.com/avatars/1/1234567890.png",
+        ),
         server=None,
     )
 
 
 class CommandData(TypedDict):
-    """Data for a command in the global context."""
+    """Data for a command in the global context. Has to match the TypeScript CommandData type."""
 
     name: str  # Command name
     content: str  # Command content

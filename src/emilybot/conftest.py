@@ -1,7 +1,7 @@
 """Pytest configuration and fixtures."""
 
 import uuid
-from discord import Guild, Member, Message
+from discord import Asset, Guild, Member, Message
 import pytest
 import tempfile
 from pathlib import Path
@@ -133,13 +133,25 @@ def make_ctx(db: DB):
         mock.bot = cast(EmilyBot, MagicMock(spec=EmilyBot))
         mock.bot.db = db
         db.remember.add(entry) if entry else None
+
+        # These must correspond to Discord types, *not* to the Ctx* types
+
         mock.author = cast(Member, MagicMock(spec=Member))
         mock.author.id = 67890
+        mock.author.name = "TestUser_123"  # pyright: ignore[reportAttributeAccessIssue]
         mock.author.display_name = "TestUser"  # pyright: ignore[reportAttributeAccessIssue]
+        mock.author.global_name = "TestUser Global"  # pyright: ignore[reportAttributeAccessIssue]
+        mock.author.display_avatar = cast(Asset, MagicMock(spec=Asset))  # pyright: ignore[reportAttributeAccessIssue]
+        mock.author.display_avatar.url = (
+            "https://cdn.discordapp.com/avatars/12345/1234567890.png"  # pyright: ignore[reportAttributeAccessIssue]
+        )
+
         mock.guild = cast(Guild, MagicMock(spec=Guild))
         mock.guild.id = 12345
+
         mock.message = cast(Message, MagicMock(spec=Message))
         mock.message.content = message
+
         return mock
 
     return _make_ctx

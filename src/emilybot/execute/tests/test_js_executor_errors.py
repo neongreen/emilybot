@@ -7,7 +7,7 @@ from emilybot.execute.javascript_executor import (
     JavaScriptExecutor,
     Context,
     CtxMessage,
-    CtxUser,
+    create_test_user,
     CtxServer,
 )
 
@@ -21,7 +21,7 @@ async def test_error_handling():
     # Create a test context directly
     test_context = Context(
         message=CtxMessage(text="test message"),
-        user=CtxUser(id="123", name="TestUser"),
+        user=create_test_user(id="123", name="TestUser"),
         server=CtxServer(id="12345"),
     )
 

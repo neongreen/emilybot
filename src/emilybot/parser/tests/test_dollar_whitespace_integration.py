@@ -92,7 +92,7 @@ def test_argument_handling_integration():
         CommandData,
         Context,
         CtxMessage,
-        CtxUser,
+        create_test_user,
         CtxServer,
     )
     import asyncio
@@ -108,7 +108,13 @@ def test_argument_handling_integration():
         executor = JavaScriptExecutor()
         context = Context(
             message=CtxMessage(text="$greeting Alice Bob"),
-            user=CtxUser(id="12345", name="TestUser"),
+            user=create_test_user(
+                id="12345",
+                handle="TestUser",
+                name="TestUser",
+                global_name="TestUser",
+                avatar_url="https://cdn.discordapp.com/avatars/12345/1234567890.png",
+            ),
             server=CtxServer(id="67890"),
         )
         commands = [

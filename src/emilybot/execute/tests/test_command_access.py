@@ -1,13 +1,11 @@
-#!/usr/bin/env python3
-
 import asyncio
 from emilybot.execute.javascript_executor import (
     CommandData,
     JavaScriptExecutor,
     Context,
     CtxMessage,
-    CtxUser,
     CtxServer,
+    create_test_user,
 )
 
 
@@ -24,7 +22,7 @@ async def test_command_access():
     # Create context
     context = Context(
         message=CtxMessage(text="test message content"),
-        user=CtxUser(id="12345", name="TestUser"),
+        user=create_test_user(id="12345", name="TestUser"),
         server=CtxServer(id="67890"),
     )
 
