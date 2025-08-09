@@ -9,7 +9,7 @@ from typing import Any, Optional
 from discord.ext import commands
 from watchfiles import awatch  # type: ignore
 
-from emilybot.discord import EmilyBot
+from emilybot.discord import EmilyBot, EmilyContext
 from emilybot.validation import AliasValidator, ValidationError
 from emilybot.commands.save import cmd_add
 from emilybot.commands.show import cmd_list, cmd_random, cmd_show
@@ -19,6 +19,19 @@ from emilybot.commands.help import cmd_help
 from emilybot.commands.promote import cmd_promote, cmd_demote, cmd_demote_all
 from emilybot.commands.set import cmd_set
 from emilybot.commands.run import cmd_cmd, cmd_run
+from emilybot.execute.run_code import run_code
+from emilybot.format import format_show_content
+from emilybot.parser import parse_command, Command
+
+
+async def execute_dollar_javascript(ctx: EmilyContext, message: str) -> None:
+    """Execute a message starting with $ as JavaScript"""
+
+    success, output, value = await run_code(ctx, code=message)
+    if success:
+        await ctx.send(format_show_content(output, value))
+    else:
+        await ctx.send(f"❌ JavaScript error: {output}")
 
 
 async def init_bot(dev: bool) -> EmilyBot:
@@ -27,10 +40,12 @@ async def init_bot(dev: bool) -> EmilyBot:
 
     if dev:
         logging.info("Running in development mode. Using `##` as command prefix.")
-        command_prefix = "##"
+        command_prefix = ["$", "##"]
     else:
-        logging.info("Running in production mode. Using `.` as command prefix.")
-        command_prefix = "."
+        logging.info(
+            "Running in production mode. Using `.` and `$` as command prefixes."
+        )
+        command_prefix = [".", "$"]
 
     bot = EmilyBot(
         command_prefix=command_prefix,
@@ -58,8 +73,18 @@ async def init_bot(dev: bool) -> EmilyBot:
         logging.info(f"We have logged in as {bot.user}")
 
     @bot.listen()
+    async def on_message(message: discord.Message) -> None:  # pyright: ignore[reportUnusedFunction]
+        if message.author.bot:
+            return
+        if dev and message.content.startswith("$"):
+            return  # meant for the prod bot
+        if dev and message.content.startswith("#"):
+            message.content = message.content[1:]
+            await bot.process_commands(message)
+
+    @bot.listen()
     async def on_command_error(  # pyright: ignore[reportUnusedFunction]
-        ctx: commands.Context[EmilyBot],
+        ctx: EmilyContext,
         error: commands.CommandError,
     ) -> None:
         """Handle command errors gracefully"""
@@ -72,33 +97,58 @@ async def init_bot(dev: bool) -> EmilyBot:
                 logging.info("Ignoring command meant for the dev bot.")
                 return
 
-            # Extract the command part (everything after prefix, before first space)
-            potential_alias = (
-                ctx.message.content[len(command_prefix) :].split(" ")[0].strip()
-            )
+            # Check if the message starts with any of our prefixes
+            message_content = ctx.message.content
+            potential_alias = None
 
-            # Bot should refuse to handle anything that can annoy people.
-            # Allowed things are: .ab<anything>
-            if (
-                re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_/]", potential_alias)
-                is None  # avoid .[punctuation]
-                or potential_alias.isdecimal()  # avoid .0123
-            ):
-                logging.info(f"Not treating {potential_alias} as a command.")
-                return
+            # Check for . prefix first
+            if message_content.startswith("."):
+                potential_alias = message_content[1:].split(" ")[0].strip()
 
-            try:
-                # If it can be an alias, try looking it up
-                AliasValidator.validate_alias(potential_alias, "lookup")
-                await cmd_cmd(ctx, potential_alias)
-                return
-            except ValidationError:
-                pass
+                if not potential_alias:
+                    return
 
-            # ok it's not an alias so it's an unknown command then
-            await ctx.send(
-                f"❓ Unknown command. Use `{command_prefix}help` to see available commands.",
-            )
+                # Bot should refuse to handle anything that can annoy people.
+                # Allowed things are: .ab<anything> or $ab<anything>
+                if (
+                    re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_/]", potential_alias)
+                    is None  # avoid .[punctuation] or $[punctuation]
+                    or potential_alias.isdecimal()  # avoid .0123 or $0123
+                ):
+                    logging.info(f"Not treating {potential_alias} as a command.")
+                    return
+
+                try:
+                    # If it can be an alias, try looking it up
+                    AliasValidator.validate_alias(potential_alias, "lookup")
+                    await cmd_cmd(ctx, potential_alias)
+                    return
+                except ValidationError:
+                    pass
+
+                await ctx.send(
+                    f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
+                )
+
+            # Then check for $ prefix
+            elif message_content.startswith("$"):
+                # First we check if we have smth like $foo a b c or just plain $foo,
+                # which we'll treat as $foo("a", "b", "c")
+
+                try:
+                    parsed = parse_command(message_content)
+                    if isinstance(parsed, Command):
+                        # If parsing succeeds, treat as a command invocation
+                        await cmd_cmd(ctx, parsed.cmd, *parsed.args)
+                        return
+                    else:
+                        # If parsing succeeds, treat as JavaScript execution
+                        await execute_dollar_javascript(ctx, parsed.code)
+                        return
+                except Exception:
+                    # If parsing fails, treat as JavaScript execution
+                    await execute_dollar_javascript(ctx, message_content)
+                    return
 
         elif isinstance(error, commands.MissingRequiredArgument):
             param_name = getattr(error, "param", None)
@@ -174,9 +224,9 @@ async def run_bot_with_autoreload() -> None:
                 logging.info(
                     f"📝 Detected changes: {[Path(change[1]).name for change in relevant_changes]}"
                 )
-                await stop_bot()
-                await asyncio.sleep(0.5)  # Brief pause before restart
-                await start_bot()
+                logging.info("🔄 Restarting process...")
+                # Restart the process
+                os.execv(sys.executable, [sys.executable] + sys.argv)
 
     except KeyboardInterrupt:
         logging.info("🔄 Bot stopped by user")

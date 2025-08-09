@@ -74,6 +74,59 @@ export async function execute(
         })
         $commandsMap__[command.name] = obj
       }
+      
+      // Create global command objects
+      function normalizeCommandName(name) {
+        return name.replace(/-/g, '_')
+      }
+      
+      function createCommandObject(name, content, code) {
+        const cmd = function() {
+          if (code && code.trim()) {
+            return eval("(() => {\\n" + code + "\\n})()")
+          } else {
+            console.log(content)
+          }
+        }
+        cmd._name = name
+        cmd._content = content
+        cmd._code = code || null
+        cmd._run = function() {
+          return cmd()
+        }
+        return cmd
+      }
+      
+      // Build global command objects
+      const commandGlobals = {}
+      for (const command of $init__.commands) {
+        const normalizedName = normalizeCommandName(command.name)
+        
+        // Handle direct mapping (no slashes)
+        if (!command.name.includes('/')) {
+          commandGlobals[normalizedName] = createCommandObject(command.name, command.content, command.code)
+        }
+        
+        // Handle nested commands (with slashes)
+        const parts = command.name.split('/')
+        if (parts.length > 1) {
+          let current = commandGlobals
+          for (let i = 0; i < parts.length - 1; i++) {
+            const part = normalizeCommandName(parts[i])
+            if (!current[part]) {
+              current[part] = {}
+            }
+            current = current[part]
+          }
+          const lastPart = normalizeCommandName(parts[parts.length - 1])
+          current[lastPart] = createCommandObject(command.name, command.content, command.code)
+        }
+      }
+      
+      // Add all command objects to global scope
+      for (const [name, obj] of Object.entries(commandGlobals)) {
+        globalThis["$" + name] = obj
+      }
     `)
 
     const result = arena.evalCode(code)

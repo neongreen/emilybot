@@ -2,11 +2,11 @@
 
 ## Behavior
 
-- `.foo` is treated as an alias lookup
+- `.foo` or `$foo` is treated as an alias lookup
 - `.add`, `.show`, etc are commands and take priority
 - you can create an alias called "add" but still the commands will take priority
 - `..`, `...`, or any `.[not a-zA-Z/]` are not handled by the bot at all, it doesn't reply
-- `.[1 char]` is ignored
+- `.[1 char]` or `$[1 char]` is ignored
 
 ## Development
 

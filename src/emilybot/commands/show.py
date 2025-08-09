@@ -11,11 +11,11 @@ from emilybot.validation import AliasValidator, ValidationError
 from emilybot.utils.inflect import inflect
 
 
-def format_not_found_message(alias: str, command_prefix: str) -> str:
-    """Format a helpful error message when an alias is not found."""
+def format_not_found_message(command: str, command_prefix: str) -> str:
+    """Format a helpful error message when a command is not found."""
     return (
-        f"❓ Alias '{alias}' not found.\n"
-        f"💡 Use `{command_prefix}add {alias} [text]` to create this alias."
+        f"❓ Command '{command}' not found.\n"
+        f"💡 Use `{command_prefix}add {command} [text]` to create this command."
     )
 
 

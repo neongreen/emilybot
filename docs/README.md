@@ -13,32 +13,57 @@ You:    .jokes
 Emily:  Why did the chicken cross the road?
 ```
 
+You can also use `$` as a prefix instead of `.`:
+
+```
+You:    $jokes
+Emily:  Why did the chicken cross the road?
+```
+
+The `$` prefix has special behavior - if the command doesn't exist, it executes the entire message as JavaScript:
+
+```
+You:    $console.log("Hello from JavaScript!")
+Emily:  Hello from JavaScript!
+
+You:    $new Date().toLocaleTimeString()
+Emily:  2:30:45 PM
+```
+
 ## Commands
 
 ### Storing text
 
 | Command               | What it does            | Example                            |
 | --------------------- | ----------------------- | ---------------------------------- |
-| `.add [name] [text]`  | Store text under a name | `.add manual https://docs.com`     |
-| `.edit [name] [text]` | Replace existing text   | `.edit manual https://newdocs.com` |
-| `.rm [name]`          | Delete an alias         | `.rm manual`                       |
+| `.add [name] [text]` or `$add [name] [text]`  | Store text under a name | `.add manual https://docs.com` or `$add manual https://docs.com`     |
+| `.edit [name] [text]` or `$edit [name] [text]` | Replace existing text   | `.edit manual https://newdocs.com` or `$edit manual https://newdocs.com` |
+| `.rm [name]` or `$rm [name]`          | Delete an alias         | `.rm manual` or `$rm manual`                       |
 
 ### Getting text back
 
 | Command          | What it does                   | Example         |
 | ---------------- | ------------------------------ | --------------- |
-| `.[name]`        | Show the text                  | `.manual`       |
-| `.[name]/`       | List all children of the alias | `.docs/`        |
+| `.[name]` or `$[name]` | Show the text                  | `.manual` or `$manual`       |
+| `.[name]/` or `$[name]/` | List all children of the alias | `.docs/` or `$docs/`        |
 | `.show [name]`   | Same as above                  | `.show manual`  |
 | `.random [name]` | Show a random line             | `.random jokes` |
 | `.list`          | Show all aliases               | `.list`         |
+
+### JavaScript execution with `$`
+
+| Command          | What it does                   | Example         |
+| ---------------- | ------------------------------ | --------------- |
+| `$[javascript]`  | Execute JavaScript directly   | `$console.log("Hello!")`     |
+| `$[expression]`  | Evaluate and show result      | `$2 + 2`                     |
+| `$[function]()`  | Call functions                 | `$new Date().getHours()`     |
 
 ### JavaScript
 
 | Command                  | What it does                | Example                                                     |
 | ------------------------ | --------------------------- | ----------------------------------------------------------- |
-| `.set [name].run [code]` | Add JavaScript to an alias  | `.set weather.run console.log("Today: " + context.content)` |
-| `.run [code]`            | Execute JavaScript directly | `.run console.log("Hello, world!")`                         |
+| `.set [name].run [code]` or `$set [name].run [code]` | Add JavaScript to an alias  | `.set weather.run console.log("Today: " + context.content)` or `$set weather.run console.log("Today: " + context.content)` |
+| `.run [code]` or `$run [code]`            | Execute JavaScript directly | `.run console.log("Hello, world!")` or `$run console.log("Hello, world!")`                         |
 
 When you use an alias that has attribute `run`, instead of showing the text it will execute the code.
 Everything printed with `console.log` will be shown in the chat.
@@ -49,10 +74,10 @@ See [JavaScript execution](#javascript-execution) for more details, or see the c
 
 | Command           | What it does                              | Example             |
 | ----------------- | ----------------------------------------- | ------------------- |
-| `.promote [name]` | Show the alias and its first line in help | `.promote docs`     |
-| `.demote [name]`  | Don't list in help, only in `.list`       | `.demote old-stuff` |
-| `.demote_all`     | Demote all aliases                        | `.demote_all`       |
-| `.help`           | Show all commands and promoted aliases    | `.help`             |
+| `.promote [name]` or `$promote [name]` | Show the alias and its first line in help | `.promote docs` or `$promote docs`     |
+| `.demote [name]` or `$demote [name]`  | Don't list in help, only in `.list`       | `.demote old-stuff` or `$demote old-stuff` |
+| `.demote_all` or `$demote_all`     | Demote all aliases                        | `.demote_all` or `$demote_all`       |
+| `.help` or `$help`           | Show all commands and promoted aliases    | `.help` or `$help`             |
 
 ## Anatomy of an alias
 
@@ -150,6 +175,28 @@ Your JavaScript code has access to two main interfaces:
 | `$.cmd(name)`        | Function to execute other commands | `$.cmd('weather')`      |
 | `$.lib.random(a,b)`  | Random integer between a and b     | `$.lib.random(1, 10)`   |
 
+**Command objects** (available as global variables):
+
+Every command is available as a global variable. For example, if you have a command called `weather`, you can access it as `$weather`:
+
+| Property/Method     | What it contains                   | Example                 |
+| ------------------- | ---------------------------------- | ----------------------- |
+| `$weather`          | Call the command                   | `$weather()`            |
+| `$weather._name`    | Command name                       | `"weather"`             |
+| `$weather._content` | Command content                    | `"Sunny, 75°F"`         |
+| `$weather._code`    | JavaScript code (if set)           | `"console.log(...)"`    |
+| `$weather._run()`   | Execute the command's code         | `$weather._run()`       |
+
+**Special characters**:
+- Commands with dashes (`-`) become underscores (`_`): `user-settings` → `$user_settings`
+- Commands with slashes (`/`) become nested properties: `docs/api` → `$docs.api`
+
+**Nested commands** are accessible as properties:
+
+If you have `docs/api` and `docs/install`, you can access them as:
+- `$docs.api` - calls the `docs/api` command
+- `$docs.install` - calls the `docs/install` command
+
 ### Code formats
 
 All of these work:
@@ -238,6 +285,41 @@ Be yourself; everyone else is already taken.
 # Shows: User: JohnDoe
 ```
 
+**Using the `$` prefix for JavaScript:**
+
+```
+$console.log("Current time: " + new Date().toLocaleTimeString())
+# Shows: Current time: 2:30:45 PM
+
+$2 + 2
+# Shows: 4
+
+$new Date().getHours()
+# Shows: 14
+```
+
+**Using command objects:**
+
+```
+.add weather Sunny, 75°F
+.add quotes Be yourself; everyone else is already taken.
+
+# Access command properties
+$weather._content
+# Shows: Sunny, 75°F
+
+$quotes._name
+# Shows: quotes
+
+# Call commands from JavaScript
+$weather()
+# Shows: Sunny, 75°F
+
+# Chain commands
+$console.log("Weather: " + $weather._content + " | Quote: " + $quotes._content)
+# Shows: Weather: Sunny, 75°F | Quote: Be yourself; everyone else is already taken.
+```
+
 ### Organization example
 
 ```
@@ -272,7 +354,19 @@ In `.help`, you'll see:
 
 1. Built-in commands (`.add`, `.help`, etc.) always work first
 2. If not a built-in command, bot looks for your alias
-3. Patterns like `..` or `.1` are ignored
+3. For `$` prefix: if no command or alias exists, executes the entire message as JavaScript
+4. Patterns like `..`, `...`, `$1`, or `.1` are ignored
+
+### Prefix support
+
+Emily supports two prefixes for accessing commands:
+- **`.` (dot prefix)**: Traditional prefix, works for all commands
+- **`$` (dollar prefix)**: Alternative prefix with special behavior:
+  - If the command exists (built-in or alias): works like `.` prefix
+  - If the command doesn't exist: executes the entire message as JavaScript
+  - All aliases are available as global variables in JavaScript (e.g., `$weather`, `$docs.api`)
+
+Both prefixes work identically for all commands (`.add` = `$add`, `.help` = `$help`, etc.).
 
 ## Further Reading
 

@@ -21,10 +21,14 @@ class EmilyContext(commands.Context["EmilyBot"]):
 
 
 class EmilyBot(commands.Bot):
-    def __init__(self, command_prefix: str, *args: Any, **kwargs: Any):
+    def __init__(self, command_prefix: str | list[str], *args: Any, **kwargs: Any):
         super().__init__(command_prefix, *args, **kwargs)
         self.db = DB()
-        self.just_command_prefix = command_prefix  # normal bot.command_prefix is smth like Iterable[str] | str | idk
+        # Use the first prefix as the primary one for display purposes
+        if isinstance(command_prefix, list):
+            self.just_command_prefix = command_prefix[0]
+        else:
+            self.just_command_prefix = command_prefix
 
     async def get_context(self, *args: Any, **kwargs: Any) -> EmilyContext:
         return await super().get_context(*args, **kwargs, cls=EmilyContext)

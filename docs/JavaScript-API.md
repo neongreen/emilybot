@@ -30,6 +30,31 @@ $.commands.hello.run() // Function to execute the command
 > **Implementation source**:
 > Commands are stored in `$commandsMap__` and exposed via `$.commands` in [`js-executor/executor.ts:49-75`](../js-executor/executor.ts#L49-L75)
 
+### Global Command Objects
+
+Every command is also available as a global variable:
+
+```javascript
+// Direct access to commands as global variables
+$weather // The weather command object
+$weather() // Call the weather command
+$weather._name // "weather"
+$weather._content // The command's content
+$weather._code // JavaScript code (if set)
+$weather._run() // Execute the command's code
+
+// Commands with dashes become underscores
+$user_settings // The user-settings command
+$user_settings() // Call the user-settings command
+
+// Nested commands are accessible as properties
+$docs.api // The docs/api command
+$docs.api() // Call the docs/api command
+$docs.install // The docs/install command
+```
+
+> **Note**: Command names with dashes (`-`) are converted to underscores (`_`) for global variable access. For example, `user-settings` becomes `$user_settings`.
+
 #### Calling Commands
 
 Use `$.cmd(name)` to execute another command:
@@ -84,6 +109,31 @@ context.content // Original entry content
 context.name // Entry/command name
 ```
 
+## Dollar Prefix Behavior
+
+When you use the `$` prefix in Discord messages, Emily has special behavior:
+
+1. **If the command exists (built-in or alias)**: Works like the `.` prefix
+   ```
+   $weather  // Same as .weather (if weather is an alias)
+   $help     // Same as .help (built-in command)
+   $add test Hello  // Same as .add test Hello (built-in command)
+   ```
+
+2. **If the command doesn't exist**: Executes the entire message as JavaScript
+   ```
+   $console.log("Hello!")  // Executes JavaScript
+   $2 + 2                  // Shows: 4
+   $new Date().getHours()  // Shows current hour
+   ```
+
+3. **All aliases are available as global variables**:
+   ```
+   $weather()              // Call the weather alias
+   $weather._content       // Access weather content
+   $docs.api()             // Call nested alias
+   ```
+
 ## Usage Examples
 
 ### Basic Command Execution
@@ -97,6 +147,26 @@ console.log("Weather info:", $.commands.weather.content)
 
 // Execute command's run function if it has JavaScript code
 $.commands.weather.run()
+
+// Use global command objects
+$weather() // Call weather command
+$weather._content // Get weather content
+```
+
+### Advanced Command Chaining
+
+```javascript
+// Chain multiple commands
+$console.log("Weather: " + $weather._content + " | Time: " + new Date().toLocaleTimeString())
+
+// Use nested commands
+$docs.api() // Call docs/api command
+$docs.install() // Call docs/install command
+
+// Conditional execution
+if ($weather._content.includes("sunny")) {
+    $console.log("It's a beautiful day!")
+}
 ```
 
 ### Dynamic Content Generation

@@ -17,7 +17,7 @@ env.DEV_MODE = "True"
 run = "uv run emilybot"
 
 [tasks.test]
-description = "Run database tests"
+description = "Run tests"
 run = "uv run pytest"
 
 [tasks.fmt]

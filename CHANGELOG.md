@@ -2,6 +2,7 @@
 
 ## 2025-08-02
 
+- Added support for `$` prefix as an alternative to `.` for accessing aliases (e.g., `$weather` works the same as `.weather`).
 - BREAKING: Commands can access info about their own invocation via `this` instead of `context`.
 - BREAKING: `.show` shows command structure instead of running it.
 - Commands now have access to `$.message`, `$.user`, and `$.server`.

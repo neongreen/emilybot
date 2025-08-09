@@ -38,6 +38,10 @@ include = [".", "src", "tests"]
 pythonpath = [".", "src", "tests"]
 timeout = 3
 asyncio_mode = "auto"
+addopts = [
+  "--import-mode=importlib",
+  "--doctest-modules",
+]
 
 [tool.ruff]
 line-length = 88
