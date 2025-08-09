@@ -40,9 +40,17 @@ async def cmd_set(
     prefix = ctx.bot.just_command_prefix
 
     try:
-        # Validate
-        alias, attr = place.split(".", 1)
-        validate_path(alias, allow_trailing_slash=False)
+        # Split alias and attribute (last part if split by dots, from the end)
+        alias, attr = place.rsplit(".", 1)
+
+        # Validate alias
+        validate_path(
+            alias,
+            normalize_dashes=False,
+            normalize_dots=True,
+            check_component_length=True,
+            allow_trailing_slash=False,
+        )
 
         # Validate attribute name
         if attr != "run":

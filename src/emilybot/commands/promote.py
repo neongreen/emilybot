@@ -4,7 +4,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Action, ActionPromote
 from emilybot.utils.list import first
-from emilybot.validation import validate_path, ValidationError
+from emilybot.validation import parse_path, ValidationError
 
 
 def format_not_found_message(alias: str) -> str:
@@ -39,7 +39,11 @@ async def _promote_demote_implementation(
     db = ctx.bot.db
 
     try:
-        validate_path(alias, allow_trailing_slash=True)
+        path = parse_path(alias)
+        if len(path) == 0:
+            raise ValidationError("Command cannot be empty")
+        if len(path) > 1:
+            raise ValidationError("Only top-level commands can be promoted or demoted")
 
         server_id = ctx.guild.id if ctx.guild else None
         user_id = ctx.author.id
@@ -49,15 +53,6 @@ async def _promote_demote_implementation(
 
         if not entry:
             await ctx.send(format_not_found_message(alias))
-            return
-
-        # Check if this is a top-level LAS (no "/" in name)
-        if "/" in entry.name:
-            await ctx.send(
-                format_validation_error(
-                    "Only top-level aliases can be promoted or demoted."
-                )
-            )
             return
 
         # Check if already in desired state

@@ -4,7 +4,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Action, ActionDelete
 from emilybot.utils.list import first
-from emilybot.validation import validate_path, ValidationError
+from emilybot.validation import parse_path, ValidationError
 
 
 def format_not_found_message(alias: str) -> str:
@@ -26,7 +26,11 @@ async def cmd_rm(ctx: EmilyContext, alias: str) -> None:
     db = ctx.bot.db
 
     try:
-        validate_path(alias, allow_trailing_slash=False)
+        path = parse_path(alias)
+        if len(path) == 0:
+            raise ValidationError("Alias cannot be empty")
+        if path[-1] == "":
+            raise ValidationError("Alias cannot end with a slash")
 
         server_id = ctx.guild.id if ctx.guild else None
         user_id = ctx.author.id

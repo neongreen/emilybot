@@ -35,6 +35,9 @@ def parse_command_invocation(content: str) -> Command | None:
         >>> parse_command_invocation("foo/bar a b c")
         Command(cmd='foo/bar', args=['a', 'b', 'c'])
 
+        >>> parse_command_invocation("foo-bar a b c")
+        Command(cmd='foo-bar', args=['a', 'b', 'c'])
+
         >>> parse_command_invocation("") is None
         True
 
@@ -59,6 +62,7 @@ def parse_command_invocation(content: str) -> Command | None:
             allow_trailing_slash=False,
             normalize_dots=True,
             normalize_dashes=False,
+            check_component_length=True,
         )
         args = _parse_arguments(view)
         return Command(cmd=cmd_name, args=args)

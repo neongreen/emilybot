@@ -110,7 +110,13 @@ async def cmd_random(ctx: EmilyContext, alias: str) -> None:
 
     try:
         # Validate alias
-        validate_path(alias, allow_trailing_slash=False)
+        validate_path(
+            alias,
+            normalize_dashes=False,
+            normalize_dots=True,
+            check_component_length=False,
+            allow_trailing_slash=False,
+        )
 
         server_id = ctx.guild.id if ctx.guild else None
 

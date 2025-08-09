@@ -16,13 +16,30 @@ MIN_LENGTH = 2
 MAX_LENGTH = 100
 
 
+def parse_path(path: str) -> list[str]:
+    """
+    Parse a path string into a list of components.
+
+    Always normalizes dots.
+    """
+    return path.replace(".", "/").split("/")
+
+
+_validate_defaults = {
+    "allow_trailing_slash": False,
+    "normalize_dots": False,
+    "normalize_dashes": False,
+    "check_component_length": True,
+}
+
+
 def validate_path(
     path: str,
     *,
-    allow_trailing_slash: bool = False,
-    normalize_dots: bool = False,
-    normalize_dashes: bool = False,
-    check_component_length: bool = True,
+    allow_trailing_slash: bool,
+    normalize_dots: bool,
+    normalize_dashes: bool,
+    check_component_length: bool,
 ) -> str:
     """
     Validate path components by splitting on slashes and checking each component.
@@ -41,26 +58,26 @@ def validate_path(
         ValidationError: If any path component is invalid
 
     Examples:
-        >>> validate_path("foo")
+        >>> validate_path("foo", **_validate_defaults)
         'foo'
-        >>> validate_path("user/data")  # Valid path
+        >>> validate_path("user/data", **_validate_defaults)  # Valid path
         'user/data'
-        >>> validate_path("dir/", allow_trailing_slash=True)  # Valid - empty last component allowed
+        >>> validate_path("dir/", **({**_validate_defaults, "allow_trailing_slash": True}))  # Valid - empty last component allowed
         'dir/'
-        >>> validate_path("user//data")  # doctest: +IGNORE_EXCEPTION_DETAIL
+        >>> validate_path("user//data", **_validate_defaults)  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ValidationError: Path components cannot be empty
-        >>> validate_path("_user/data")  # doctest: +IGNORE_EXCEPTION_DETAIL
+        >>> validate_path("_user/data", **_validate_defaults)  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ValidationError: Path components cannot start with underscore
-        >>> validate_path("user/data/", allow_trailing_slash=True)
+        >>> validate_path("user/data/", **({**_validate_defaults, "allow_trailing_slash": True}))
         'user/data/'
-        >>> validate_path("a", check_component_length=True)  # doctest: +IGNORE_EXCEPTION_DETAIL
+        >>> validate_path("a", **({**_validate_defaults, "check_component_length": True}))  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ValidationError: Path component must be at least no('character', 2) long
-        >>> validate_path("foo.bar", normalize_dots=True)
+        >>> validate_path("foo.bar", **({**_validate_defaults, "normalize_dots": True}))
         'foo/bar'
-        >>> validate_path("foo-bar", normalize_dashes=True)
+        >>> validate_path("foo-bar", **({**_validate_defaults, "normalize_dashes": True}))
         'foo_bar'
     """
     if not path:

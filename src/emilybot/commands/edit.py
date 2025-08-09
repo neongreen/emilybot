@@ -4,7 +4,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Action, ActionEdit
 from emilybot.utils.list import first
-from emilybot.validation import validate_path, ValidationError
+from emilybot.validation import parse_path, ValidationError
 
 
 def format_not_found_message(alias: str, command_prefix: str) -> str:
@@ -38,7 +38,12 @@ async def cmd_edit(
     prefix = ctx.bot.just_command_prefix
 
     try:
-        validate_path(alias, allow_trailing_slash=False)
+        path = parse_path(alias)
+        if len(path) == 0:
+            raise ValidationError("Alias cannot be empty")
+        if path[-1] == "":
+            raise ValidationError("Alias cannot end with a slash")
+
         if not new_content.strip():
             raise ValidationError("Text cannot be empty.")
 

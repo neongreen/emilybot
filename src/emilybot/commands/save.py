@@ -32,7 +32,13 @@ async def cmd_add(
 
     try:
         # Validate alias and content
-        validate_path(alias, allow_trailing_slash=False)
+        validate_path(
+            alias,
+            normalize_dashes=False,
+            normalize_dots=True,
+            check_component_length=True,
+            allow_trailing_slash=False,
+        )
         if not content.strip():
             raise ValidationError("Text to add cannot be empty.")
 

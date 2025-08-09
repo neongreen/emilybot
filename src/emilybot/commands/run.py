@@ -8,7 +8,7 @@ from emilybot.execute.javascript_executor import extract_js_code
 from emilybot.execute.run_code import run_code
 from emilybot.format import format_show_content
 from emilybot.utils.list import first
-from emilybot.validation import validate_path, ValidationError
+from emilybot.validation import parse_path, ValidationError
 
 
 @commands.command(name="run")
@@ -39,8 +39,11 @@ async def cmd_cmd(ctx: EmilyContext, alias: str, *, args: list[str]) -> None:
     command_prefix = ctx.bot.just_command_prefix
 
     try:
-        # Validate alias
-        validate_path(alias, allow_trailing_slash=False)
+        path = parse_path(alias)
+        if len(path) == 0:
+            raise ValidationError("Command cannot be empty")
+        if path[-1] == "":
+            raise ValidationError("Command cannot end with a slash")
 
         server_id = ctx.guild.id if ctx.guild else None
 
