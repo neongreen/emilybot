@@ -7,7 +7,7 @@ import pytest
 
 from emilybot.commands.run import run_code
 from emilybot.database import Entry
-from tests.conftest import MakeCtx
+from emilybot.conftest import MakeCtx
 
 
 @pytest.mark.asyncio

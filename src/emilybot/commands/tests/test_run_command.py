@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from emilybot.commands.run import cmd_run
-from tests.conftest import MakeCtx
+from emilybot.conftest import MakeCtx
 
 
 @pytest.mark.asyncio

@@ -53,4 +53,4 @@ any whitespace should work, e.g `$ foo`, `$\nfoo`, etc
 
 just give Deno a tree, don't make it reconstruct the tree by itself
 
-# btw move tests to be colocated with the code they test?
+# ✅ btw move tests to be colocated with the code they test?

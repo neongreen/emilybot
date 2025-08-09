@@ -35,7 +35,7 @@ typeCheckingMode = "strict"
 include = [".", "src", "tests"]
 
 [tool.pytest.ini_options]
-pythonpath = [".", "src", "tests"]
+pythonpath = [".", "src"]
 timeout = 3
 asyncio_mode = "auto"
 addopts = [
