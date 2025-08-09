@@ -1,9 +1,8 @@
-import re
 from typing import Union
 
 from discord.ext.commands.view import StringView  # pyright: ignore[reportMissingTypeStubs]
 
-from emilybot.parser.js_parser import is_js_pattern, is_quoted_content, parse_js_code
+from emilybot.parser.js_parser import parse_js_code
 from emilybot.parser.list_children_parser import (
     is_list_children_pattern,
     parse_list_children,
@@ -142,55 +141,10 @@ def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
     if content_without_prefix.startswith("//"):
         return JS(code=message_content)
 
-    # Check for dot notation command patterns
-    # TODO: what does this do?
-    if "." in content_without_prefix and not is_js_pattern(content_without_prefix):
-        dot_command = _parse_dot_command(content_without_prefix)
-        if dot_command:
-            return dot_command
-
     try:
         return parse_command_invocation(message_content)
     except ValueError:
         return JS(code=message_content)
-
-
-def _parse_dot_command(content: str) -> Union[Command, None]:
-    """
-    Parse dot notation command patterns like $foo.bar args.
-
-    Args:
-        content: The content to parse (without the '$' prefix)
-
-    Returns:
-        Command object if it's a valid dot command, None otherwise
-    """
-    # Check for $foo.bar pattern (but not $foo._bar)
-    # Only apply this if the content looks like a simple command pattern
-    # and doesn't contain JavaScript-like patterns (but allow / for commands)
-    if "." in content and not any(char in content for char in "()[]{};=+*<>!&|^%~"):
-        dot_command_pattern = r"^([a-zA-Z0-9_][a-zA-Z0-9_/\-]*[a-zA-Z0-9_/])\.([a-zA-Z0-9][a-zA-Z0-9_/\-]*[a-zA-Z0-9_/])(.*)$"
-        dot_command_match = re.match(dot_command_pattern, content)
-        if dot_command_match:
-            parent = dot_command_match.group(1)
-            child = dot_command_match.group(2)
-            remaining = dot_command_match.group(3).strip()
-
-            # Additional check: only treat as command if it looks like a simple command
-            # (no quotes, no complex patterns)
-            if not is_quoted_content(content):
-                # Additional check: only treat as command if both parent and child look like valid aliases
-                try:
-                    validate_path(parent, allow_trailing_slash=True)
-                    validate_path(child, allow_trailing_slash=True)
-                except ValidationError:
-                    return None
-                    # Construct the command as parent/child
-                    cmd_name = f"{parent}/{child}"
-                    args = _parse_arguments(StringView(remaining)) if remaining else []
-                    return Command(cmd=cmd_name, args=args)
-
-    return None
 
 
 def _parse_arguments(view: StringView) -> list[str]:
