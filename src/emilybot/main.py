@@ -192,6 +192,11 @@ async def init_bot(dev: bool) -> EmilyBot:
                     f"❓ Unknown command. Use `{ctx.bot.just_command_prefix}help` to see available commands.",
                 )
 
+            elif message_content.startswith("$"):
+                logging.debug("🔍 Checking $ prefix")
+                await handle_dollar_command(ctx.message, ctx.bot)
+                return
+
         elif isinstance(error, commands.MissingRequiredArgument):
             logging.debug(f"❌ MissingRequiredArgument: {error}")
             param_name = getattr(error, "param", None)
