@@ -5,7 +5,7 @@ import discord
 import re
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, assert_never
 from discord.ext import commands
 from watchfiles import awatch  # type: ignore
 
@@ -21,7 +21,7 @@ from emilybot.commands.set import cmd_set
 from emilybot.commands.run import cmd_cmd, cmd_run
 from emilybot.execute.run_code import run_code
 from emilybot.format import format_show_content
-from emilybot.parser import parse_command, Command
+from emilybot.parser import parse_command, Command, JS
 
 
 async def execute_dollar_javascript(ctx: EmilyContext, message: str) -> None:
@@ -137,17 +137,21 @@ async def init_bot(dev: bool) -> EmilyBot:
 
                 try:
                     parsed = parse_command(message_content)
-                    if isinstance(parsed, Command):
-                        # If parsing succeeds, treat as a command invocation
-                        await cmd_cmd(ctx, parsed.cmd, *parsed.args)
-                        return
-                    else:
-                        # If parsing succeeds, treat as JavaScript execution
-                        await execute_dollar_javascript(ctx, parsed.code)
-                        return
-                except Exception:
-                    # If parsing fails, treat as JavaScript execution
-                    await execute_dollar_javascript(ctx, message_content)
+                    match parsed:
+                        case Command(cmd=cmd):
+                            # For commands, we need to construct the full command string
+                            # since cmd_cmd expects just the alias
+                            # The args are handled internally by the command system
+                            await cmd_cmd(ctx, cmd)
+                            return
+                        case JS(code=code):
+                            await execute_dollar_javascript(ctx, code)
+                            return
+                        case _:
+                            assert_never(parsed)
+                except Exception as e:
+                    logging.error("Error parsing command", exc_info=True)
+                    await ctx.send(f"❌ Error parsing command: {str(e)}")
                     return
 
         elif isinstance(error, commands.MissingRequiredArgument):
