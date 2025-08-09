@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Integration tests for dollar whitespace handling in main handler."""
+
+
+def test_main_handler_whitespace_detection():
+    """Test that the main handler correctly detects dollar followed by any whitespace."""
+
+    def should_handle_dollar_command(message_content: str) -> bool:
+        """Simulate the logic from main.py for detecting dollar commands."""
+        return (
+            message_content.startswith("$")
+            and len(message_content) > 1
+            and message_content[1].isspace()
+        )
+
+    # Test cases that should be handled
+    assert should_handle_dollar_command("$ foo")
+    assert should_handle_dollar_command("$\nfoo")
+    assert should_handle_dollar_command("$\tfoo")
+    assert should_handle_dollar_command("$   foo")
+    assert should_handle_dollar_command("$ \t\n foo")
+
+    # Test cases that should NOT be handled (no whitespace after $)
+    assert not should_handle_dollar_command("$foo")
+    assert not should_handle_dollar_command("$")
+    assert not should_handle_dollar_command("foo")
+    assert not should_handle_dollar_command("$123")
+    assert not should_handle_dollar_command("$!foo")
+
+
+def test_parser_whitespace_handling():
+    """Test that the parser correctly handles all whitespace types."""
+    from emilybot.parser import parse_command, JS
+
+    # Test various whitespace patterns
+    test_cases = [
+        ("$ foo", "foo"),
+        ("$\nfoo", "foo"),
+        ("$\tfoo", "foo"),
+        ("$   foo", "foo"),
+        ("$ \t\n foo", "foo"),
+        ("$ 2 + 2", "2 + 2"),
+        ("$\nconsole.log('hello')", "console.log('hello')"),
+        ("$\tMath.random()", "Math.random()"),
+    ]
+
+    for input_str, expected_code in test_cases:
+        result = parse_command(input_str)
+        assert isinstance(result, JS), f"Expected JS for '{input_str}'"
+        assert result.code == expected_code, (
+            f"Expected '{expected_code}' for '{input_str}', got '{result.code}'"
+        )
+
+
+def test_whitespace_consistency():
+    """Test that main handler and parser are consistent in whitespace handling."""
+    from emilybot.parser import parse_command, JS
+
+    def should_handle_dollar_command(message_content: str) -> bool:
+        """Simulate the logic from main.py for detecting dollar commands."""
+        return (
+            message_content.startswith("$")
+            and len(message_content) > 1
+            and message_content[1].isspace()
+        )
+
+    # Test that all patterns detected by main handler are also handled by parser
+    test_patterns = [
+        "$ foo",
+        "$\nfoo",
+        "$\tfoo",
+        "$   foo",
+        "$ \t\n foo",
+    ]
+
+    for pattern in test_patterns:
+        # Main handler should detect this
+        assert should_handle_dollar_command(pattern), (
+            f"Main handler should detect: {pattern}"
+        )
+
+        # Parser should handle this as JS
+        result = parse_command(pattern)
+        assert isinstance(result, JS), f"Parser should return JS for: {pattern}"

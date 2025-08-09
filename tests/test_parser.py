@@ -209,6 +209,42 @@ class TestParser:
         assert isinstance(result, JS)
         assert result.code == "2 + 2"
 
+    def test_dollar_newline_javascript(self):
+        """Test that $ followed by newline and JavaScript is treated as JS."""
+        result = parse_command("$\nconsole.log('hello')")
+        assert isinstance(result, JS)
+        assert result.code == "console.log('hello')"
+
+    def test_dollar_tab_javascript(self):
+        """Test that $ followed by tab and JavaScript is treated as JS."""
+        result = parse_command("$\tconsole.log('hello')")
+        assert isinstance(result, JS)
+        assert result.code == "console.log('hello')"
+
+    def test_dollar_multiple_spaces_javascript(self):
+        """Test that $ followed by multiple spaces and JavaScript is treated as JS."""
+        result = parse_command("$   console.log('hello')")
+        assert isinstance(result, JS)
+        assert result.code == "console.log('hello')"
+
+    def test_dollar_mixed_whitespace_javascript(self):
+        """Test that $ followed by mixed whitespace and JavaScript is treated as JS."""
+        result = parse_command("$ \t\n console.log('hello')")
+        assert isinstance(result, JS)
+        assert result.code == "console.log('hello')"
+
+    def test_dollar_newline_arithmetic(self):
+        """Test that $ followed by newline and arithmetic is treated as JS."""
+        result = parse_command("$\n2 + 2")
+        assert isinstance(result, JS)
+        assert result.code == "2 + 2"
+
+    def test_dollar_tab_arithmetic(self):
+        """Test that $ followed by tab and arithmetic is treated as JS."""
+        result = parse_command("$\t2 + 2")
+        assert isinstance(result, JS)
+        assert result.code == "2 + 2"
+
     # New tests for dot notation functionality
     def test_dot_command_simple(self):
         """Test that $foo.bar is treated as command foo/bar."""

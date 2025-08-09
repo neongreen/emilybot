@@ -127,7 +127,11 @@ async def init_bot(dev: bool) -> EmilyBot:
             return  # meant for the prod bot
 
         # Handle $ prefix commands directly
-        if message.content.startswith("$ "):
+        if (
+            message.content.startswith("$")
+            and len(message.content) > 1
+            and message.content[1].isspace()
+        ):
             logging.debug("🔍 Handling $ prefix command")
             await handle_dollar_command(message, bot)
             return

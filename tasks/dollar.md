@@ -12,14 +12,18 @@
 
 # add syntax like $foo = "bar"
 
+btw unclear how to make it so that you can set both run() and content()
+
 # have args in the context
 
 e.g. give the function stuff like 'args' when called like $foo
 
-# $ whitespace
+# ✅ `$` whitespace
 
 any whitespace should work, e.g `$ foo`, `$\nfoo`, etc
 
 # handle nested commands in a nicer way
 
 just give Deno a tree, don't make it reconstruct the tree by itself
+
+# btw move tests to be colocated with the code they test?
