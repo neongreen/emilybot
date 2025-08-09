@@ -5,7 +5,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Entry, Action, ActionEdit, ActionCreate
 from emilybot.utils.list import first
-from emilybot.validation import AliasValidator, ValidationError
+from emilybot.validation import validate_path, ValidationError
 
 
 def format_validation_error(error_message: str) -> str:
@@ -32,7 +32,7 @@ async def cmd_add(
 
     try:
         # Validate alias and content
-        AliasValidator.validate_alias(alias, "create")
+        validate_path(alias, allow_trailing_slash=False)
         if not content.strip():
             raise ValidationError("Text to add cannot be empty.")
 

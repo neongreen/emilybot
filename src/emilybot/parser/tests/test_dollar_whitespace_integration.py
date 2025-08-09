@@ -137,7 +137,7 @@ def test_argument_handling_with_special_characters():
     from emilybot.parser import parse_command, Command
 
     # Test parsing with special characters
-    result = parse_command("$echo hello-world test_arg 'quoted string'")
+    result = parse_command('$echo hello-world test_arg "quoted string"')
     assert isinstance(result, Command)
     assert result.cmd == "echo"
-    assert result.args == ["hello-world", "test_arg", "'quoted string'"]
+    assert result.args == ["hello-world", "test_arg", "quoted string"]

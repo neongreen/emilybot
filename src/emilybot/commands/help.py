@@ -5,6 +5,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Entry
 from emilybot.utils.list import sorted_by_order
+from emilybot.validation import get_top_level_name, is_child_path
 
 
 def format_preview(content: str) -> str:
@@ -23,14 +24,14 @@ def format_preview(content: str) -> str:
 def format_aliases_section(aliases: List[Entry]) -> str:
     """Format a section of aliases"""
     alias_lines: List[str] = []
-    top_level_names = sorted(list(set(e.name.split("/")[0] for e in aliases)))
+    top_level_names = sorted(list(set(get_top_level_name(e.name) for e in aliases)))
 
     for name in top_level_names:
         top_level_entry = next((e for e in aliases if e.name == name), None)
 
         # Get all children for this top-level name
         children = [
-            e for e in aliases if e.name.startswith(name + "/") and e.name != name
+            e for e in aliases if is_child_path(name, e.name) and e.name != name
         ]
 
         if top_level_entry:
@@ -64,7 +65,7 @@ async def cmd_help(ctx: EmilyContext) -> None:
 
     # Get top-level aliases and their promotion status
     top_level_aliases = {
-        e.name.split("/")[0]: getattr(e, "promoted", True)
+        get_top_level_name(e.name): getattr(e, "promoted", True)
         for e in all_aliases
         if "/" not in e.name
     }
@@ -73,7 +74,7 @@ async def cmd_help(ctx: EmilyContext) -> None:
     promoted_aliases: list[Entry] = []
 
     for alias in all_aliases:
-        top_level_name = alias.name.split("/")[0]
+        top_level_name = get_top_level_name(alias.name)
         # If top-level is promoted, include in promoted section
         if top_level_aliases.get(top_level_name, True):
             promoted_aliases.append(alias)

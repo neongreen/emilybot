@@ -10,7 +10,8 @@ from discord.ext import commands
 from watchfiles import awatch  # type: ignore
 
 from emilybot.discord import EmilyBot, EmilyContext
-from emilybot.validation import AliasValidator, ValidationError
+from emilybot.parser.command_parser import parse_command_invocation
+from emilybot.validation import validate_path, ValidationError
 from emilybot.commands.save import cmd_add
 from emilybot.commands.show import cmd_list, cmd_random, cmd_show
 from emilybot.commands.edit import cmd_edit
@@ -54,11 +55,11 @@ async def handle_dollar_command(message: discord.Message, bot: EmilyBot) -> None
         parsed = parse_command(message_content)
         logging.debug(f"📝 Parsed result: {type(parsed).__name__} = {parsed}")
 
+        # Note: ctx.args doesn't give us args :(
         match parsed:
-            # TODO: if we indeed got all the args correctly we can just remove args parsing from the parser
-            case Command(cmd=cmd):
-                logging.debug(f"🚀 Executing command: '{cmd}' with args: {ctx.args}")
-                await cmd_cmd(ctx, cmd, args=ctx.args)
+            case Command(cmd=cmd, args=args):
+                logging.debug(f"🚀 Executing command: '{cmd}' with args: {args}")
+                await cmd_cmd(ctx, cmd, args=args)
             case JS(code=code):
                 logging.debug(f"⚡ Executing JavaScript: '{code}'")
                 await execute_dollar_javascript(ctx, code)
@@ -80,7 +81,7 @@ async def init_bot(dev: bool) -> EmilyBot:
 
     if dev:
         logging.info("Running in development mode. Using `##` as command prefix.")
-        command_prefix = ["$", "##"]
+        command_prefix = ["##", "#$"]
     else:
         logging.info(
             "Running in production mode. Using `.` and `$` as command prefixes."
@@ -114,22 +115,14 @@ async def init_bot(dev: bool) -> EmilyBot:
 
     @bot.listen()
     async def on_message(message: discord.Message) -> None:  # pyright: ignore[reportUnusedFunction]
-        logging.debug(
-            f"🔍 on_message: content='{message.content}', author={message.author.display_name}"
-        )
-
         if message.author.bot:
             logging.debug("🤖 Skipping bot message")
             return
 
-        # TODO this doesn't actually seem to do anything
-        if dev and message.content.startswith("$"):
-            logging.debug("🚫 Dev mode: skipping $ message (meant for prod bot)")
-            return  # meant for the prod bot
-
         # Handle $ prefix commands directly
         if (
-            message.content.startswith("$")
+            not dev
+            and message.content.startswith("$")
             and len(message.content) > 1
             and message.content[1].isspace()
         ):
@@ -186,9 +179,10 @@ async def init_bot(dev: bool) -> EmilyBot:
                 try:
                     # If it can be an alias, try looking it up
                     logging.debug(f"✅ Validating alias: '{potential_alias}'")
-                    AliasValidator.validate_alias(potential_alias, "lookup")
+                    validate_path(potential_alias, allow_trailing_slash=False)
                     logging.debug(f"🚀 Executing command: '{potential_alias}'")
-                    await cmd_cmd(ctx, potential_alias, args=ctx.args)
+                    parsed = parse_command_invocation(potential_alias)
+                    await cmd_cmd(ctx, parsed.cmd, args=parsed.args)
                     return
                 except ValidationError as e:
                     logging.debug(

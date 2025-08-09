@@ -32,7 +32,6 @@ def is_js_pattern(content: str) -> bool:
         "[]",
         "{}",
         ";",
-        "=",
         "+",
         "*",
         "<",
@@ -44,7 +43,20 @@ def is_js_pattern(content: str) -> bool:
         "%",
         "~",
     ]
-    return any(char in content for char in js_patterns)
+
+    # Check for specific JavaScript patterns
+    if any(char in content for char in js_patterns):
+        return True
+
+    # Check for regex patterns (starts with / and ends with /)
+    if content.startswith("/") and content.endswith("/") and len(content) > 2:
+        return True
+
+    # Check for comments (starts with //)
+    if content.startswith("//"):
+        return True
+
+    return False
 
 
 def is_quoted_content(content: str) -> bool:

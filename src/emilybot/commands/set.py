@@ -5,7 +5,7 @@ from discord.ext import commands
 from emilybot.discord import EmilyContext
 from emilybot.database import Action, ActionEdit
 from emilybot.utils.list import first
-from emilybot.validation import AliasValidator, ValidationError
+from emilybot.validation import validate_path, ValidationError
 from emilybot.execute.javascript_executor import extract_js_code
 
 
@@ -42,7 +42,7 @@ async def cmd_set(
     try:
         # Validate
         alias, attr = place.split(".", 1)
-        AliasValidator.validate_alias(alias, "lookup_no_endslash")
+        validate_path(alias, allow_trailing_slash=False)
 
         # Validate attribute name
         if attr != "run":

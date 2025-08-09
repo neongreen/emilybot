@@ -33,6 +33,7 @@ package = true
 [tool.pyright]
 typeCheckingMode = "strict"
 include = [".", "src"]
+ignore = ["typings/"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "src"]

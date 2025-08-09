@@ -4,7 +4,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Action, ActionPromote
 from emilybot.utils.list import first
-from emilybot.validation import AliasValidator, ValidationError
+from emilybot.validation import validate_path, ValidationError
 
 
 def format_not_found_message(alias: str) -> str:
@@ -39,7 +39,7 @@ async def _promote_demote_implementation(
     db = ctx.bot.db
 
     try:
-        AliasValidator.validate_alias(alias, "lookup")
+        validate_path(alias, allow_trailing_slash=True)
 
         server_id = ctx.guild.id if ctx.guild else None
         user_id = ctx.author.id

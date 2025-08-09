@@ -20,6 +20,18 @@
 
 - `$foo/`, `$foo.`, `$foo..` now list children of `$foo`.
 
+**Command names:**
+
+- Command names, including all path components, can no longer start with `_`.
+  For example, `_foo` or `foo/_bar` are no longer valid.
+
+- Command names can no longer contain e.g. double slashes, `foo//bar` is no longer valid.
+
+**Dev:**
+
+- Added more debug logging.
+- `#$` is now the debug prefix in addition to `##`.
+
 ## 2025-08-02
 
 - BREAKING: Commands can access info about their own invocation via `this` instead of `context`.

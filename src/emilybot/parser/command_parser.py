@@ -1,12 +1,71 @@
 import re
 from typing import Union
 
+from discord.ext.commands.view import StringView  # pyright: ignore[reportMissingTypeStubs]
+
 from emilybot.parser.js_parser import is_js_pattern, is_quoted_content, parse_js_code
 from emilybot.parser.list_children_parser import (
     is_list_children_pattern,
     parse_list_children,
 )
 from emilybot.parser.types import JS, Command, ListChildren
+from emilybot.validation import validate_path, ValidationError
+
+
+def parse_command_invocation(message_content: str, *, prefix: str = "$") -> Command:
+    """
+    Parse a message content into a command invocation.
+
+    Args:
+        message_content: The message content to parse
+        prefix: The prefix to expect for the command (default: "$")
+
+    Returns:
+        Command with cmd name and list of arguments
+
+    Examples:
+        >>> parse_command_invocation("$foo a b c")
+        Command(cmd='foo', args=['a', 'b', 'c'])
+
+        >>> parse_command_invocation("##foo a b c", prefix="##")
+        Command(cmd='foo', args=['a', 'b', 'c'])
+
+        >>> parse_command_invocation("$foo")
+        Command(cmd='foo', args=[])
+
+        >>> parse_command_invocation("$foo.bar a b c")
+        Command(cmd='foo/bar', args=['a', 'b', 'c'])
+
+        >>> parse_command_invocation("$foo/bar a b c")
+        Command(cmd='foo/bar', args=['a', 'b', 'c'])
+    """
+
+    if not message_content.startswith(prefix):
+        raise ValueError(f"Message content must start with '{prefix}'")
+
+    content_without_prefix = message_content[len(prefix) :].strip()
+
+    if not content_without_prefix:
+        raise ValueError(f"No content found after '{prefix}'")
+
+    # Use StringView to parse the command and arguments
+    view = StringView(content_without_prefix)
+
+    # Get the command name (first word)
+    cmd_name = view.get_word()
+
+    if not cmd_name:
+        raise ValueError("No command name found")
+
+    # Check if the command name looks like a valid alias
+    try:
+        cmd_name = validate_path(
+            cmd_name, allow_trailing_slash=True, normalize_dots=True
+        )
+        args = _parse_arguments(view)
+        return Command(cmd=cmd_name, args=args)
+    except ValidationError:
+        raise ValueError(f"Invalid command name: '{cmd_name}'")
 
 
 def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
@@ -53,41 +112,46 @@ def parse_command(message_content: str) -> Union[Command, JS, ListChildren]:
     if message_content == "$":
         raise ValueError("No content found after '$'")
 
+    content_without_prefix = message_content[1:].strip()
+
     # Check if it starts with "$ " (dollar followed by any amount of whitespace) - treat as JavaScript
     if len(message_content) > 1 and message_content[1].isspace():
         code = message_content[1:].strip()
         if not code:
             raise ValueError("No content found after '$'")
-        return parse_js_code(message_content)  # Strip "$" and whitespace, return as JS
+        return parse_js_code(
+            message_content
+        )  # Strip prefix and whitespace, return as JS
 
-    # Remove the '$' prefix
-    content = message_content[1:].strip()
-
-    if not content:
+    if not content_without_prefix:
         raise ValueError("No content found after '$'")
 
     # Check for list children pattern first
-    if is_list_children_pattern(content):
-        return parse_list_children(content)
+    if is_list_children_pattern(content_without_prefix):
+        return parse_list_children(content_without_prefix)
+
+    # Check for regex patterns (starts with / and ends with /)
+    if (
+        content_without_prefix.startswith("/")
+        and content_without_prefix.endswith("/")
+        and len(content_without_prefix) > 2
+    ):
+        return JS(code=message_content)
+
+    # Check for comments (starts with //)
+    if content_without_prefix.startswith("//"):
+        return JS(code=message_content)
 
     # Check for dot notation command patterns
-    if "." in content and not is_js_pattern(content):
-        dot_command = _parse_dot_command(content)
+    # TODO: what does this do?
+    if "." in content_without_prefix and not is_js_pattern(content_without_prefix):
+        dot_command = _parse_dot_command(content_without_prefix)
         if dot_command:
             return dot_command
 
-    # Split by whitespace to get the first word (potential command name)
-    parts = content.split(None, 1)  # Split on whitespace, max 1 split
-    first_word = parts[0]
-
-    # Check if the first word looks like a valid alias
-    if _is_valid_alias(first_word):
-        # It looks like a valid alias, treat as command
-        cmd_name = first_word
-        args = _parse_arguments(parts[1]) if len(parts) > 1 else []
-        return Command(cmd=cmd_name, args=args)
-    else:
-        # If it doesn't match the alias pattern, treat as JavaScript
+    try:
+        return parse_command_invocation(message_content)
+    except ValueError:
         return JS(code=message_content)
 
 
@@ -116,74 +180,57 @@ def _parse_dot_command(content: str) -> Union[Command, None]:
             # (no quotes, no complex patterns)
             if not is_quoted_content(content):
                 # Additional check: only treat as command if both parent and child look like valid aliases
-                if _is_valid_alias(parent) and _is_valid_alias(child):
+                try:
+                    validate_path(parent, allow_trailing_slash=True)
+                    validate_path(child, allow_trailing_slash=True)
+                except ValidationError:
+                    return None
                     # Construct the command as parent/child
                     cmd_name = f"{parent}/{child}"
-                    args = _parse_arguments(remaining) if remaining else []
+                    args = _parse_arguments(StringView(remaining)) if remaining else []
                     return Command(cmd=cmd_name, args=args)
 
     return None
 
 
-def _parse_arguments(args_string: str) -> list[str]:
+def _parse_arguments(view: StringView) -> list[str]:
     """
-    Parse command arguments, handling quoted strings properly.
+    Parse command arguments using Discord.py's StringView class.
+
+    This function uses StringView's get_quoted_word() method to properly handle
+    quoted strings and whitespace.
 
     Args:
-        args_string: The string containing arguments
+        view: StringView instance positioned after the command name
 
     Returns:
         List of parsed arguments
+
+    Examples:
+        >>> _parse_arguments(StringView("a b c"))
+        ['a', 'b', 'c']
+
+    Single quotes are not supported:
+
+        >>> _parse_arguments(StringView('''a b "c d" 'e f g' '''))
+        ['a', 'b', 'c d', "'e", 'f', "g'"]
     """
-    if not args_string.strip():
-        return []
-
     args: list[str] = []
-    current_arg = ""
-    in_quotes = False
-    quote_char: str | None = None
-    i = 0
 
-    while i < len(args_string):
-        char = args_string[i]
+    # Skip any leading whitespace
+    view.skip_ws()
 
-        if not in_quotes:
-            if char in ['"', "'"]:
-                in_quotes = True
-                quote_char = char
-                current_arg += char
-            elif char.isspace():
-                if current_arg:
-                    args.append(current_arg)
-                    current_arg = ""
-            else:
-                current_arg += char
-        else:
-            current_arg += char
-            if char == quote_char:
-                in_quotes = False
-                quote_char = None
+    while not view.eof:
+        # Try to get a quoted word first
+        arg = view.get_quoted_word()
 
-        i += 1
+        if arg is None:
+            # No more arguments
+            break
 
-    if current_arg:
-        args.append(current_arg)
+        args.append(arg)
+
+        # Skip whitespace before next argument
+        view.skip_ws()
 
     return args
-
-
-def _is_valid_alias(alias: str) -> bool:
-    """
-    Check if a string looks like a valid alias.
-
-    Args:
-        alias: The string to check
-
-    Returns:
-        True if the string matches the alias pattern
-    """
-    # A valid alias follows the same rules as the AliasValidator
-    # It must start with alphanumeric or underscore, contain only alphanumeric, underscore, hyphen, or slash
-    # and end with alphanumeric, underscore, or slash
-    alias_pattern = r"^[a-zA-Z0-9_][a-zA-Z0-9_/\-]*[a-zA-Z0-9_/]$"
-    return bool(re.match(alias_pattern, alias))

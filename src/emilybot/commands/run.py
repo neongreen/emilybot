@@ -7,7 +7,7 @@ from emilybot.discord import EmilyContext
 from emilybot.execute.run_code import run_code
 from emilybot.format import format_show_content
 from emilybot.utils.list import first
-from emilybot.validation import AliasValidator, ValidationError
+from emilybot.validation import validate_path, ValidationError
 
 
 @commands.command(name="run")
@@ -39,7 +39,7 @@ async def cmd_cmd(ctx: EmilyContext, alias: str, *, args: list[str]) -> None:
 
     try:
         # Validate alias
-        AliasValidator.validate_alias(alias, "lookup_no_endslash")
+        validate_path(alias, allow_trailing_slash=False)
 
         server_id = ctx.guild.id if ctx.guild else None
 

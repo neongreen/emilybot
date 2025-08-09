@@ -172,7 +172,7 @@ class TestParser:
         result = parse_command('$foo "hello world" "test arg"')
         assert isinstance(result, Command)
         assert result.cmd == "foo"
-        assert result.args == ['"hello world"', '"test arg"']
+        assert result.args == ["hello world", "test arg"]
 
     def test_command_with_special_characters_in_args(self):
         """Test that command with special characters in arguments is parsed correctly."""

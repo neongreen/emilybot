@@ -7,7 +7,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Entry
 from emilybot.utils.list import first
-from emilybot.validation import AliasValidator, ValidationError
+from emilybot.validation import validate_path, ValidationError, has_trailing_slash
 from emilybot.utils.inflect import inflect
 
 
@@ -60,7 +60,7 @@ async def cmd_show(ctx: EmilyContext, alias: str) -> None:
     server_id = ctx.guild.id if ctx.guild else None
 
     # `.show foo/` - list all aliases starting with "foo/"
-    if alias.endswith("/"):
+    if has_trailing_slash(alias):
         # list by prefix
         results = db.find_alias(
             re.compile("^" + re.escape(alias), re.IGNORECASE),
@@ -110,7 +110,7 @@ async def cmd_random(ctx: EmilyContext, alias: str) -> None:
 
     try:
         # Validate alias
-        AliasValidator.validate_alias(alias, "lookup_no_endslash")
+        validate_path(alias, allow_trailing_slash=False)
 
         server_id = ctx.guild.id if ctx.guild else None
 
