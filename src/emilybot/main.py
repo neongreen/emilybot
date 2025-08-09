@@ -102,7 +102,7 @@ async def init_bot(dev: bool) -> EmilyBot:
             if dev and message_content.startswith("#$"):
                 message_content = message_content[1:]
 
-            parsed = parse_message(message_content)
+            parsed = parse_message(message_content, extra_prefixes=[] if dev else ["."])
             logging.debug(f"📝 Parsed result: {type(parsed).__name__} = {parsed}")
 
             # Note: ctx.args doesn't give us args :(
