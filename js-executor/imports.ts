@@ -1,5 +1,55 @@
 import { JSModuleLoadSuccess, SuccessOrFail } from "quickjs-emscripten-core"
 import { debug } from "./logging.ts"
+import { parse } from "./parse.ts"
+
+/**
+ * Detects if the code contains any import statements or import expressions
+ */
+export function hasImports(code: string): boolean {
+  const parseResult = parse(code)
+
+  if (!parseResult.success) {
+    // If parsing fails, fall back to regex check for safety
+    return /import\s+/.test(code) || /import\s*\(/.test(code) || /export\s+/.test(code)
+  }
+
+  const ast = parseResult.ast
+
+  // Check for import declarations
+  for (const node of ast.body) {
+    if (node.type === "ImportDeclaration") {
+      return true
+    }
+  }
+
+  // Check for dynamic import expressions (these would be in function bodies)
+  // We need to traverse the AST to find ImportExpression nodes
+  function hasImportExpressions(node: any): boolean {
+    if (node.type === "ImportExpression") {
+      return true
+    }
+
+    // Recursively check child nodes
+    for (const key in node) {
+      const value = node[key]
+      if (value && typeof value === "object") {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (item && typeof item === "object" && hasImportExpressions(item)) {
+              return true
+            }
+          }
+        } else if (hasImportExpressions(value)) {
+          return true
+        }
+      }
+    }
+
+    return false
+  }
+
+  return hasImportExpressions(ast)
+}
 
 /**
  * Process allowed import URLs.

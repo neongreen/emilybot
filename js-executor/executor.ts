@@ -3,8 +3,15 @@
  */
 
 import { Arena } from "quickjs-emscripten-sync"
-import { DEBUG_ASYNC, newQuickJSAsyncWASMModule, RELEASE_ASYNC } from "quickjs-emscripten/variants"
-import { quickJsModuleLoader, quickJsModuleNormalizer } from "./imports.ts"
+import {
+  DEBUG_ASYNC,
+  DEBUG_SYNC,
+  newQuickJSAsyncWASMModule,
+  newQuickJSWASMModule,
+  RELEASE_ASYNC,
+  RELEASE_SYNC,
+} from "quickjs-emscripten/variants"
+import { hasImports, quickJsModuleLoader, quickJsModuleNormalizer } from "./imports.ts"
 import { debug } from "./logging.ts"
 import { wrapUserCode } from "./parse.ts"
 import type { CommandData, ExecutionResult } from "./types.ts"
@@ -14,20 +21,35 @@ export async function execute(
   commands: CommandData[] = [],
   code: string,
 ): Promise<ExecutionResult> {
-  const QuickJS = await newQuickJSAsyncWASMModule(Deno.env.get("DEBUG") === "1" ? DEBUG_ASYNC : RELEASE_ASYNC)
-  const runtime = QuickJS.newRuntime()
+  const hasImportStatements = hasImports(code)
+  const isDebug = Deno.env.get("DEBUG") === "1"
 
-  // Set up module loader for external imports
-  runtime.setModuleLoader(quickJsModuleLoader, quickJsModuleNormalizer)
+  let runtime, ctx
 
-  const ctx = runtime.newContext()
+  if (hasImportStatements) {
+    // Use async version for code with imports.
+    // It's much slower but currently we can't do imports without it.
+    const AsyncQuickJS = await newQuickJSAsyncWASMModule(isDebug ? DEBUG_ASYNC : RELEASE_ASYNC)
+    runtime = AsyncQuickJS.newRuntime()
+
+    // Set up module loader for external imports
+    runtime.setModuleLoader(quickJsModuleLoader, quickJsModuleNormalizer)
+
+    ctx = runtime.newContext()
+  } else {
+    // Use sync version for code without imports
+    const QuickJS = await newQuickJSWASMModule(isDebug ? DEBUG_SYNC : RELEASE_SYNC)
+    runtime = QuickJS.newRuntime()
+
+    ctx = runtime.newContext()
+  }
+
   const arena = new Arena(ctx, {
     isMarshalable(_target: any): boolean {
       // We want to marshal functions and tagging/whitelisting them is tricky, so we just allow everything
       return true
     },
   })
-
   arena.context.runtime.setMemoryLimit(1024 * 1024) // 1 MB
 
   try {
@@ -170,7 +192,7 @@ export async function execute(
 
     // Execute the user code as an async module
     debug("wrapped code:", wrapUserCode(code))
-    const handle = await ctx.evalCodeAsync(wrapUserCode(code), "file:///code.mjs", { type: "module" })
+    const handle = await ctx.evalCode(wrapUserCode(code), "file:///code.mjs", { type: "module" })
     debug("after evalCodeAsync:", handle)
 
     // Get the result and handle async values
