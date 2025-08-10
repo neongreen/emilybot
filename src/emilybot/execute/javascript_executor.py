@@ -174,12 +174,12 @@ class JavaScriptExecutor:
                     self.deno_path,
                     "run",
                     "--quiet",
-                    "--allow-env=QTS_DEBUG",
-                    f"--allow-read=js-executor/,{temp_path}",
+                    "--allow-env=QTS_DEBUG,LOG_LEVEL,DEBUG",  # 'LOG_LEVEL' enables logs in the executor, 'QTS_DEBUG' is used by the QuickJS runtime, 'DEBUG' is used by the executor
+                    f"--allow-read=js-executor/,node_modules,{temp_path}",
                     self.executor_script,
+                    f"--fieldsFile={str(fields_path)}",
+                    f"--commandsFile={str(commands_path)}",
                     code,
-                    str(fields_path),
-                    str(commands_path),
                 ]
 
                 # Execute with timeout
@@ -213,6 +213,9 @@ class JavaScriptExecutor:
             # Decode output
             stdout_text = stdout.decode("utf-8").strip() if stdout else ""
             stderr_text = stderr.decode("utf-8").strip() if stderr else ""
+
+            logging.debug(f"Deno stderr: {stderr_text}")
+            logging.debug(f"Deno stdout: {stdout_text}")
 
             # Check exit code and classify errors
             if process.returncode == 0:

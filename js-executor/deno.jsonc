@@ -4,12 +4,14 @@
     "lib": ["ES2022", "DOM", "deno.ns"]
   },
   "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.13",
+    "@std/cli": "jsr:@std/cli@^1.0.21",
+    "@std/collections": "jsr:@std/collections@^1.1.2",
+    "meriyah": "npm:meriyah@^6.1.4",
     "quickjs-emscripten": "npm:quickjs-emscripten@^0.31.0",
     "quickjs-emscripten-sync": "npm:quickjs-emscripten-sync@^1.5.2",
     "zod": "npm:zod@^4.0.14"
   },
-  // Put node modules into js-executor/ so that --allow-read for the cache folder is not needed
-  "nodeModulesDir": "auto",
   "lint": {
     "rules": {
       "exclude": ["no-explicit-any"]

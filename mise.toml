@@ -1,5 +1,6 @@
 [settings]
 python.uv_venv_auto = true
+quiet = true
 
 [tools]
 age = "latest"
@@ -18,7 +19,27 @@ run = "uv run emilybot"
 
 [tasks.test]
 description = "Run tests"
+depends = ["test:*"]
+
+[tasks."test:python"]
+description = "Run tests for the python code"
 run = "uv run pytest"
+
+[tasks."test:js"]
+description = "Run tests for the executor"
+run = "deno test --allow-read --allow-net=esm.sh --allow-env"
+
+[tasks."js:parse"]
+description = "(debugging) Parse js code"
+quiet = true
+dir = "js-executor"
+run = "deno run --allow-all parse.ts"
+
+[tasks."js:eval"]
+description = "(debugging) Evaluate js code"
+quiet = true
+dir = "js-executor"
+run = "deno run --allow-all main.ts"
 
 [tasks.fmt]
 description = "Format code"
@@ -55,3 +76,36 @@ run = "ruff check"
 [tasks."check:ruff:fix"]
 description = "Fix python code"
 run = "ruff check --fix"
+
+# --- misc ---
+
+[tasks."prod:get-commands"]
+description = "Get all user-defined commands from the prod database"
+quiet = true
+run = """
+  rsync --quiet -avz coolify.artyom.me:/data/coolify/applications/ww8o48sss8wcogg40g044g8w/remember.json data/
+  echo "Commands saved to data/remember.json"
+"""
+
+[tasks."prod:get-commands:code"]
+description = "Get the code for all user-defined commands from the prod database"
+quiet = true
+depends = ["prod:get-commands"]
+run = """
+  jq -r '.[] | select(.run != null) | {name: .name, code: .run}' data/remember.json > data/commands-code.json
+  echo "Commands code saved to data/commands-code.json"
+"""
+
+[tasks."prod:show-command"]
+description = "Show a single command from data/remember.json in CommandData format"
+# depends = ["prod:get-commands"]
+run = '''
+  jq -r --arg name {{ arg(name="command") }} '
+    .[] | select(.name == $name) | 
+    {
+      name: .name,
+      content: .content,
+      run: .run
+    }
+  ' data/remember.json
+'''

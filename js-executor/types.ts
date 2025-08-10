@@ -33,9 +33,19 @@ const CommandDataSchema = z.object({
 
 const CommandsArraySchema = z.array(CommandDataSchema)
 
+// Fields validation schema - allows any object structure
+const FieldsSchema = z.record(z.string(), z.any())
+
 /**
  * Validates commands array using zod schema
  */
 export function validateCommands(commands: unknown): CommandData[] {
   return CommandsArraySchema.parse(commands)
+}
+
+/**
+ * Validates fields object using zod schema
+ */
+export function validateFields(fields: unknown): Record<string, any> {
+  return FieldsSchema.parse(fields)
 }

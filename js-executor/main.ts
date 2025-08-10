@@ -2,31 +2,27 @@
  * Main Deno CLI script for JavaScript execution with hard timeout
  */
 
-import z, { ZodError } from "zod/v4"
+import { z, ZodError } from "zod/v4"
+import { getArgs } from "./cli.ts"
 import { execute } from "./executor.ts"
 import { lib } from "./lib.ts"
-import { validateCommands } from "./types.ts"
+import { validateCommands, validateFields } from "./types.ts"
 
 async function main() {
-  if (Deno.args.length !== 3) {
-    console.error("Usage: main.ts <code> <fields.json> <commands.json>")
-    Deno.exit(1)
-  }
+  const { code, fieldsFile, commandsFile } = getArgs()
 
-  const [code, fieldsJsonPath, commandsJsonPath] = Deno.args
+  // console.debug("args", { code, fieldsFile, commandsFile })
 
   let fields, commands
   try {
-    const fieldsJson = await Deno.readTextFile(fieldsJsonPath)
-    const commandsJson = await Deno.readTextFile(commandsJsonPath)
-    fields = JSON.parse(fieldsJson)
-    if (typeof fields !== "object" || fields === null) {
-      throw new Error("Fields must be a valid JSON object")
-    }
+    const fieldsJson = fieldsFile ? await Deno.readTextFile(fieldsFile) : "{}"
+    const commandsJson = commandsFile ? await Deno.readTextFile(commandsFile) : "[]"
+
+    fields = validateFields(JSON.parse(fieldsJson))
     commands = validateCommands(JSON.parse(commandsJson))
   } catch (error) {
     if (error instanceof ZodError) {
-      console.error(`Failed to parse or validate input:\n${z.prettifyError(error)}`)
+      console.error(`Failed to validate input:\n${z.prettifyError(error)}`)
     } else {
       console.error(`Error: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -36,9 +32,9 @@ async function main() {
   try {
     // Create a hard timeout that will kill the process
     const timeoutId = setTimeout(() => {
-      console.error("Execution timed out after 1 second")
+      console.error("Execution timed out after 10 seconds")
       Deno.exit(1)
-    }, 1000)
+    }, 10000)
 
     const context = {
       ...fields,

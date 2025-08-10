@@ -2,28 +2,36 @@
  * QuickJS wrapper for sandboxed JavaScript execution
  */
 
-import { getQuickJS } from "quickjs-emscripten"
 import { Arena } from "quickjs-emscripten-sync"
-import { type CommandData, type ExecutionResult } from "./types.ts"
+import { DEBUG_ASYNC, newQuickJSAsyncWASMModule, RELEASE_ASYNC } from "quickjs-emscripten/variants"
+import { quickJsModuleLoader, quickJsModuleNormalizer } from "./imports.ts"
+import { debug } from "./logging.ts"
+import { wrapUserCode } from "./parse.ts"
+import type { CommandData, ExecutionResult } from "./types.ts"
 
 export async function execute(
   fields: Record<string, any> = {},
   commands: CommandData[] = [],
   code: string,
 ): Promise<ExecutionResult> {
-  const QuickJS = await getQuickJS()
-  const ctx = QuickJS.newContext()
+  const QuickJS = await newQuickJSAsyncWASMModule(Deno.env.get("DEBUG") === "1" ? DEBUG_ASYNC : RELEASE_ASYNC)
+  const runtime = QuickJS.newRuntime()
+
+  // Set up module loader for external imports
+  runtime.setModuleLoader(quickJsModuleLoader, quickJsModuleNormalizer)
+
+  const ctx = runtime.newContext()
   const arena = new Arena(ctx, {
     isMarshalable(_target: any): boolean {
-      // We want to marshal functions and tagging/whitelisting them is tricky
+      // We want to marshal functions and tagging/whitelisting them is tricky, so we just allow everything
       return true
     },
   })
 
-  arena.context.runtime.setMemoryLimit(1024 * 1024) // Set memory limit to 1MB
+  arena.context.runtime.setMemoryLimit(1024 * 1024) // 1 MB
 
   try {
-    // Capture console.log output
+    // Capture console.log output from the user code
     const consoleOutput: string[] = []
     arena.expose({
       console: {
@@ -42,9 +50,10 @@ export async function execute(
     })
 
     arena.expose({ "$init__": { "fields": fields, "commands": commands } })
-    // TODO: can I deepfreeze or smth? do I even need to?
-    // TODO: rename code run etc
-    // TODO: forbid 'console' etc
+    debug("after expose", { fields, commands })
+
+    // Set up the command system.
+    // TODO: move this to a separate JS file and use `import` to load it?
     arena.evalCode(`
         const $commandsMap__ = ({})
         const $ = ({
@@ -72,6 +81,7 @@ export async function execute(
           run: function(...args) {
             if (this.code && this.code.trim()) {
               // Create a function that has access to the args parameter and this context
+              // TODO: for commands that look like modules (with imports etc), this won't work
               const func = new Function('args', this.code)
               return func.call(this, args)
             } else {
@@ -156,7 +166,28 @@ export async function execute(
       }
     `)
 
-    const result = arena.evalCode(code)
+    debug("after initial evalCode")
+
+    // Execute the user code as an async module
+    debug("wrapped code:", wrapUserCode(code))
+    const handle = await ctx.evalCodeAsync(wrapUserCode(code), "file:///code.mjs", { type: "module" })
+    debug("after evalCodeAsync:", handle)
+
+    // Get the result and handle async values
+    let result = arena._unwrapResultAndUnmarshal(handle)
+    arena.executePendingJobs()
+    // Resolve promises but only when they are promises
+    if (result instanceof Promise) {
+      debug("result is a promise:", result)
+      result = await result
+    }
+    result = result.default
+    if (result instanceof Promise) {
+      debug("result.default is a promise:", result)
+      result = await result
+    }
+    debug("result:", result)
+
     return {
       success: true,
       output: consoleOutput.join("\n"),
@@ -180,5 +211,8 @@ export async function execute(
         error: error instanceof Error ? error.message : String(error),
       }
     }
+  } finally {
+    // Clean up resources - let QuickJS handle cleanup automatically
+    // Explicit disposal can cause assertion failures with async modules
   }
 }

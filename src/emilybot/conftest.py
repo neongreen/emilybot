@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures."""
 
+import logging
 import uuid
 from discord import Asset, Guild, Member, Message, MessageReference
 import pytest
@@ -12,6 +13,11 @@ from typing import Any, cast
 
 from emilybot.database import DB, Entry
 from emilybot.discord import EmilyBot, EmilyContext
+
+# Configure logging for tests
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 
 @pytest.fixture

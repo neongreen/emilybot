@@ -1,5 +1,12 @@
 # Changelog
 
+## 2025-08-10
+
+**JS execution:**
+
+- JavaScript `import` statements are now supported, but only from `esm.sh` URLs.
+  For example, you can use `import { camelCase } from 'https://esm.sh/change-case@5.4.0'`.
+
 ## 2025-08-09
 
 **JS execution:**

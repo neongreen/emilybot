@@ -1,9 +1,33 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/assert@^1.0.13": "1.0.13",
+    "jsr:@std/cli@^1.0.21": "1.0.21",
+    "jsr:@std/collections@^1.1.2": "1.1.2",
+    "jsr:@std/internal@^1.0.6": "1.0.10",
+    "npm:astring@^1.9.0": "1.9.0",
+    "npm:meriyah@^6.1.4": "6.1.4",
+    "npm:quickjs-emscripten-core@0.31": "0.31.0",
     "npm:quickjs-emscripten-sync@^1.5.2": "1.5.2_quickjs-emscripten@0.31.0",
     "npm:quickjs-emscripten@0.31": "0.31.0",
     "npm:zod@^4.0.14": "4.0.14"
+  },
+  "jsr": {
+    "@std/assert@1.0.13": {
+      "integrity": "ae0d31e41919b12c656c742b22522c32fb26ed0cba32975cb0de2a273cb68b29",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/cli@1.0.21": {
+      "integrity": "cd25b050bdf6282e321854e3822bee624f07aca7636a3a76d95f77a3a919ca2a"
+    },
+    "@std/collections@1.1.2": {
+      "integrity": "f1685dd45c3ec27c39d0e8a642ccf810f391ec8a6cb5e7355926e6dacc64c43e"
+    },
+    "@std/internal@1.0.10": {
+      "integrity": "e3be62ce42cab0e177c27698e5d9800122f67b766a0bea6ca4867886cbde8cf7"
+    }
   },
   "npm": {
     "@jitl/quickjs-ffi-types@0.31.0": {
@@ -33,6 +57,13 @@
         "@jitl/quickjs-ffi-types"
       ]
     },
+    "astring@1.9.0": {
+      "integrity": "sha512-LElXdjswlqjWrPpJFg1Fx4wpkOCxj1TDHlSV4PlaRxHGWko024xICaa97ZkMfs6DRKlCguiAI+rbXv5GWwXIkg==",
+      "bin": true
+    },
+    "meriyah@6.1.4": {
+      "integrity": "sha512-Sz8FzjzI0kN13GK/6MVEsVzMZEPvOhnmmI1lU5+/1cGOiK3QUahntrNNtdVeihrO7t9JpoH75iMNXg6R6uWflQ=="
+    },
     "quickjs-emscripten-core@0.31.0": {
       "integrity": "sha512-oQz8p0SiKDBc1TC7ZBK2fr0GoSHZKA0jZIeXxsnCyCs4y32FStzCW4d1h6E1sE0uHDMbGITbk2zhNaytaoJwXQ==",
       "dependencies": [
@@ -59,25 +90,23 @@
       "integrity": "sha512-nGFJTnJN6cM2v9kXL+SOBq3AtjQby3Mv5ySGFof5UGRHrRioSJ5iG680cYNjE/yWk671nROcpPj4hAS8nyLhSw=="
     }
   },
-  "remote": {
-    "https://esm.sh/quickjs-emscripten@0.23.0": "76646ded437b01e146d5797479ea62b857e9a8b48919da156bc6249c822706d7",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/generated/emscripten-module.WASM_DEBUG_ASYNCIFY.mjs": "1e919e7555fec767a9aae3287e62ad22eef9b66925010d67f5aaaaf6d215ce86",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/generated/emscripten-module.WASM_DEBUG_SYNC.mjs": "584427cb03030a7289572a2d19c0c90f2c2614d22b0163819efa7e41a42b11da",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/generated/emscripten-module.WASM_RELEASE_ASYNCIFY.mjs": "748980d801ca20201e012d4c63e9dd107cfb8f713c888ed4c9c8fe6e7a88daef",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/generated/emscripten-module.WASM_RELEASE_SYNC.mjs": "2b6db4a4316179de7864a6cba7ac6bfe0a6ae0228dd99b68b994a6b6579744be",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/generated/ffi.WASM_DEBUG_ASYNCIFY.mjs": "e4235d5b7adfd632523705343b725c7d4f91aa39dd19034867619c9e65945baa",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/generated/ffi.WASM_DEBUG_SYNC.mjs": "8596eaf22bf1f11f959b3cae7ba6a1f821a741086d1ec748f821494d1a538462",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/generated/ffi.WASM_RELEASE_ASYNCIFY.mjs": "8c36a8cd70f7e1db47f4f379df7020367227acff6c86daee0f3772dde1c89834",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/generated/ffi.WASM_RELEASE_SYNC.mjs": "2e351af6dad66f8eda4ae9523f1b17552bb0632f80d62c8997fb350e7c8fd4da",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/module-asyncify.mjs": "76890cea522b6409d1566cc5ede7cdcca570bc87f8618365b2cabcb069958a53",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/dist/module.mjs": "d699864e4cef7680bf64c2ebdbab2ce39a3c517a87171a1f3d4c66fda5f2e90f",
-    "https://esm.sh/quickjs-emscripten@0.23.0/denonext/quickjs-emscripten.mjs": "68c0600ae1e57c0c1a05bb9b6eac776e7c49183351f5ba7ec160f427f1e00378"
-  },
   "workspace": {
     "dependencies": [
-      "npm:quickjs-emscripten-sync@^1.5.2",
-      "npm:quickjs-emscripten@0.31",
-      "npm:zod@^4.0.14"
-    ]
+      "npm:astring@^1.9.0",
+      "npm:quickjs-emscripten-core@0.31"
+    ],
+    "members": {
+      "js-executor": {
+        "dependencies": [
+          "jsr:@std/assert@^1.0.13",
+          "jsr:@std/cli@^1.0.21",
+          "jsr:@std/collections@^1.1.2",
+          "npm:meriyah@^6.1.4",
+          "npm:quickjs-emscripten-sync@^1.5.2",
+          "npm:quickjs-emscripten@0.31",
+          "npm:zod@^4.0.14"
+        ]
+      }
+    }
   }
 }

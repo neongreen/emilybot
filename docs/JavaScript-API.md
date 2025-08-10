@@ -5,6 +5,95 @@ All JavaScript code runs with strict security limits and can only produce output
 
 > **Note**: This documentation includes source code references. The actual implementation may be found in the linked files.
 
+## Import System
+
+Emily supports importing external JavaScript modules from [esm.sh](https://esm.sh), a CDN that provides ES modules for npm packages.
+
+### Supported Import Sources
+
+Only modules from `https://esm.sh` are allowed for security reasons. Attempts to import from other sources will result in an error.
+
+### Import Syntax
+
+Both static and dynamic import syntaxes are supported:
+
+```javascript
+// Static imports (automatically transformed to dynamic imports)
+import { camelCase } from 'https://esm.sh/change-case@5.4.0'
+console.log(camelCase("hello world")) // Outputs: helloWorld
+
+// Dynamic imports
+const { camelCase } = await import('https://esm.sh/change-case@5.4.0')
+console.log(camelCase("hello world")) // Outputs: helloWorld
+
+// Default imports
+import lodash from 'https://esm.sh/lodash-es@4.17.21'
+console.log(lodash.sum([1, 2, 3])) // Outputs: 6
+
+// Namespace imports
+import * as utils from 'https://esm.sh/date-fns@2.30.0'
+console.log(utils.format(new Date(), 'yyyy-MM-dd'))
+```
+
+### Import Transformation
+
+Static imports are automatically transformed into dynamic imports to work within the execution context:
+
+```javascript
+// This static import:
+import { camelCase } from 'https://esm.sh/change-case@5.4.0'
+
+// Is automatically transformed to:
+const { camelCase } = await import('https://esm.sh/change-case@5.4.0')
+```
+
+### Error Handling
+
+Import errors are handled gracefully:
+
+```javascript
+try {
+  const module = await import('https://esm.sh/nonexistent-package@1.0.0')
+} catch (error) {
+  console.log("Import failed:", error.message)
+}
+
+// Attempting to import from non-esm.sh sources will throw an error:
+// const module = await import('https://esm.run/some-package') // Error: Only esm.sh urls are supported
+```
+
+### Common Use Cases
+
+**Text Processing:**
+```javascript
+import { camelCase, kebabCase, snakeCase } from 'https://esm.sh/change-case@5.4.0'
+
+console.log(camelCase("hello world"))     // helloWorld
+console.log(kebabCase("hello world"))     // hello-world
+console.log(snakeCase("hello world"))     // hello_world
+```
+
+**Date Manipulation:**
+```javascript
+import { format, addDays, differenceInDays } from 'https://esm.sh/date-fns@2.30.0'
+
+const today = new Date()
+const tomorrow = addDays(today, 1)
+console.log("Tomorrow:", format(tomorrow, 'yyyy-MM-dd'))
+```
+
+**Utility Functions:**
+```javascript
+import { debounce, throttle } from 'https://esm.sh/lodash-es@4.17.21'
+
+const debouncedLog = debounce(console.log, 1000)
+debouncedLog("This will only log once per second")
+```
+
+> **Implementation source**: Import functionality is implemented in [`js-executor/imports.ts`](../js-executor/imports.ts) and integrated via the module loader in [`js-executor/executor.ts:25`](../js-executor/executor.ts#L25). Import transformation is handled in [`js-executor/parse.ts`](../js-executor/parse.ts).
+
+---
+
 ## Global Object: `$`
 
 The `$` object is the primary interface for accessing commands, context, and utilities within JavaScript code.
@@ -279,6 +368,35 @@ console.log("🌤️ " + $.commands.weather.content)
 // Output: 🌤️ Sunny, 72°F
 ```
 
+**Using external libraries for text processing:**
+
+```javascript
+import { camelCase, kebabCase } from 'https://esm.sh/change-case@5.4.0'
+
+// Process command names
+let commandName = $.commands.weather.name
+console.log("Camel case:", camelCase(commandName))     // weather
+console.log("Kebab case:", kebabCase(commandName))     // weather
+
+// Process user input from context
+let userName = $.ctx.user.name
+console.log("Formatted name:", camelCase(userName))
+```
+
+**Date formatting with external library:**
+
+```javascript
+import { format, addDays } from 'https://esm.sh/date-fns@2.30.0'
+
+// Format current date
+let today = new Date()
+console.log("Today:", format(today, 'EEEE, MMMM do, yyyy'))
+
+// Calculate future dates
+let nextWeek = addDays(today, 7)
+console.log("Next week:", format(nextWeek, 'MMM do'))
+```
+
 **Task counter with progress:**
 
 ```javascript
@@ -303,9 +421,10 @@ console.log(`Full URL: ${apiBase}${endpoint}`)
 
 - **Timeout**: 1 second maximum execution time
 - **Memory**: 1MB memory limit
-- **Network**: No network access
+- **Network**: Limited network access for importing modules from `https://esm.sh` only
 - **File System**: No file system access
 - **Output**: Only `console.log()` produces visible output
+- **Imports**: Only ES modules from `https://esm.sh` are supported
 
 ### Security
 
@@ -313,6 +432,8 @@ console.log(`Full URL: ${apiBase}${endpoint}`)
 - No access to host system or other processes
 - Each execution runs in isolated context
 - Commands scoped to user/server permissions
+- **Import restrictions**: Only modules from `https://esm.sh` are allowed for security
+- External modules are fetched and executed within the same sandboxed environment
 
 ### Error Handling
 
