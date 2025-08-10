@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """Test script for JavaScript executor error handling."""
 
-import asyncio
+import pytest
 
 from emilybot.execute.javascript_executor import (
     JavaScriptExecutor,
@@ -12,83 +11,66 @@ from emilybot.execute.javascript_executor import (
 )
 
 
-async def test_error_handling():
-    """Test various error conditions."""
-    print("Testing error handling...")
+@pytest.fixture
+def executor():
+    """Create a JavaScript executor for testing."""
+    return JavaScriptExecutor(timeout=1.0)
 
-    executor = JavaScriptExecutor(timeout=1.0)
 
-    # Create a test context directly
-    test_context = Context(
+@pytest.fixture
+def test_context():
+    """Create a test context for testing."""
+    return Context(
         message=CtxMessage(text="test message"),
         reply_to=None,
         user=create_test_user(id="123", name="TestUser"),
         server=CtxServer(id="12345"),
     )
 
-    # Test syntax error
-    print("\n1. Testing syntax error...")
+
+@pytest.mark.asyncio
+async def test_syntax_error(executor: JavaScriptExecutor, test_context: Context):
+    """Test syntax error handling."""
     syntax_error_code = "console.log('missing quote);"
-    try:
-        success, output, value = await executor.execute(
-            syntax_error_code, test_context, []
-        )
-        print(
-            f"   Result: success={success}, output={repr(output)}, value={repr(value)}"
-        )
-    except Exception as e:
-        print(f"   Exception: {e}")
+    success, output, _value = await executor.execute(
+        syntax_error_code, test_context, []
+    )
+    assert not success
+    assert "SyntaxError" in output or "error" in output.lower()
 
-    # Test runtime error
-    print("\n2. Testing runtime error...")
+
+@pytest.mark.asyncio
+async def test_runtime_error(executor: JavaScriptExecutor, test_context: Context):
+    """Test runtime error handling."""
     runtime_error_code = "console.log(undefinedVariable);"
-    try:
-        success, output, value = await executor.execute(
-            runtime_error_code, test_context, []
-        )
-        print(
-            f"   Result: success={success}, output={repr(output)}, value={repr(value)}"
-        )
-    except Exception as e:
-        print(f"   Exception: {e}")
+    success, output, _value = await executor.execute(
+        runtime_error_code, test_context, []
+    )
+    assert not success
+    assert "ReferenceError" in output or "error" in output.lower()
 
-    # Test timeout (this should be handled by Deno's internal timeout)
-    print("\n3. Testing timeout...")
+
+@pytest.mark.asyncio
+async def test_timeout(executor: JavaScriptExecutor, test_context: Context):
+    """Test timeout handling."""
     timeout_code = "while(true) { /* infinite loop */ }"
-    try:
-        success, output, value = await executor.execute(timeout_code, test_context, [])
-        print(
-            f"   Result: success={success}, output={repr(output)}, value={repr(value)}"
-        )
-    except Exception as e:
-        print(f"   Exception: {e}")
+    success, _output, _value = await executor.execute(timeout_code, test_context, [])
+    assert not success
+    # Timeout should result in failure, but the exact error message may vary
 
-    # Test successful execution with multiple console.log calls
-    print("\n4. Testing multiple console.log calls...")
+
+@pytest.mark.asyncio
+async def test_multiple_console_log_calls(
+    executor: JavaScriptExecutor, test_context: Context
+):
+    """Test successful execution with multiple console.log calls."""
     multi_log_code = """
     console.log('Line 1');
     console.log('Line 2');
-    console.log('Context name: ' + context.name);
+    console.log('User name: ' + user.name);
     """
-    try:
-        success, output, value = await executor.execute(
-            multi_log_code, test_context, []
-        )
-        print(
-            f"   Result: success={success}, output={repr(output)}, value={repr(value)}"
-        )
-    except Exception as e:
-        print(f"   Exception: {e}")
-
-
-async def main():
-    """Run error handling tests."""
-    print("Running JavaScript executor error handling tests...\n")
-
-    await test_error_handling()
-
-    print("\nError handling tests completed!")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    success, output, _value = await executor.execute(multi_log_code, test_context, [])
+    assert success
+    assert "Line 1" in output
+    assert "Line 2" in output
+    assert "User name: TestUser" in output

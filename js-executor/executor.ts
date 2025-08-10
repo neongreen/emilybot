@@ -1,17 +1,14 @@
 /**
  * QuickJS wrapper for sandboxed JavaScript execution
+ *
+ * WARNING: This executor can hang forever on fetches because we do them synchronously.
+ * Timeout protection must be implemented at the Python/process level using asyncio.wait_for()
+ * or by using gtimeout when running manually.
  */
 
 import { Arena } from "quickjs-emscripten-sync"
-import {
-  DEBUG_ASYNC,
-  DEBUG_SYNC,
-  newQuickJSAsyncWASMModule,
-  newQuickJSWASMModule,
-  RELEASE_ASYNC,
-  RELEASE_SYNC,
-} from "quickjs-emscripten/variants"
-import { hasImports, quickJsModuleLoader, quickJsModuleNormalizer } from "./imports.ts"
+import { DEBUG_SYNC, newQuickJSWASMModule, RELEASE_SYNC } from "quickjs-emscripten/variants"
+import { quickJsModuleLoader, quickJsModuleNormalizer } from "./imports.ts"
 import { debug } from "./logging.ts"
 import { wrapUserCode } from "./parse.ts"
 import type { CommandData, ExecutionResult } from "./types.ts"
@@ -21,28 +18,16 @@ export async function execute(
   commands: CommandData[] = [],
   code: string,
 ): Promise<ExecutionResult> {
-  const hasImportStatements = hasImports(code)
   const isDebug = Deno.env.get("DEBUG") === "1"
 
-  let runtime, ctx
+  // Use sync version for all code
+  const QuickJS = await newQuickJSWASMModule(isDebug ? DEBUG_SYNC : RELEASE_SYNC)
+  const runtime = QuickJS.newRuntime()
 
-  if (hasImportStatements) {
-    // Use async version for code with imports.
-    // It's much slower but currently we can't do imports without it.
-    const AsyncQuickJS = await newQuickJSAsyncWASMModule(isDebug ? DEBUG_ASYNC : RELEASE_ASYNC)
-    runtime = AsyncQuickJS.newRuntime()
+  // Set up module loader for external imports
+  runtime.setModuleLoader(quickJsModuleLoader, quickJsModuleNormalizer)
 
-    // Set up module loader for external imports
-    runtime.setModuleLoader(quickJsModuleLoader, quickJsModuleNormalizer)
-
-    ctx = runtime.newContext()
-  } else {
-    // Use sync version for code without imports
-    const QuickJS = await newQuickJSWASMModule(isDebug ? DEBUG_SYNC : RELEASE_SYNC)
-    runtime = QuickJS.newRuntime()
-
-    ctx = runtime.newContext()
-  }
+  const ctx = runtime.newContext()
 
   const arena = new Arena(ctx, {
     isMarshalable(_target: any): boolean {
@@ -71,18 +56,20 @@ export async function execute(
       },
     })
 
-    arena.expose({
+    const exposed = {
       "$init__": {
-        "fields": fields,
+        fields,
         "commands": commands.map((c) => ({
           name: c.name,
           content: c.content,
           code: c.run || null,
-          wrappedCode: c.run ? wrapUserCode(c.run) : null,
+          wrappedCode: c.run ? wrapUserCode(c.run, "functionBody") : null,
         })),
       },
-    })
-    debug("after expose", { fields, commands })
+    }
+    debug("exposing", exposed)
+    arena.expose(exposed)
+    debug("expose done")
 
     // Set up the command system.
     // TODO: move this to a separate JS file and use `import` to load it?
@@ -203,10 +190,10 @@ export async function execute(
 
     debug("after initial evalCode")
 
-    // Execute the user code as an async module
-    debug("wrapped code:", wrapUserCode(code))
-    const handle = await ctx.evalCode(wrapUserCode(code), "file:///code.mjs", { type: "module" })
-    debug("after evalCodeAsync:", handle)
+    // Execute the user code as a module
+    debug("wrapped code:", wrapUserCode(code, "module"))
+    const handle = ctx.evalCode(wrapUserCode(code, "module"), "file:///code.mjs", { type: "module" })
+    debug("after evalCode:", handle)
 
     // Get the result and handle async values
     let result = arena._unwrapResultAndUnmarshal(handle)
@@ -216,9 +203,12 @@ export async function execute(
       debug("result is a promise:", result)
       result = await result
     }
-    result = result.default
+    if (result.default) {
+      debug("stripping default export:", result)
+      result = result.default
+    }
     if (result instanceof Promise) {
-      debug("result.default is a promise:", result)
+      debug("unwrapping promise again:", result)
       result = await result
     }
     debug("result:", result)
@@ -231,23 +221,14 @@ export async function execute(
         : undefined,
     }
   } catch (error) {
-    if (error instanceof Error && error.message === "timeout") {
-      return {
-        success: false,
-        output: "",
-        value: undefined,
-        error: "Execution timed out",
-      }
-    } else {
-      return {
-        success: false,
-        output: "",
-        value: undefined,
-        error: error instanceof Error ? error.message : String(error),
-      }
+    return {
+      success: false,
+      output: "",
+      value: undefined,
+      error: error instanceof Error ? error.message : String(error),
     }
   } finally {
     // Clean up resources - let QuickJS handle cleanup automatically
-    // Explicit disposal can cause assertion failures with async modules
+    // TODO: do we even care
   }
 }

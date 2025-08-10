@@ -66,7 +66,6 @@ async def test_entry_with_javascript(make_ctx: MakeCtx):
 @pytest.mark.asyncio
 async def test_entry_with_javascript_error(make_ctx: MakeCtx):
     """Test entry display with JavaScript error."""
-    print("\nTesting entry display with JavaScript error...")
 
     entry = Entry(
         id=uuid.uuid4(),
@@ -83,14 +82,13 @@ async def test_entry_with_javascript_error(make_ctx: MakeCtx):
     success, result, _value = await run_code(
         ctx, code=f"$.cmd({json.dumps(entry.name)})"
     )
-    assert not success
     assert "'undefinedVariable' is not defined" in result
+    assert not success
 
 
 @pytest.mark.asyncio
 async def test_entry_with_empty_javascript(make_ctx: MakeCtx):
     """Test entry display with empty JavaScript code."""
-    print("\nTesting entry display with empty JavaScript...")
 
     entry = Entry(
         id=uuid.uuid4(),
@@ -104,20 +102,18 @@ async def test_entry_with_empty_javascript(make_ctx: MakeCtx):
     )
 
     ctx = make_ctx("test message", entry)
-    success, result, value = await run_code(
+    success, output, value = await run_code(
         ctx, code=f"$.cmd({json.dumps(entry.name)})"
     )
-    expected = "This is an entry with empty JavaScript"
 
     assert success
-    assert result == expected
+    assert output == "This is an entry with empty JavaScript"
     assert value is None
 
 
 @pytest.mark.asyncio
 async def test_entry_with_no_output_javascript(make_ctx: MakeCtx):
     """Test entry display with JavaScript that produces no output."""
-    print("\nTesting entry display with JavaScript that produces no output...")
 
     entry = Entry(
         id=uuid.uuid4(),
@@ -131,10 +127,10 @@ async def test_entry_with_no_output_javascript(make_ctx: MakeCtx):
     )
 
     ctx = make_ctx("test message", entry)
-    success, result, value = await run_code(
+    success, output, value = await run_code(
         ctx, code=f"$.cmd({json.dumps(entry.name)})"
     )
 
     assert success
-    assert result == ""
+    assert output == ""
     assert value is None

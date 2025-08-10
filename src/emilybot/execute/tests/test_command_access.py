@@ -1,4 +1,4 @@
-import asyncio
+import pytest
 from emilybot.execute.javascript_executor import (
     CommandData,
     JavaScriptExecutor,
@@ -9,6 +9,7 @@ from emilybot.execute.javascript_executor import (
 )
 
 
+@pytest.mark.asyncio
 async def test_command_access():
     """Golden test: Verify the actual behavior of Emily's JavaScript API.
 
@@ -103,10 +104,9 @@ async def test_command_access():
 
     success, output, value = await executor.execute(code, context, commands)
 
-    print(f"Success: {success}")
+    # Assert the test completed successfully
+    assert success, f"JavaScript execution failed. Output: {output}"
+
+    # Print output for debugging (optional - can be removed if not needed)
     print(f"Output: {output}")
     print(f"Value: {value}")
-
-
-if __name__ == "__main__":
-    asyncio.run(test_command_access())

@@ -5,6 +5,7 @@
 import { parseArgs } from "@std/cli"
 import * as astring from "astring"
 import { type ESTree, parse as parseAST } from "meriyah"
+import { debug } from "./logging.ts"
 
 export type ParsedResult = {
   success: true
@@ -198,32 +199,53 @@ function transformImports(ast: ESTree.Program): void {
   }
 }
 
-export function wrapUserCode(code: string): string {
-  const parseResult = parse(code)
+/**
+ * Wraps user code in a function that returns the result.
+ *
+ * @param variant
+ *   - "iife" gives you an expression that evaluates to the result,
+ *   - "functionBody" gives you a function body that returns the result,
+ *   - "module" gives you a module that exports the result as the default export
+ */
+export function wrapUserCode(code: string, variant: "iife" | "functionBody" | "module"): string {
+  try {
+    const parseResult = parse(code)
 
-  if (!parseResult.success) {
-    throw new Error(`Failed to parse code: ${parseResult.error}`)
-  }
-
-  // If it's an expression, we want to return the result.
-  // Funny thing is that when we parse, stuff like `2+3` is still parsed as an ExpressionStatement.
-  // So we go through the AST and add `return` to the last node if it's an ExpressionStatement node.
-
-  const ast = parseResult.ast
-  const lastNode = ast.body[ast.body.length - 1]
-
-  // Directives are things like 'use strict', we don't want to returnify those.
-  if (lastNode.type === "ExpressionStatement" && !lastNode.directive) {
-    ast.body[ast.body.length - 1] = {
-      type: "ReturnStatement",
-      argument: lastNode.expression,
+    if (!parseResult.success) {
+      throw new Error(`Failed to parse code: ${parseResult.error}`)
     }
+
+    // If it's an expression, we want to return the result.
+    // Funny thing is that when we parse, stuff like `2+3` is still parsed as an ExpressionStatement.
+    // So we go through the AST and add `return` to the last node if it's an ExpressionStatement node.
+
+    const ast = parseResult.ast
+    if (ast.body.length > 0) {
+      const lastNode = ast.body[ast.body.length - 1]
+
+      // Directives are things like 'use strict', we don't want to returnify those.
+      if (lastNode.type === "ExpressionStatement" && !lastNode.directive) {
+        ast.body[ast.body.length - 1] = {
+          type: "ReturnStatement",
+          argument: lastNode.expression,
+        }
+      }
+
+      // Transform imports to work inside function bodies
+      transformImports(ast)
+    }
+
+    if (variant === "iife") {
+      return `(async () => {\n${astring.generate(ast)}})()`
+    } else if (variant === "functionBody") {
+      return astring.generate(ast)
+    } else {
+      return `export default (async () => {\n${astring.generate(ast)}})()`
+    }
+  } catch (e) {
+    debug("Error while wrapping user code:", e)
+    throw e
   }
-
-  // Transform imports to work inside function bodies
-  transformImports(ast)
-
-  return `export default (async () => {\n${astring.generate(ast)}})()`
 }
 
 // CLI functionality when module is executed directly
@@ -252,9 +274,9 @@ if (import.meta.main) {
       console.log(JSON.stringify(result.ast, null, 2))
       console.log()
 
-      console.log("Wrapped code:")
+      console.log("Wrapped code (variant=module):")
       console.log()
-      console.log(wrapUserCode(code))
+      console.log(wrapUserCode(code, "module"))
     } else {
       console.log("❌ Parse failed!")
       console.log("Error:", result.error)

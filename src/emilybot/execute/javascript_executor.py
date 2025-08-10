@@ -3,7 +3,9 @@
 import asyncio
 import json
 import logging
+import shlex
 from dataclasses import dataclass, asdict
+import os
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
@@ -114,7 +116,7 @@ class ExecutionResult(TypedDict):
 
 
 # Error type literal
-ErrorType = Literal["timeout", "memory", "syntax", "runtime"]
+ErrorType = Literal["memory", "syntax", "runtime"]
 
 
 @dataclass
@@ -162,7 +164,11 @@ class JavaScriptExecutor:
             fields_json = json.dumps({**context.as_json(), "ctx": context.as_json()})
             commands_json = json.dumps(commands)
 
-            with TemporaryDirectory() as temp_dir:
+            DEBUG = os.getenv("DEBUG")
+            with TemporaryDirectory(
+                delete=DEBUG != "1" and DEBUG != "true"
+            ) as temp_dir:
+                logging.debug(f"Created temporary directory: {temp_dir}")
                 temp_path = Path(temp_dir)
                 fields_path = temp_path / "fields.json"
                 commands_path = temp_path / "commands.json"
@@ -180,7 +186,6 @@ class JavaScriptExecutor:
                     self.executor_script,
                     f"--fieldsFile={str(fields_path)}",
                     f"--commandsFile={str(commands_path)}",
-                    f"--timeout={int(self.timeout * 1000)}",
                     code,
                 ]
 
@@ -194,13 +199,14 @@ class JavaScriptExecutor:
                 )
 
                 try:
+                    logging.info("Starting Deno process")
+                    logging.debug(f"Deno command: {shlex.join(cmd)}")
                     stdout, stderr = await asyncio.wait_for(
-                        process.communicate(),
-                        timeout=self.timeout
-                        + 0.5,  # Add small buffer to Deno's internal timeout
+                        process.communicate(), timeout=self.timeout
                     )
                 except asyncio.TimeoutError:
                     # Kill the process if it's still running
+                    logging.debug("Deno process timed out, killing it")
                     try:
                         process.kill()
                         await process.wait()
@@ -229,13 +235,7 @@ class JavaScriptExecutor:
                 error_message = stderr_text or "Unknown execution error"
 
                 # For user-facing errors, return a clean message
-                if error_type == "timeout":
-                    return (
-                        False,
-                        f"⏱️ JavaScript execution timed out ({self.timeout}s limit)",
-                        None,
-                    )
-                elif error_type == "memory":
+                if error_type == "memory":
                     return False, "💾 JavaScript execution exceeded memory limits", None
                 elif error_type == "syntax":
                     return (
@@ -278,9 +278,7 @@ class JavaScriptExecutor:
         """
         stderr_lower = stderr.lower()
 
-        if "timed out" in stderr_lower or "timeout" in stderr_lower:
-            return "timeout"
-        elif "memory" in stderr_lower or "out of memory" in stderr_lower:
+        if "memory" in stderr_lower or "out of memory" in stderr_lower:
             return "memory"
         elif "syntaxerror" in stderr_lower or "syntax error" in stderr_lower:
             return "syntax"

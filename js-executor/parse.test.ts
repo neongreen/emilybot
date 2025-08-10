@@ -1,9 +1,9 @@
 import { assertEquals } from "@std/assert"
-import { parse, wrapUserCode } from "./parse.ts"
+import { wrapUserCode } from "./parse.ts"
 
 Deno.test("wrapUserCode - console.log", () => {
   assertEquals(
-    wrapUserCode("console.log('hello');"),
+    wrapUserCode("console.log('hello');", "module"),
     [
       `export default (async () => {`,
       `return console.log("hello");`,
@@ -14,7 +14,7 @@ Deno.test("wrapUserCode - console.log", () => {
 
 Deno.test("wrapUserCode - return", () => {
   assertEquals(
-    wrapUserCode("return 1;"),
+    wrapUserCode("return 1;", "module"),
     [
       `export default (async () => {`,
       `return 1;`,
@@ -25,7 +25,7 @@ Deno.test("wrapUserCode - return", () => {
 
 Deno.test("wrapUserCode - 2+2", () => {
   assertEquals(
-    wrapUserCode("2+2"),
+    wrapUserCode("2+2", "module"),
     [
       `export default (async () => {`,
       `return 2 + 2;`,
@@ -36,7 +36,7 @@ Deno.test("wrapUserCode - 2+2", () => {
 
 // Tests for import transformation functionality
 Deno.test("transformImports - bare import", () => {
-  const result = wrapUserCode("import 'lodash'; console.log('test');")
+  const result = wrapUserCode("import 'lodash'; console.log('test');", "module")
   assertEquals(
     result,
     [
@@ -49,7 +49,7 @@ Deno.test("transformImports - bare import", () => {
 })
 
 Deno.test("transformImports - default import", () => {
-  const result = wrapUserCode("import lodash from 'lodash'; console.log(lodash);")
+  const result = wrapUserCode("import lodash from 'lodash'; console.log(lodash);", "module")
   assertEquals(
     result,
     [
@@ -62,7 +62,7 @@ Deno.test("transformImports - default import", () => {
 })
 
 Deno.test("transformImports - namespace import", () => {
-  const result = wrapUserCode("import * as _ from 'lodash'; console.log(_.map);")
+  const result = wrapUserCode("import * as _ from 'lodash'; console.log(_.map);", "module")
   assertEquals(
     result,
     [
@@ -75,7 +75,7 @@ Deno.test("transformImports - namespace import", () => {
 })
 
 Deno.test("transformImports - named imports", () => {
-  const result = wrapUserCode("import { map, filter } from 'lodash'; console.log(map);")
+  const result = wrapUserCode("import { map, filter } from 'lodash'; console.log(map);", "module")
   assertEquals(
     result,
     [
@@ -88,7 +88,10 @@ Deno.test("transformImports - named imports", () => {
 })
 
 Deno.test("transformImports - named imports with aliases", () => {
-  const result = wrapUserCode("import { map as mapFn, filter as filterFn } from 'lodash'; console.log(mapFn);")
+  const result = wrapUserCode(
+    "import { map as mapFn, filter as filterFn } from 'lodash'; console.log(mapFn);",
+    "module",
+  )
   assertEquals(
     result,
     [
@@ -101,7 +104,7 @@ Deno.test("transformImports - named imports with aliases", () => {
 })
 
 Deno.test("transformImports - mixed default and named imports", () => {
-  const result = wrapUserCode("import lodash, { map, filter } from 'lodash'; console.log(lodash, map);")
+  const result = wrapUserCode("import lodash, { map, filter } from 'lodash'; console.log(lodash, map);", "module")
   assertEquals(
     result,
     [
@@ -114,12 +117,15 @@ Deno.test("transformImports - mixed default and named imports", () => {
 })
 
 Deno.test("transformImports - multiple import statements", () => {
-  const result = wrapUserCode(`
+  const result = wrapUserCode(
+    `
     import 'lodash';
     import axios from 'axios';
     import { useState } from 'react';
     console.log('test');
-  `)
+  `,
+    "module",
+  )
   assertEquals(
     result,
     [
@@ -134,7 +140,7 @@ Deno.test("transformImports - multiple import statements", () => {
 })
 
 Deno.test("transformImports - import with expression", () => {
-  const result = wrapUserCode("import lodash from 'lodash'; 2 + 2")
+  const result = wrapUserCode("import lodash from 'lodash'; 2 + 2", "module")
   assertEquals(
     result,
     [
@@ -147,7 +153,7 @@ Deno.test("transformImports - import with expression", () => {
 })
 
 Deno.test("transformImports - no imports, just expression", () => {
-  const result = wrapUserCode("2 + 2")
+  const result = wrapUserCode("2 + 2", "module")
   assertEquals(
     result,
     [
@@ -159,7 +165,7 @@ Deno.test("transformImports - no imports, just expression", () => {
 })
 
 Deno.test("transformImports - import with return statement", () => {
-  const result = wrapUserCode("import lodash from 'lodash'; return lodash;")
+  const result = wrapUserCode("import lodash from 'lodash'; return lodash;", "module")
   assertEquals(
     result,
     [
@@ -172,12 +178,15 @@ Deno.test("transformImports - import with return statement", () => {
 })
 
 Deno.test("transformImports - complex import scenario", () => {
-  const result = wrapUserCode(`
+  const result = wrapUserCode(
+    `
     import React, { useState, useEffect as useEffectHook } from 'react';
     import * as utils from './utils';
     import './styles.css';
     const component = () => {};
-  `)
+  `,
+    "module",
+  )
   assertEquals(
     result,
     [

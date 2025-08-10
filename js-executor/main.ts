@@ -1,5 +1,9 @@
 /**
- * Main Deno CLI script for JavaScript execution with hard timeout
+ * Main Deno CLI script for JavaScript execution
+ *
+ * WARNING: This executor can hang forever on fetches (which we have to do synchronously).
+ * Timeout protection must be implemented at the Python/process level using asyncio.wait_for()
+ * or by using gtimeout when running manually.
  */
 
 import { z, ZodError } from "zod/v4"
@@ -9,7 +13,7 @@ import { lib } from "./lib.ts"
 import { validateCommands, validateFields } from "./types.ts"
 
 async function main() {
-  const { code, fieldsFile, commandsFile, timeout } = getArgs()
+  const { code, fieldsFile, commandsFile } = getArgs()
 
   // console.debug("args", { code, fieldsFile, commandsFile })
 
@@ -30,12 +34,6 @@ async function main() {
   }
 
   try {
-    // Create a hard timeout that will kill the process
-    const timeoutId = setTimeout(() => {
-      console.error(`Execution timed out after ${timeout}ms`)
-      Deno.exit(1)
-    }, timeout)
-
     const context = {
       ...fields,
       lib: lib,
@@ -45,9 +43,6 @@ async function main() {
       // Execute JavaScript code
       const result = await execute(context, commands, code)
 
-      // Clear timeout since execution completed
-      clearTimeout(timeoutId)
-
       if (result.success) {
         console.log(JSON.stringify(result))
         Deno.exit(0)
@@ -56,7 +51,6 @@ async function main() {
         Deno.exit(1)
       }
     } catch (error) {
-      clearTimeout(timeoutId)
       throw error
     }
   } catch (error) {

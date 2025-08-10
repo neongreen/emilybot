@@ -1,54 +1,60 @@
 import { JSModuleLoadSuccess, SuccessOrFail } from "quickjs-emscripten-core"
+import { syncFetch } from "./fetch.ts"
 import { debug } from "./logging.ts"
 import { parse } from "./parse.ts"
+
+// Check for dynamic import expressions (these would be in function bodies)
+// We need to traverse the AST to find ImportExpression nodes
+function hasImportExpressions(node: any): boolean {
+  if (node.type === "ImportExpression") {
+    return true
+  }
+
+  // Recursively check child nodes
+  for (const key in node) {
+    const value = node[key]
+    if (value && typeof value === "object") {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item && typeof item === "object" && hasImportExpressions(item)) {
+            return true
+          }
+        }
+      } else if (hasImportExpressions(value)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
 
 /**
  * Detects if the code contains any import statements or import expressions
  */
 export function hasImports(code: string): boolean {
-  const parseResult = parse(code)
+  try {
+    const parseResult = parse(code)
 
-  if (!parseResult.success) {
-    // If parsing fails, fall back to regex check for safety
-    return /import\s+/.test(code) || /import\s*\(/.test(code) || /export\s+/.test(code)
-  }
-
-  const ast = parseResult.ast
-
-  // Check for import declarations
-  for (const node of ast.body) {
-    if (node.type === "ImportDeclaration") {
-      return true
-    }
-  }
-
-  // Check for dynamic import expressions (these would be in function bodies)
-  // We need to traverse the AST to find ImportExpression nodes
-  function hasImportExpressions(node: any): boolean {
-    if (node.type === "ImportExpression") {
-      return true
+    if (!parseResult.success) {
+      // If parsing fails, fall back to regex check for safety
+      return /import\s+/.test(code) || /import\s*\(/.test(code) || /export\s+/.test(code)
     }
 
-    // Recursively check child nodes
-    for (const key in node) {
-      const value = node[key]
-      if (value && typeof value === "object") {
-        if (Array.isArray(value)) {
-          for (const item of value) {
-            if (item && typeof item === "object" && hasImportExpressions(item)) {
-              return true
-            }
-          }
-        } else if (hasImportExpressions(value)) {
-          return true
-        }
+    const ast = parseResult.ast
+
+    // Check for import declarations
+    for (const node of ast.body) {
+      if (node.type === "ImportDeclaration") {
+        return true
       }
     }
 
+    return hasImportExpressions(ast)
+  } catch (e) {
+    debug("Error while checking for imports:", e)
     return false
   }
-
-  return hasImportExpressions(ast)
 }
 
 /**
@@ -69,19 +75,18 @@ export function processImportPath(url: string): string {
  * Fetches a module and returns its source code
  *
  * On error, doesn't throw, but returns a "module" evaluating which will throw.
- * This is because I have no idea how to make QuickJS accept an error thrown by an async module loader.
+ * This is because I have no idea how to make QuickJS accept an error thrown by a module loader.
+ * Maybe it's better now that we have sync fetch.
  */
-export async function quickJsModuleLoader(
-  moduleName: string,
-): Promise<SuccessOrFail<JSModuleLoadSuccess, Error>> {
+export function quickJsModuleLoader(moduleName: string): SuccessOrFail<JSModuleLoadSuccess, Error> {
   try {
     const url = processImportPath(moduleName)
     // TODO: for esm links request es2015 or 2020 or idk
-    const response = await fetch(url)
+    const response = syncFetch(url)
     if (!response.ok) {
-      throw new Error(`${response.status} ${response.statusText}`)
+      throw new Error(`${response.status}`)
     }
-    const text = await response.text()
+    const text = response.text()
     return { value: text }
   } catch (e: unknown) {
     debug(`Error while loading module ${moduleName}:`, e)

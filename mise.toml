@@ -25,9 +25,14 @@ depends = ["test:*"]
 description = "Run tests for the python code"
 run = "uv run pytest"
 
+[tasks."test:python:debug"]
+description = "Run tests for the python code with verbose output"
+run = "uv run pytest -v -s"
+
 [tasks."test:js"]
 description = "Run tests for the executor"
-run = "deno test --allow-read --allow-net=esm.sh --allow-env"
+# We need a timeout because we can't tell Deno to use a timeout and syncFetch can hang forever
+run = "gtimeout 5s deno test --allow-read --allow-net=esm.sh --allow-env"
 
 [tasks."js:parse"]
 description = "(debugging) Parse js code"
@@ -39,7 +44,7 @@ run = "deno run --allow-all parse.ts"
 description = "(debugging) Evaluate js code"
 quiet = true
 dir = "js-executor"
-run = "deno run --allow-all main.ts --timeout=5000"
+run = "gtimeout 5s deno run --allow-all main.ts"
 
 [tasks.fmt]
 description = "Format code"
