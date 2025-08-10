@@ -176,6 +176,7 @@ class JavaScriptExecutor:
                     "--quiet",
                     "--allow-env=QTS_DEBUG,LOG_LEVEL,DEBUG",  # 'LOG_LEVEL' enables logs in the executor, 'QTS_DEBUG' is used by the QuickJS runtime, 'DEBUG' is used by the executor
                     f"--allow-read=js-executor/,node_modules,{temp_path}",
+                    "--allow-net=esm.sh",
                     self.executor_script,
                     f"--fieldsFile={str(fields_path)}",
                     f"--commandsFile={str(commands_path)}",
