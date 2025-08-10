@@ -128,11 +128,11 @@ class JSExecutionError(Exception):
 class JavaScriptExecutor:
     """Executes JavaScript code using Deno CLI subprocess with timeout and error handling."""
 
-    def __init__(self, timeout: float = 1.0):
+    def __init__(self, *, timeout: float = 2.0):
         """Initialize the JavaScript executor.
 
         Args:
-            timeout: Maximum execution time in seconds (default: 1.0)
+            timeout: Maximum execution time in seconds (default: 2.0)
         """
         self.timeout = timeout
         deno_path = shutil.which("deno")
@@ -179,6 +179,7 @@ class JavaScriptExecutor:
                     self.executor_script,
                     f"--fieldsFile={str(fields_path)}",
                     f"--commandsFile={str(commands_path)}",
+                    f"--timeout={int(self.timeout * 1000)}",
                     code,
                 ]
 
@@ -206,7 +207,7 @@ class JavaScriptExecutor:
                         pass  # Process already terminated
                     return (
                         False,
-                        "⏱️ JavaScript execution timed out (1 second limit)",
+                        f"⏱️ JavaScript execution timed out ({self.timeout}s limit)",
                         None,
                     )
 
@@ -230,7 +231,7 @@ class JavaScriptExecutor:
                 if error_type == "timeout":
                     return (
                         False,
-                        "⏱️ JavaScript execution timed out (1 second limit)",
+                        f"⏱️ JavaScript execution timed out ({self.timeout}s limit)",
                         None,
                     )
                 elif error_type == "memory":

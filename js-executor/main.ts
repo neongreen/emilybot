@@ -9,7 +9,7 @@ import { lib } from "./lib.ts"
 import { validateCommands, validateFields } from "./types.ts"
 
 async function main() {
-  const { code, fieldsFile, commandsFile } = getArgs()
+  const { code, fieldsFile, commandsFile, timeout } = getArgs()
 
   // console.debug("args", { code, fieldsFile, commandsFile })
 
@@ -32,9 +32,9 @@ async function main() {
   try {
     // Create a hard timeout that will kill the process
     const timeoutId = setTimeout(() => {
-      console.error("Execution timed out after 10 seconds")
+      console.error(`Execution timed out after ${timeout}ms`)
       Deno.exit(1)
-    }, 10000)
+    }, timeout)
 
     const context = {
       ...fields,

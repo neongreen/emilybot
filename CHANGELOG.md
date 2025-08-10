@@ -7,6 +7,8 @@
 - JavaScript `import` statements are now supported, but only from `esm.sh` URLs.
   For example, you can use `import { camelCase } from 'https://esm.sh/change-case@5.4.0'`.
 
+- Timeout is bumped to 2s.
+
 ## 2025-08-09
 
 **JS execution:**

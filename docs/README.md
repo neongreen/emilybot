@@ -219,14 +219,6 @@ console.log(context.content)
 ```
 ````
 
-### Limits
-
-- 1 second timeout
-- Only `console.log()` shows output
-- No network access
-- No file access
-- Generally no access to almost anything
-
 ## Examples
 
 ### Basic storage
