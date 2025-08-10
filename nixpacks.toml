@@ -16,4 +16,4 @@ cmds = [
 
 [start]
 # Run the app with the decrypted secrets
-cmd = """PATH=/root/.deno/bin:$PATH bash -c '(cd js-executor && deno install); sops exec-env .env.yaml "uv run emilybot"'"""
+cmd = """PATH=/root/.deno/bin:$PATH bash -c 'deno install; sops exec-env .env.yaml "uv run emilybot"'"""
