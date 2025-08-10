@@ -50,7 +50,7 @@ export async function execute(
       return true
     },
   })
-  arena.context.runtime.setMemoryLimit(1024 * 1024) // 1 MB
+  arena.context.runtime.setMemoryLimit(1024 * 1024 * 10) // 10 MB
 
   try {
     // Capture console.log output from the user code

@@ -11,6 +11,8 @@
 
 - Timeout is bumped to 5s.
 
+- Memory limit is bumped to 10 MB.
+
 ## 2025-08-09
 
 **JS execution:**
