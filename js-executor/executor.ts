@@ -71,7 +71,17 @@ export async function execute(
       },
     })
 
-    arena.expose({ "$init__": { "fields": fields, "commands": commands } })
+    arena.expose({
+      "$init__": {
+        "fields": fields,
+        "commands": commands.map((c) => ({
+          name: c.name,
+          content: c.content,
+          code: c.run || null,
+          wrappedCode: c.run ? wrapUserCode(c.run) : null,
+        })),
+      },
+    })
     debug("after expose", { fields, commands })
 
     // Set up the command system.
@@ -99,12 +109,13 @@ export async function execute(
         const obj = ({
           name: command.name,
           content: command.content,
-          code: command.run || null,
+          code: command.code || null,
+          wrappedCode: command.wrappedCode || null,
           run: function(...args) {
             if (this.code && this.code.trim()) {
               // Create a function that has access to the args parameter and this context
-              // TODO: for commands that look like modules (with imports etc), this won't work
-              const func = new Function('args', this.code)
+              // TODO: use createCommandObject instead
+              const func = new Function('args', this.wrappedCode)
               return func.call(this, args)
             } else {
               console.log(this.content)
@@ -119,12 +130,13 @@ export async function execute(
         return name.replace(/-/g, '_')
       }
       
-      function createCommandObject(name, content, code) {
+      // Needs: name, content, code, wrappedCode
+      function createCommandObject(command) {
+        const { name, content, code, wrappedCode } = command
         const cmd = function(...args) {
           if (code && code.trim()) {
-            const commandContext = {name, content, code}
-            const func = new Function('args', code)
-            return func.call(commandContext, args)  // "this" will be the commandContext, args as parameter
+            const func = new Function('args', wrappedCode)
+            return func.call(command, args)  // "this" will be the command, args as parameter
           } else {
             console.log(content)
           }
@@ -132,6 +144,7 @@ export async function execute(
         cmd._name = name
         cmd._content = content
         cmd._code = code || null
+        cmd._wrappedCode = wrappedCode || null
         cmd._run = function() {
           return cmd()
         }
@@ -154,7 +167,7 @@ export async function execute(
             current = current[part]
           }
           const lastPart = normalizeCommandName(parts[parts.length - 1])
-          current[lastPart] = createCommandObject(command.name, command.content, command.run)
+          current[lastPart] = createCommandObject(command)
         }
       }
       
@@ -166,7 +179,7 @@ export async function execute(
           if (commandGlobals[normalizedName] && typeof commandGlobals[normalizedName] === 'object' && !commandGlobals[normalizedName]._name) {
             // This is a container object for nested commands, don't overwrite it
             // Instead, add the command as a property and make the container callable
-            const selfCommand = createCommandObject(command.name, command.content, command.run)
+            const selfCommand = createCommandObject(command)
             commandGlobals[normalizedName]._self = selfCommand
             // Make the container callable by delegating to the self command
             const container = commandGlobals[normalizedName]
@@ -177,7 +190,7 @@ export async function execute(
             Object.assign(callableContainer, container)
             commandGlobals[normalizedName] = callableContainer
           } else {
-            commandGlobals[normalizedName] = createCommandObject(command.name, command.content, command.run)
+            commandGlobals[normalizedName] = createCommandObject(command)
           }
         }
       }

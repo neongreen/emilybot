@@ -39,7 +39,7 @@ run = "deno run --allow-all parse.ts"
 description = "(debugging) Evaluate js code"
 quiet = true
 dir = "js-executor"
-run = "deno run --allow-all main.ts"
+run = "deno run --allow-all main.ts --timeout=5000"
 
 [tasks.fmt]
 description = "Format code"
