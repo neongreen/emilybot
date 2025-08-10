@@ -1,5 +1,7 @@
 # Used by Coolify
 
+providers = ["deno", "python"]
+
 [phases.setup]
 nixPkgs = [
   "...",
