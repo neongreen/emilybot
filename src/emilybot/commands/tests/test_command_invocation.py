@@ -189,3 +189,48 @@ async def test_cmd_command_with_broken_javascript_present(
 
     # The working command should execute successfully
     assert 'Working command executed with args: [ "test" ]' in call_args
+
+
+@pytest.mark.parametrize("message", [".cmd starter", ".starter", "$starter"])
+@pytest.mark.asyncio
+@pytest.mark.xfail(reason="`import`can't be used in commands yet")
+async def test_cmd_command_with_dynamic_import(
+    make_ctx: MakeCtx, entry_factory: Callable[..., Entry], message: str
+):
+    """Test .cmd command with dynamic import and external library usage."""
+    starter_entry = entry_factory(
+        name="starter",
+        content="Get a random starter word for Wordle",
+        run=(
+            "let mod = await import('https://esm.sh/@nikku/wordle-solver/lib/dictionary.js');"
+            "let words = mod.words;"
+            'console.log("Your random starter for today is: [ **" + words[$.lib.random(0, words.length - 1)].toUpperCase() + "** ]");'
+        ),
+        user_id=67890,  # Match the user ID from make_ctx
+        server_id=12345,  # Match the guild ID from make_ctx
+    )
+
+    # Set up context with the starter entry
+    ctx = make_ctx(message, starter_entry)
+
+    # Set up the required bot attribute
+    ctx.bot.just_command_prefix = "."
+
+    # Test the starter command
+    await cmd_cmd(ctx, alias="starter", args=[])
+
+    # Verify send was called
+    assert isinstance(ctx.send, (MagicMock, AsyncMock))
+    ctx.send.assert_called_once()
+    call_args = ctx.send.call_args[0][0]
+
+    # The command should execute successfully and contain the expected output format
+    assert "Your random starter for today is: [ **" in call_args
+    assert "** ]" in call_args
+    # Should contain a word in uppercase (at least 3 characters)
+    import re
+
+    word_match = re.search(r"\*\*([A-Z]{3,})\*\*", call_args)
+    assert word_match is not None, (
+        f"Expected uppercase word in ** ** format, got: {call_args}"
+    )

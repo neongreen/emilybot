@@ -26,8 +26,8 @@ description = "Run tests for the python code"
 run = "uv run pytest"
 
 [tasks."test:python:debug"]
-description = "Run tests for the python code with verbose output"
-run = "uv run pytest -v -s"
+description = "Run tests for the python code with verbose output and without deleting temp files"
+run = "DEBUG=1 uv run pytest -v -s"
 
 [tasks."test:js"]
 description = "Run tests for the executor"
