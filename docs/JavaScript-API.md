@@ -419,7 +419,7 @@ console.log(`Full URL: ${apiBase}${endpoint}`)
 
 ### Limits
 
-- **Timeout**: 2 seconds maximum execution time
+- **Timeout**: 5s maximum execution time
 - **Memory**: 1MB memory limit
 - **Network**: Limited network access for importing modules from `https://esm.sh` only
 - **File System**: No file system access

@@ -128,11 +128,11 @@ class JSExecutionError(Exception):
 class JavaScriptExecutor:
     """Executes JavaScript code using Deno CLI subprocess with timeout and error handling."""
 
-    def __init__(self, *, timeout: float = 2.0):
+    def __init__(self, *, timeout: float = 5.0):
         """Initialize the JavaScript executor.
 
         Args:
-            timeout: Maximum execution time in seconds (default: 2.0)
+            timeout: Maximum execution time in seconds
         """
         self.timeout = timeout
         deno_path = shutil.which("deno")
