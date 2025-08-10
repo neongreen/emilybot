@@ -59,12 +59,27 @@ export async function execute(
     const exposed = {
       "$init__": {
         fields,
-        "commands": commands.map((c) => ({
-          name: c.name,
-          content: c.content,
-          code: c.run || null,
-          wrappedCode: c.run ? wrapUserCode(c.run, "functionBody") : null,
-        })),
+        "commands": commands.map((c) => {
+          let wrappedCode = null
+          if (c.run) {
+            try {
+              wrappedCode = wrapUserCode(c.run, "functionBody")
+            } catch (error) {
+              // Create a fallback wrapped code that throws an error when called
+              wrappedCode = `throw new Error(`
+                + JSON.stringify(
+                  `Command '${c.name}' has invalid JavaScript and cannot be executed: `
+                    + (error instanceof Error ? error.message : String(error)),
+                ) + `)`
+            }
+          }
+          return {
+            name: c.name,
+            content: c.content,
+            code: c.run || null,
+            wrappedCode,
+          }
+        }),
       },
     }
     debug("exposing", exposed)
