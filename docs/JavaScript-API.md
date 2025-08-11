@@ -206,19 +206,6 @@ $.lib.random(0, 100) // Returns 0-100
 > **Implementation source**:
 > Library functions are defined in [`js-executor/lib.ts`](../js-executor/lib.ts) and added to context in [`js-executor/main.ts:46`](../js-executor/main.ts#L46)
 
-## Legacy Context Object
-
-> [!WARNING]
-> **Deprecated**: The `context` global variable is deprecated and will be removed in a future version.
-> Use the `$` global object instead.
-
-For commands with `.run` attribute, a `context` object provides backwards compatibility:
-
-```javascript
-context.content // Original entry content
-context.name // Entry/command name
-```
-
 ## Dollar Prefix Behavior
 
 When you use the `$` prefix in Discord messages, Emily has special behavior:

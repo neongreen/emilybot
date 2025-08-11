@@ -4,7 +4,7 @@
 
 # ✅ `import` should throw an error if any other url is used
 
-# make `import` request the correct es version
+# make `import` request the correct es version from esm.sh
 
 # ✅ stored code should be wrapped in some way
 
