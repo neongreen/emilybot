@@ -1,0 +1,5 @@
+[reactions]
+# Symbol to use for successful command reactions
+success = "☑️"
+# Symbol to use for error reactions (if we add them later)
+error = "❌"

@@ -63,7 +63,7 @@ async def cmd_add(
             )
             db.log.add(action)
 
-            await ctx.send(format_success_message(alias, "updated"))
+            await ctx.react_success()
         else:
             # Entry doesn't exist - create new one
             doc = Entry(
@@ -90,7 +90,7 @@ async def cmd_add(
             )
             db.log.add(action)
 
-            await ctx.send(format_success_message(alias))
+            await ctx.react_success()
 
     except ValidationError as e:
         await ctx.send(format_validation_error(str(e)))

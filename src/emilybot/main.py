@@ -140,7 +140,7 @@ async def run_bot_with_autoreload() -> None:
         sys.exit(1)
 
     bot_task: Optional[asyncio.Task[Any]] = None
-    watch_paths = [Path("src/emilybot")]
+    watch_paths = [Path("src/emilybot"), Path(".")]
 
     async def start_bot():
         nonlocal bot_task
@@ -173,7 +173,7 @@ async def run_bot_with_autoreload() -> None:
             path.suffix == ".py"
             and "__pycache__" not in path.parts
             and not path.name.startswith(".")
-        )
+        ) or path.name == "config.toml"
 
     try:
         # Start the bot initially

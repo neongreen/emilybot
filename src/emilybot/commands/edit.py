@@ -74,7 +74,7 @@ async def cmd_edit(
         )
         db.log.add(action)
 
-        await ctx.send(format_success_message(alias, "updated"))
+        await ctx.react_success()
 
     except ValidationError as e:
         await ctx.send(format_validation_error(str(e)))
