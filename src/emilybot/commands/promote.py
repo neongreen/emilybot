@@ -81,9 +81,9 @@ async def _promote_demote_implementation(
 
         # Send appropriate message
         if promote:
-            await ctx.send(format_promoted_message(alias))
+            await ctx.react_success()
         else:
-            await ctx.send(format_demoted_message(alias))
+            await ctx.react_success()
 
     except ValidationError as e:
         await ctx.send(format_validation_error(str(e)))
@@ -143,8 +143,6 @@ async def cmd_demote_all(ctx: EmilyContext) -> None:
         demoted_count += 1
 
     if demoted_count == 1:
-        await ctx.send("✅ Demoted 1 alias - will show as grey text at bottom of help.")
+        await ctx.react_success()
     else:
-        await ctx.send(
-            f"✅ Demoted {demoted_count} aliases - will show as grey text at bottom of help."
-        )
+        await ctx.react_success()

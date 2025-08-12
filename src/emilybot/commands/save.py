@@ -13,11 +13,6 @@ def format_validation_error(error_message: str) -> str:
     return f"❌ {error_message}"
 
 
-def format_success_message(alias: str, action: str = "stored") -> str:
-    """Format success message for remember operations."""
-    return f"✅ Alias '{alias}' {action} successfully."
-
-
 @commands.command(name="add")
 async def cmd_add(
     ctx: EmilyContext,

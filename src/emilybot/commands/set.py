@@ -22,11 +22,6 @@ def format_validation_error(error_message: str) -> str:
     return f"❌ {error_message}"
 
 
-def format_success_message(alias: str, attribute: str) -> str:
-    """Format success message for set operations."""
-    return f"✅ Set .{attribute} for alias '{alias}' successfully."
-
-
 @commands.command(name="set")
 async def cmd_set(
     ctx: EmilyContext,
@@ -96,7 +91,7 @@ async def cmd_set(
             )
             db.log.add(action)
 
-            await ctx.send(format_success_message(alias, "run"))
+            await ctx.react_success()
 
     except ValidationError as e:
         await ctx.send(format_validation_error(str(e)))

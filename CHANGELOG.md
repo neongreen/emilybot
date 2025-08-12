@@ -2,7 +2,7 @@
 
 ## 2025-08-12
 
-- `.add` and `.edit` now react with a checkmark instead of sending the full success message.
+- On success, commands now react with a checkmark.
 
 ## 2025-08-10
 
