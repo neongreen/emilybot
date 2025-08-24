@@ -13,8 +13,12 @@ import { debug } from "./logging.ts"
 import { wrapUserCode } from "./parse.ts"
 import type { CommandData, ExecutionResult } from "./types.ts"
 
+export type ExecuteEnv = {
+  consoleLog: (...args: any[]) => void
+}
+
 export async function execute(
-  fields: Record<string, any> = {},
+  fields: (env: ExecuteEnv) => Record<string, any>,
   commands: CommandData[] = [],
   code: string,
 ): Promise<ExecutionResult> {
@@ -40,25 +44,30 @@ export async function execute(
   try {
     // Capture console.log output from the user code
     const consoleOutput: string[] = []
+    const consoleLog = (...args: any[]) => {
+      // Make the output for objects nicer
+      const showArg = (arg: any) => {
+        if (typeof arg === "object" && arg !== null) {
+          // it doesn't seem to allow Deno.customInspect to run when it's inside QuickJS, so that's good
+          return Deno.inspect(arg, { depth: 999, colors: false, compact: true, breakLength: 100 }) // Use Deno's inspect for better object output
+        }
+        return String(arg)
+      }
+      consoleOutput.push(args.map(showArg).join(" "))
+    }
     arena.expose({
       console: {
-        log: (...args: any[]) => {
-          // Make the output for objects nicer
-          const showArg = (arg: any) => {
-            if (typeof arg === "object" && arg !== null) {
-              // it doesn't seem to allow Deno.customInspect to run when it's inside QuickJS, so that's good
-              return Deno.inspect(arg, { depth: 999, colors: false, compact: true, breakLength: 100 }) // Use Deno's inspect for better object output
-            }
-            return String(arg)
-          }
-          consoleOutput.push(args.map(showArg).join(" "))
-        },
+        log: consoleLog,
       },
     })
 
+    const env: ExecuteEnv = {
+      consoleLog,
+    }
+
     const exposed = {
       "$init__": {
-        fields,
+        fields: fields(env),
         "commands": commands.map((c) => {
           let wrappedCode = null
           if (c.run) {

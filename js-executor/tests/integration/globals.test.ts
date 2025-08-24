@@ -11,7 +11,7 @@ Deno.test("Global assignment across commands", async () => {
       run: "global1 = 'xxx'; global2 = 'yyy';",
     },
   ]
-  const result = await execute({}, commands, "$util(); return global1 + global2")
+  const result = await execute((_env) => ({}), commands, "$util(); return global1 + global2")
   assertEquals(result, { success: true, output: "", value: `"xxxyyy"` })
 })
 
@@ -27,6 +27,6 @@ Deno.test("Exporting functions via globalThis", async () => {
       `,
     },
   ]
-  const result = await execute({}, commands, "$lib.foo(); return foo()")
+  const result = await execute((_env) => ({}), commands, "$lib.foo(); return foo()")
   assertEquals(result, { success: true, output: "", value: `"bar"` })
 })

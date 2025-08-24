@@ -3,7 +3,7 @@ import { execute } from "../../executor.ts"
 
 Deno.test("statement imports", async () => {
   const result = await execute(
-    {},
+    (_env) => ({}),
     [],
     `
     import { camelCase } from 'https://esm.sh/change-case@5.4.0'
@@ -15,7 +15,7 @@ Deno.test("statement imports", async () => {
 
 Deno.test("expression imports", async () => {
   const result = await execute(
-    {},
+    (_env) => ({}),
     [],
     `
     const { camelCase } = await import('https://esm.sh/change-case@5.4.0')
@@ -27,7 +27,7 @@ Deno.test("expression imports", async () => {
 
 Deno.test("imports from other urls (esm.run) are forbidden", async () => {
   const result = await execute(
-    {},
+    (_env) => ({}),
     [],
     `
     const { camelCase } = await import('https://esm.run/change-case@5.4.0')

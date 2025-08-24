@@ -1,5 +1,16 @@
 # Changelog
 
+## 2025-08-24
+
+- New functions are available in the global JS scope:
+  - `print()` -- equivalent to `console.log()`
+  - `random([x,y,z,...])` -- picks a random element from the given array
+  - `random(min, max)` -- picks a random integer between `min` and `max` inclusive
+  - `min()` and `max()` -- equivalent to `Math.min()` and `Math.max()`
+  - `shuffle()` -- returns a shuffled copy of the given array
+  - `tail()` and `init()` -- return the array without the first / last element
+  - `drop()` and `dropLast()` -- return the array without the first / last N elements
+
 ## 2025-08-12
 
 - On success, commands now react with a checkmark.

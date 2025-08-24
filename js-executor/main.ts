@@ -8,7 +8,7 @@
 
 import { z, ZodError } from "zod/v4"
 import { getArgs } from "./cli.ts"
-import { execute } from "./executor.ts"
+import { execute, ExecuteEnv } from "./executor.ts"
 import { lib } from "./lib.ts"
 import { validateCommands, validateFields } from "./types.ts"
 
@@ -34,10 +34,21 @@ async function main() {
   }
 
   try {
-    const context = {
-      ...fields,
-      lib: lib,
+    // If fields clash with lib, error out
+    const libFields = Object.keys(lib)
+    const fieldsFields = Object.keys(fields)
+    const clash = libFields.filter((field) => fieldsFields.includes(field))
+    if (clash.length > 0) {
+      console.error(`Given fields clash with lib functions: ${clash.join(", ")}`)
+      Deno.exit(1)
     }
+
+    // Create context
+    const context = (env: ExecuteEnv) => ({
+      ...fields,
+      lib: lib(env), // deprecated, TODO remove
+      ...lib(env),
+    })
 
     try {
       // Execute JavaScript code
