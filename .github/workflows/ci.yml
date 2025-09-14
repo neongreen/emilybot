@@ -15,4 +15,4 @@ jobs:
           echo MISE_ENV=ci >> "$GITHUB_ENV"
           rm .env.yaml  # so that mise doesn't even try to decrypt it
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac
-      - run: "mise check ::: test"
+      - run: "mise run --jobs=1 check ::: test:js ::: test:python"
