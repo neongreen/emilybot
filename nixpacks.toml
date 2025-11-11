@@ -1,6 +1,7 @@
 # Used by Coolify
 # Removed "python" provider to prevent nixpacks from auto-detecting UV and trying to install it
 # We'll manually install Python packages in the install phase
+# Force rebuild
 
 providers = ["deno"]
 
