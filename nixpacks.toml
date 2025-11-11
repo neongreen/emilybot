@@ -8,8 +8,7 @@ providers = ["deno"]
 [phases.setup]
 nixPkgs = [
   "...",
-  # Install Python since we removed the python provider
-  "python3",
+  # Don't install Python via nix - UV will download and manage Python itself
   # Install sops and age so that we can decrypt the secrets from .env.yaml
   "sops",
   "age",
@@ -22,13 +21,12 @@ cmds = [
 ]
 
 [phases.install]
-# Manually install UV and Python packages (no python provider = no auto-detection)
+# Install UV - it will download Python 3.13 and manage the venv itself
 cmds = [
   # Install UV using official installer
   "curl -LsSf https://astral.sh/uv/install.sh | sh",
-  # Create venv and install dependencies with UV
-  "python -m venv --copies /opt/venv",
-  ". /opt/venv/bin/activate && ~/.local/bin/uv sync --no-dev --frozen",
+  # Let UV create venv and install dependencies (UV manages Python too)
+  "~/.local/bin/uv sync --no-dev --frozen",
 ]
 
 [start]
