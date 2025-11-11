@@ -1,7 +1,8 @@
 """Tests for the CommandQueryService."""
 
 from types import SimpleNamespace
-from emilybot.database import DB
+from collections.abc import Callable
+from emilybot.database import DB, Entry
 from emilybot.command_query_service import CommandQueryService
 
 
@@ -29,10 +30,33 @@ def test_get_available_commands_server_context(server_context: SimpleNamespace):
     assert "dm-command" not in command_names
 
 
-def test_get_available_commands_dm_context(dm_context: SimpleNamespace):
+def test_get_available_commands_dm_context(db: DB, entry_factory: Callable[..., Entry]):
     """Test getting available commands in DM context."""
-    service = CommandQueryService(dm_context.db)
-    commands = service.get_available_commands(dm_context.user_id, None)
+    user_id = 12345
+
+    # DM command
+    entry = entry_factory(name="dm-command", content="DM only command", server_id=None)
+    db.remember.add(entry)
+
+    # Another DM command
+    entry = entry_factory(
+        name="personal-cmd",
+        content="Personal command content",
+        promoted=True,
+        server_id=None,
+    )
+    db.remember.add(entry)
+
+    # Server command (should not appear in DM context)
+    entry = entry_factory(
+        name="server-command",
+        content="Server only command",
+        server_id=777,
+    )
+    db.remember.add(entry)
+
+    service = CommandQueryService(db)
+    commands = service.get_available_commands(user_id, None)
 
     # Verify results
     assert len(commands) == 2
