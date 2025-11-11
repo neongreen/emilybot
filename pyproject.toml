@@ -14,7 +14,7 @@ emilybot = "emilybot.main:main"
 
 [dependency-groups]
 dev = [
-  "pyright>=1.1.403",
+  "pyright>=1.1.407",
   "pytest>=8.0.0",
   "pytest-timeout>=2.4.0",
   "pytest-asyncio>=0.24.0",

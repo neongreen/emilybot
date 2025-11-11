@@ -1,9 +1,9 @@
 """Mock builders for Discord objects in tests."""
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, cast
 from discord import Asset, Guild, Member, Message, MessageReference
-from unittest.mock import MagicMock, cast
+from unittest.mock import MagicMock
 
 
 @dataclass

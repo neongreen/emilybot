@@ -31,9 +31,9 @@ import pytest
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, cast
+from typing import Any, Optional, cast
+from unittest.mock import MagicMock
 from collections.abc import Callable, Generator
-from typing import Any, Optional
 
 from emilybot.database import DB, Entry
 from emilybot.discord import EmilyBot, EmilyContext
