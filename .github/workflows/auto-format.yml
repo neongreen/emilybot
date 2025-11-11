@@ -1,34 +1,44 @@
-name: auto-format
+name: Auto Format Code
+
 on:
   push:
     branches:
       - main
-permissions:
-  contents: write
+
 jobs:
-  auto-format:
+  format:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up mise
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.13"
+
+      - name: Install ruff
+        run: pip install ruff==0.13.0
+
+      - name: Install dprint
         run: |
-          echo MISE_ENV=ci >> "$GITHUB_ENV"
-          rm .env.yaml 2>/dev/null || true  # Remove encrypted env file if it exists
+          curl -fsSL https://dprint.dev/install.sh | sh -s 0.50.1
+          echo "$HOME/.dprint/bin" >> $GITHUB_PATH
 
-      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac
+      - name: Format Python code
+        run: ruff format src/
 
-      - name: Format code
-        run: |
-          # Format Python code with ruff
-          ruff format src/
-
-          # Format all other code with dprint
-          dprint fmt
+      - name: Format other code
+        run: dprint fmt
 
       - name: Commit and push changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
         with:
           commit_message: "Auto-format code"
           commit_user_name: "github-actions[bot]"
           commit_user_email: "github-actions[bot]@users.noreply.github.com"
+          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
