@@ -81,7 +81,9 @@ class InvalidEndOfQuotedStringError(ArgumentParsingError):
 
     def __init__(self, char: str) -> None:
         self.char: str = char
-        super().__init__(f"Expected space after closing quotation but received {char!r}")
+        super().__init__(
+            f"Expected space after closing quotation but received {char!r}"
+        )
 
 
 class ExpectedClosingQuoteError(ArgumentParsingError):
@@ -102,23 +104,23 @@ class ExpectedClosingQuoteError(ArgumentParsingError):
 
 # map from opening quotes to closing quotes
 _quotes = {
-    '\u0022': '\u0022',  # '"': '"'
-    '\u2018': '\u2019',  # ''': '''
-    '\u201a': '\u201b',  # '‚': '‛'
-    '\u201c': '\u201d',  # '"': '"'
-    '\u201e': '\u201f',  # '„': '‟'
-    '\u2e42': '\u2e42',  # '⹂': '⹂'
-    '\u300c': '\u300d',  # '「': '」'
-    '\u300e': '\u300f',  # '『': '』'
-    '\u301d': '\u301e',  # '〝': '〞'
-    '\ufe41': '\ufe42',  # '﹁': '﹂'
-    '\ufe43': '\ufe44',  # '﹃': '﹄'
-    '\uff02': '\uff02',  # '＂': '＂'
-    '\uff62': '\uff63',  # '｢': '｣'
-    '\u00ab': '\u00bb',  # '«': '»'
-    '\u2039': '\u203a',  # '‹': '›'
-    '\u300a': '\u300b',  # '《': '》'
-    '\u3008': '\u3009',  # '〈': '〉'
+    "\u0022": "\u0022",  # '"': '"'
+    "\u2018": "\u2019",  # ''': '''
+    "\u201a": "\u201b",  # '‚': '‛'
+    "\u201c": "\u201d",  # '"': '"'
+    "\u201e": "\u201f",  # '„': '‟'
+    "\u2e42": "\u2e42",  # '⹂': '⹂'
+    "\u300c": "\u300d",  # '「': '」'
+    "\u300e": "\u300f",  # '『': '』'
+    "\u301d": "\u301e",  # '〝': '〞'
+    "\ufe41": "\ufe42",  # '﹁': '﹂'
+    "\ufe43": "\ufe44",  # '﹃': '﹄'
+    "\uff02": "\uff02",  # '＂': '＂'
+    "\uff62": "\uff63",  # '｢': '｣'
+    "\u00ab": "\u00bb",  # '«': '»'
+    "\u2039": "\u203a",  # '‹': '›'
+    "\u300a": "\u300b",  # '《': '》'
+    "\u3008": "\u3009",  # '〈': '〉'
 }
 _all_quotes = set(_quotes.keys()) | set(_quotes.values())
 

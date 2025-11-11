@@ -78,14 +78,16 @@ class TestParseArguments:
     def test_escaped_quotes(self) -> None:
         """Test arguments with escaped quotes inside."""
         assert _parse_arguments(StringView(r'"hello \"world\""')) == ['hello "world"']
-        assert _parse_arguments(StringView(r'"escaped \" quote"')) == ['escaped " quote']
+        assert _parse_arguments(StringView(r'"escaped \" quote"')) == [
+            'escaped " quote'
+        ]
 
     def test_unicode_quotes(self) -> None:
         """Test that Unicode quotation marks work."""
         # U+201C LEFT DOUBLE QUOTATION MARK, U+201D RIGHT DOUBLE QUOTATION MARK
         assert _parse_arguments(StringView('"hello world"')) == ["hello world"]
         # Japanese corner brackets (need space between them)
-        assert _parse_arguments(StringView('「hello」 「world」')) == ["hello", "world"]
+        assert _parse_arguments(StringView("「hello」 「world」")) == ["hello", "world"]
 
     def test_single_quotes_not_special(self) -> None:
         """Test that regular single quotes (apostrophes) are not treated as quote characters."""

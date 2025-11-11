@@ -9,7 +9,7 @@ sops = "latest"
 dprint = "0.50.1"
 deno = "2.4.1"
 ruff = "0.13.0"
-coreutils = "latest"  # for timeout command
+coreutils = "latest" # for timeout command
 
 [env]
 '_'.file.path = ".env.yaml"

@@ -90,8 +90,12 @@ class TestGetWord:
         our_word = our_view.get_word()
 
         assert our_word == discord_word, f"get_word() mismatch for input: {input_str!r}"
-        assert our_view.index == discord_view.index, f"index mismatch after get_word() for input: {input_str!r}"
-        assert our_view.eof == discord_view.eof, f"eof mismatch after get_word() for input: {input_str!r}"
+        assert our_view.index == discord_view.index, (
+            f"index mismatch after get_word() for input: {input_str!r}"
+        )
+        assert our_view.eof == discord_view.eof, (
+            f"eof mismatch after get_word() for input: {input_str!r}"
+        )
 
 
 class TestGetQuotedWord:
@@ -128,9 +132,15 @@ class TestGetQuotedWord:
 
         # Both should either succeed or fail
         if discord_error is None and our_error is None:
-            assert our_result == discord_result, f"get_quoted_word() result mismatch for input: {input_str!r}"
-            assert our_view.index == discord_view.index, f"index mismatch after get_quoted_word() for input: {input_str!r}"
-            assert our_view.eof == discord_view.eof, f"eof mismatch after get_quoted_word() for input: {input_str!r}"
+            assert our_result == discord_result, (
+                f"get_quoted_word() result mismatch for input: {input_str!r}"
+            )
+            assert our_view.index == discord_view.index, (
+                f"index mismatch after get_quoted_word() for input: {input_str!r}"
+            )
+            assert our_view.eof == discord_view.eof, (
+                f"eof mismatch after get_quoted_word() for input: {input_str!r}"
+            )
         elif discord_error is not None and our_error is not None:
             # Both raised errors - check they're the same type
             assert type(our_error).__name__ == type(discord_error).__name__, (
@@ -164,9 +174,15 @@ class TestSkipWs:
         discord_result = discord_view.skip_ws()
         our_result = our_view.skip_ws()
 
-        assert our_result == discord_result, f"skip_ws() return value mismatch for input: {input_str!r}"
-        assert our_view.index == discord_view.index, f"index mismatch after skip_ws() for input: {input_str!r}"
-        assert our_view.eof == discord_view.eof, f"eof mismatch after skip_ws() for input: {input_str!r}"
+        assert our_result == discord_result, (
+            f"skip_ws() return value mismatch for input: {input_str!r}"
+        )
+        assert our_view.index == discord_view.index, (
+            f"index mismatch after skip_ws() for input: {input_str!r}"
+        )
+        assert our_view.eof == discord_view.eof, (
+            f"eof mismatch after skip_ws() for input: {input_str!r}"
+        )
 
 
 class TestReadRest:
@@ -181,9 +197,15 @@ class TestReadRest:
         discord_result = discord_view.read_rest()
         our_result = our_view.read_rest()
 
-        assert our_result == discord_result, f"read_rest() mismatch for input: {input_str!r}"
-        assert our_view.index == discord_view.index, f"index mismatch after read_rest() for input: {input_str!r}"
-        assert our_view.eof == discord_view.eof, f"eof mismatch after read_rest() for input: {input_str!r}"
+        assert our_result == discord_result, (
+            f"read_rest() mismatch for input: {input_str!r}"
+        )
+        assert our_view.index == discord_view.index, (
+            f"index mismatch after read_rest() for input: {input_str!r}"
+        )
+        assert our_view.eof == discord_view.eof, (
+            f"eof mismatch after read_rest() for input: {input_str!r}"
+        )
 
 
 class TestSequentialOperations:
