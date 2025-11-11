@@ -1,8 +1,7 @@
 import re
 from typing import Union
 
-from discord.ext.commands.view import StringView  # pyright: ignore[reportMissingTypeStubs]
-
+from emilybot.parser.string_view import StringView
 from emilybot.execute.javascript_executor import extract_js_code
 from emilybot.parser.list_children_parser import (
     is_list_children_pattern,
