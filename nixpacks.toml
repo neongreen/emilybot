@@ -14,14 +14,17 @@ nixPkgs = [
 cmds = [
   # Download the same version of Deno we have in mise.toml (and which was used to generate the lockfile)
   "curl -fsSL https://deno.land/install.sh | sh -s v2.4.1",
+  # Hide uv.lock temporarily so nixpacks doesn't auto-detect UV
+  "mv uv.lock uv.lock.bak",
 ]
 
 [phases.install]
-# Install UV using official installer + set version env var for nixpacks
-# The env var prevents nixpacks from trying to install UV again with empty version
+# Install UV manually since nixpacks' auto-install has empty $NIXPACKS_UV_VERSION
+# We hid uv.lock in setup to prevent nixpacks from trying to install UV
 cmds = [
-  "export NIXPACKS_UV_VERSION=0.9.8",
   "curl -LsSf https://astral.sh/uv/install.sh | sh",
+  # Restore uv.lock for the actual UV sync command
+  "mv uv.lock.bak uv.lock",
 ]
 
 [start]
