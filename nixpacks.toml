@@ -18,10 +18,9 @@ cmds = [
 
 [phases.install]
 # Install specific UV version in the install phase (workaround for Coolify issue #7152)
-# This phase runs after Python is set up, so pip is available
-# Bypasses Coolify's environment variable bug by explicitly installing UV
+# Use python -m pip because pip command isn't available before venv activation
 cmds = [
-  "pip install uv==0.9.8",
+  "python -m pip install uv==0.9.8",
 ]
 
 [start]
