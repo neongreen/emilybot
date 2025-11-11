@@ -1,5 +1,21 @@
 # Changelog
 
+## 2025-11-11
+
+**Internal improvements:**
+
+- Refactored command parser to eliminate discord.py dependency for pure parsing logic
+  - Extracted StringView implementation to standalone module
+  - Added comprehensive unit tests for argument parsing
+  - Improved error handling with explicit exception types
+  
+**JS execution:**
+
+- JavaScript imports now support additional registries:
+  - `jsr.io` (for JSR packages)
+  - `registry.npmjs.org` (for npm packages)
+  - Previously only `esm.sh` was supported
+
 ## 2025-08-24
 
 - New functions are available in the global JS scope:
