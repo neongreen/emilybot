@@ -8,6 +8,15 @@ fi
 
 echo "🔧 Setting up emilybot development environment..."
 
+# Install mise if not present
+if ! command -v mise &> /dev/null; then
+  echo "📦 Installing mise..."
+  curl https://mise.run | sh
+  export PATH="$HOME/.local/bin:$PATH"
+else
+  echo "✓ mise already installed ($(mise --version))"
+fi
+
 # Install uv if not present
 if ! command -v uv &> /dev/null; then
   echo "📦 Installing uv..."

@@ -6,9 +6,9 @@ discord.py StringView to ensure they are functionally identical.
 """
 
 import pytest
-from discord.ext.commands.view import StringView as DiscordStringView
+from discord.ext.commands.view import StringView as DiscordStringView  # pyright: ignore[reportMissingTypeStubs]
 from emilybot.parser.string_view import StringView as OurStringView
-from discord.ext.commands.errors import (
+from discord.ext.commands.errors import (  # pyright: ignore[reportMissingTypeStubs]
     UnexpectedQuoteError as DiscordUnexpectedQuoteError,
     InvalidEndOfQuotedStringError as DiscordInvalidEndOfQuotedStringError,
     ExpectedClosingQuoteError as DiscordExpectedClosingQuoteError,
