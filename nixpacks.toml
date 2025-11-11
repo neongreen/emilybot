@@ -17,10 +17,10 @@ cmds = [
 ]
 
 [phases.install]
-# Install specific UV version in the install phase (workaround for Coolify issue #7152)
-# Use python -m pip because pip command isn't available before venv activation
+# Install UV using official installer (bypasses pip entirely)
+# This works because it's a standalone script that doesn't need pip
 cmds = [
-  "python -m pip install uv==0.9.8",
+  "curl -LsSf https://astral.sh/uv/install.sh | sh",
 ]
 
 [start]
