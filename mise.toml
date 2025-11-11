@@ -37,7 +37,7 @@ run = """
   if command -v gtimeout >/dev/null; then
     alias timeout=gtimeout
   fi
-  timeout 5s deno test --allow-read --allow-net=esm.sh --allow-env
+  timeout 5s deno test --allow-read --allow-net=esm.sh,jsr.io,registry.npmjs.org --allow-env
 """
 
 [tasks."js:parse"]
