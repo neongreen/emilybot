@@ -30,9 +30,7 @@ def test_get_available_commands_server_context(server_context: SimpleNamespace):
     assert "dm-command" not in command_names
 
 
-def test_get_available_commands_dm_context(
-    db: DB, entry_factory: Callable[..., Entry]
-):
+def test_get_available_commands_dm_context(db: DB, entry_factory: Callable[..., Entry]):
     """Test getting available commands in DM context."""
     user_id = 12345
 

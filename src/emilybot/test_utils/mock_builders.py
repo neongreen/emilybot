@@ -51,9 +51,7 @@ def create_mock_author(config: Optional[AuthorConfig] = None) -> Member:
     mock.name = config.name  # pyright: ignore[reportAttributeAccessIssue]
     mock.display_name = config.display_name  # pyright: ignore[reportAttributeAccessIssue]
     mock.global_name = config.global_name  # pyright: ignore[reportAttributeAccessIssue]
-    mock.display_avatar = cast(
-        Asset, MagicMock(spec=Asset)
-    )  # pyright: ignore[reportAttributeAccessIssue]
+    mock.display_avatar = cast(Asset, MagicMock(spec=Asset))  # pyright: ignore[reportAttributeAccessIssue]
     mock.display_avatar.url = config.avatar_url  # pyright: ignore[reportAttributeAccessIssue]
     return mock
 

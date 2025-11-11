@@ -59,7 +59,10 @@ run = """
 
 [tasks.fmt]
 description = "Format code"
-run = "dprint fmt"
+run = """
+  ruff format src/
+  dprint fmt
+"""
 
 [tasks."secrets:updatekeys"]
 description = "Update secret keys"
@@ -76,9 +79,6 @@ description = "Typecheck python"
 alias = "pyright"
 run = "uv run pyright --project=."
 
-[tasks."check:fmt"]
-description = "Check formatting"
-run = "dprint check"
 
 [tasks."check:deno"]
 description = "Typecheck js-executor/ JS code"

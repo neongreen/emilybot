@@ -102,8 +102,6 @@ def server_context(
     )
 
 
-
-
 @pytest.fixture
 def entry_factory() -> Callable[..., Entry]:
     """Create a factory for generating Entry objects."""
