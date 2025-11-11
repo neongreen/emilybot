@@ -6,7 +6,7 @@ ensuring it correctly handles various edge cases and input patterns.
 """
 
 import pytest
-from emilybot.parser.command_parser import _parse_arguments
+from emilybot.parser.command_parser import _parse_arguments  # pyright: ignore[reportPrivateUsage]
 from emilybot.parser.string_view import (
     StringView,
     UnexpectedQuoteError,
