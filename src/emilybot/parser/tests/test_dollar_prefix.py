@@ -4,7 +4,6 @@ import pytest
 from emilybot.execute.run_code import run_code
 from emilybot.conftest import MakeCtx
 from emilybot.test_utils import ReplyConfig
-from emilybot.database import DB
 
 
 @pytest.mark.asyncio

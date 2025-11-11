@@ -61,6 +61,7 @@ run = """
 description = "Format code"
 run = """
   ruff format src/
+  ruff check --select F401 --fix src/
   dprint fmt
 """
 

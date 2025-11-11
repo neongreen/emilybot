@@ -28,11 +28,12 @@ mise run test
 
 ## Code Formatting
 
-Code formatting is **automatically applied** on the main branch via GitHub Actions.
+Code formatting and unused imports are **automatically fixed** on the main branch via GitHub Actions.
 
-- **Don't worry about formatting locally** - it will be auto-fixed on main
+- **Don't worry about formatting or unused imports** - they're auto-fixed on main
 - If you want to format manually: `mise run fmt`
 - Formatting checks are **not** part of CI - they're auto-fixed instead
+- Unused imports are **automatically removed** (not checked by pyright)
 
 ## Common Commands
 

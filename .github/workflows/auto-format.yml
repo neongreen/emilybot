@@ -32,6 +32,9 @@ jobs:
       - name: Format Python code
         run: ruff format src/
 
+      - name: Remove unused imports
+        run: ruff check --select F401 --fix src/
+
       - name: Format other code
         run: dprint fmt
 
