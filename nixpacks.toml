@@ -2,10 +2,6 @@
 
 providers = ["deno", "python"]
 
-[variables]
-# Specify the UV version to install
-NIXPACKS_UV_VERSION = "0.8.17"
-
 [phases.setup]
 nixPkgs = [
   "...",
