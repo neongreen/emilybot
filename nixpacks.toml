@@ -17,9 +17,10 @@ cmds = [
 ]
 
 [phases.install]
-# Install UV using official installer (bypasses pip entirely)
-# This works because it's a standalone script that doesn't need pip
+# Install UV using official installer + set version env var for nixpacks
+# The env var prevents nixpacks from trying to install UV again with empty version
 cmds = [
+  "export NIXPACKS_UV_VERSION=0.9.8",
   "curl -LsSf https://astral.sh/uv/install.sh | sh",
 ]
 
