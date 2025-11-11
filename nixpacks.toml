@@ -6,8 +6,8 @@
 providers = ["deno"]
 
 [phases.setup]
+# No "..." means no auto-detection - we specify exactly what we need
 nixPkgs = [
-  "...",
   # Don't install Python via nix - UV will download and manage Python itself
   # Install sops and age so that we can decrypt the secrets from .env.yaml
   "sops",
