@@ -60,13 +60,13 @@ export function hasImports(code: string): boolean {
 /**
  * Process allowed import URLs.
  *
- * Throws an error if the url is not allowed. Only esm.sh urls are currently allowed.
+ * Throws an error if the url is not allowed. Only esm.sh, jsr.io, and registry.npmjs.org urls are currently allowed.
  */
 export function processImportPath(url: string): string {
-  // Only support esm.sh urls
   const urlObj = new URL(url)
-  if (urlObj.hostname !== "esm.sh") {
-    throw new Error(`Only esm.sh urls are supported`)
+  const allowedHosts = ["esm.sh", "jsr.io", "registry.npmjs.org"]
+  if (!allowedHosts.includes(urlObj.hostname)) {
+    throw new Error(`Only ${allowedHosts.join(", ")} urls are supported`)
   }
   return urlObj.toString()
 }
