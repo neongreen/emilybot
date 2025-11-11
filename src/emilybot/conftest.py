@@ -1,18 +1,50 @@
-"""Pytest configuration and fixtures."""
+"""Pytest configuration and fixtures.
+
+Test Fixtures:
+- db: Temporary database instance
+- entry_factory: Factory for creating Entry objects
+- make_ctx: Flexible factory for creating mock EmilyContext
+  - Supports replies, DM contexts, custom author/guild
+- server_context: Pre-populated server with test data
+
+Examples:
+    # Basic context
+    ctx = make_ctx("message content")
+
+    # Context with entry
+    ctx = make_ctx("message", entry)
+
+    # Context with reply
+    ctx = make_ctx(
+        "reply message",
+        reply=ReplyConfig(reply_text="original", reply_author_name="User")
+    )
+
+    # DM context
+    ctx = make_ctx("dm message", is_dm=True)
+"""
 
 import logging
 import uuid
-from discord import Asset, Guild, Member, Message, MessageReference
+from discord import Message
 import pytest
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, cast
 from collections.abc import Callable, Generator
-from typing import Any, cast
+from typing import Any, Optional
 
 from emilybot.database import DB, Entry
 from emilybot.discord import EmilyBot, EmilyContext
+from emilybot.test_utils import (
+    AuthorConfig,
+    GuildConfig,
+    ReplyConfig,
+    create_mock_author,
+    create_mock_guild,
+    create_mock_message_reference,
+)
 
 # Configure logging for tests
 logging.basicConfig(
@@ -70,35 +102,6 @@ def server_context(
     )
 
 
-# TODO: remove this one
-@pytest.fixture
-def dm_context(
-    db: DB, entry_factory: Callable[..., Entry]
-) -> Generator[SimpleNamespace, Any, None]:
-    """Create a DM context with a temporary database and test data."""
-
-    # DM command
-    entry = entry_factory(name="dm-command", content="DM only command", server_id=None)
-    db.remember.add(entry)
-
-    # Another DM command
-    entry = entry_factory(
-        name="personal-cmd",
-        content="Personal command content",
-        promoted=True,
-        server_id=None,
-    )
-    db.remember.add(entry)
-
-    # Server command (should not appear in DM context)
-    entry = entry_factory(
-        name="server-command",
-        content="Server only command",
-        server_id=777,
-    )
-    db.remember.add(entry)
-
-    yield SimpleNamespace(db=db, user_id=12345, server_id=777)
 
 
 @pytest.fixture
@@ -128,88 +131,79 @@ def entry_factory() -> Callable[..., Entry]:
     return _factory
 
 
-type MakeCtx = Callable[[str, Entry | None], EmilyContext]
+MakeCtx = Callable[..., EmilyContext]
 
 
 @pytest.fixture
-def make_ctx(db: DB):
-    def _make_ctx(message: str, entry: Entry | None = None) -> EmilyContext:
-        """Create a mock context object that mimics EmilyContext."""
+def make_ctx(db: DB) -> MakeCtx:
+    """Create a flexible context factory that handles all test scenarios.
+
+    Args:
+        db: Database fixture
+
+    Returns:
+        Factory function for creating mock EmilyContext objects
+    """
+
+    def _make_ctx(
+        message: str,
+        entry: Optional[Entry] = None,
+        *,
+        reply: Optional[ReplyConfig] = None,
+        author: Optional[AuthorConfig] = None,
+        guild: Optional[GuildConfig] = None,
+        is_dm: bool = False,
+    ) -> EmilyContext:
+        """Create a mock context with flexible configuration.
+
+        Args:
+            message: The message content
+            entry: Optional entry to add to DB
+            reply: Optional reply configuration for message references
+            author: Optional author configuration (uses defaults if not provided)
+            guild: Optional guild configuration (uses defaults if not provided)
+            is_dm: If True, sets guild to None (overrides guild parameter)
+
+        Returns:
+            Mock EmilyContext object configured as specified
+        """
         mock = cast(EmilyContext, MagicMock(spec=EmilyContext))
         mock.bot = cast(EmilyBot, MagicMock(spec=EmilyBot))
         mock.bot.db = db
-        db.remember.add(entry) if entry else None
 
-        # These must correspond to Discord types, *not* to the Ctx* types
+        if entry:
+            db.remember.add(entry)
 
-        mock.author = cast(Member, MagicMock(spec=Member))
-        mock.author.id = 67890
-        mock.author.name = "TestUser_123"  # pyright: ignore[reportAttributeAccessIssue]
-        mock.author.display_name = "TestUser"  # pyright: ignore[reportAttributeAccessIssue]
-        mock.author.global_name = "TestUser Global"  # pyright: ignore[reportAttributeAccessIssue]
-        mock.author.display_avatar = cast(Asset, MagicMock(spec=Asset))  # pyright: ignore[reportAttributeAccessIssue]
-        mock.author.display_avatar.url = (
-            "https://cdn.discordapp.com/avatars/12345/1234567890.png"  # pyright: ignore[reportAttributeAccessIssue]
-        )
+        # Create author
+        mock.author = create_mock_author(author)
 
-        mock.guild = cast(Guild, MagicMock(spec=Guild))
-        mock.guild.id = 12345
+        # Create guild (None for DM)
+        if is_dm:
+            mock.guild = None
+        else:
+            mock.guild = create_mock_guild(guild)
 
+        # Create message
         mock.message = cast(Message, MagicMock(spec=Message))
         mock.message.content = message
-        mock.message.reference = None  # Default to no reference
+
+        # Handle reply if provided
+        if reply:
+            reply_author = create_mock_author(
+                AuthorConfig(
+                    id=reply.reply_author_id,
+                    name=reply.reply_author_name,
+                    display_name=reply.reply_author_name,
+                    global_name=reply.reply_author_name,
+                    avatar_url=reply.reply_author_avatar_url,
+                )
+            )
+            mock.message.reference = create_mock_message_reference(
+                reply.reply_text, reply_author
+            )
+        else:
+            mock.message.reference = None
 
         return mock
 
     return _make_ctx
-
-
-def make_ctx_with_reply(
-    db: DB,
-    message: str,
-    reply_text: str,
-    reply_author_name: str,
-    entry: Entry | None = None,
-) -> EmilyContext:
-    """Create a mock context object with a reply to another message."""
-    mock = cast(EmilyContext, MagicMock(spec=EmilyContext))
-    mock.bot = cast(EmilyBot, MagicMock(spec=EmilyBot))
-    mock.bot.db = db
-    db.remember.add(entry) if entry else None
-
-    # These must correspond to Discord types, *not* to the Ctx* types
-
-    mock.author = cast(Member, MagicMock(spec=Member))
-    mock.author.id = 67890
-    mock.author.name = "TestUser_123"  # pyright: ignore[reportAttributeAccessIssue]
-    mock.author.display_name = "TestUser"  # pyright: ignore[reportAttributeAccessIssue]
-    mock.author.global_name = "TestUser Global"  # pyright: ignore[reportAttributeAccessIssue]
-    mock.author.display_avatar = cast(Asset, MagicMock(spec=Asset))  # pyright: ignore[reportAttributeAccessIssue]
-    mock.author.display_avatar.url = (
-        "https://cdn.discordapp.com/avatars/12345/1234567890.png"  # pyright: ignore[reportAttributeAccessIssue]
-    )
-
-    mock.guild = cast(Guild, MagicMock(spec=Guild))
-    mock.guild.id = 12345
-
-    # Create the original message that's being replied to
-    original_message = cast(Message, MagicMock(spec=Message))
-    original_message.content = reply_text
-    original_message.author = cast(Member, MagicMock(spec=Member))
-    original_message.author.display_name = reply_author_name  # pyright: ignore[reportAttributeAccessIssue]
-    original_message.author.global_name = reply_author_name  # pyright: ignore[reportAttributeAccessIssue]
-    original_message.author.display_avatar = cast(Asset, MagicMock(spec=Asset))  # pyright: ignore[reportAttributeAccessIssue]
-    original_message.author.display_avatar.url = (
-        "https://cdn.discordapp.com/avatars/12345/1234567890.png"  # pyright: ignore[reportAttributeAccessIssue]
-    )
-    original_message.author.id = 90009
-
-    # Create the message reference
-    message_ref = cast(MessageReference, MagicMock(spec=MessageReference))
-    message_ref.resolved = original_message
-
-    mock.message = cast(Message, MagicMock(spec=Message))
-    mock.message.content = message
-    mock.message.reference = message_ref
-
-    return mock
