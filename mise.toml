@@ -9,6 +9,7 @@ sops = "latest"
 dprint = "0.50.1"
 deno = "2.4.1"
 ruff = "0.13.0"
+coreutils = "latest"  # for timeout command
 
 [env]
 '_'.file.path = ".env.yaml"
@@ -34,10 +35,7 @@ run = "DEBUG=1 uv run pytest -v -s"
 description = "Run tests for the executor"
 # We need a timeout because we can't tell Deno to use a timeout and syncFetch can hang forever
 run = """
-  if command -v gtimeout >/dev/null; then
-    alias timeout=gtimeout
-  fi
-  timeout 5s deno test --allow-read --allow-net=esm.sh --allow-env
+  coreutils timeout 5s deno test --allow-read --allow-net=esm.sh,jsr.io,registry.npmjs.org --allow-env
 """
 
 [tasks."js:parse"]
@@ -51,10 +49,7 @@ description = "(debugging) Evaluate js code"
 quiet = true
 dir = "js-executor"
 run = """
-  if command -v gtimeout >/dev/null; then
-    alias timeout=gtimeout
-  fi
-  timeout 5s deno run --allow-all main.ts
+  coreutils timeout 5s deno run --allow-all main.ts
 """
 
 [tasks.fmt]

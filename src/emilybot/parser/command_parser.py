@@ -1,15 +1,14 @@
 import re
 from typing import Union
 
-from discord.ext.commands.view import StringView  # pyright: ignore[reportMissingTypeStubs]
-
+from emilybot.parser.string_view import ArgumentParsingError, StringView
 from emilybot.execute.javascript_executor import extract_js_code
 from emilybot.parser.list_children_parser import (
     is_list_children_pattern,
     parse_list_children,
 )
 from emilybot.parser.types import JS, Command, ListChildren
-from emilybot.validation import validate_path
+from emilybot.validation import validate_path, ValidationError
 
 
 def parse_command_invocation(content: str) -> Command | None:
@@ -66,7 +65,9 @@ def parse_command_invocation(content: str) -> Command | None:
         )
         args = _parse_arguments(view)
         return Command(cmd=cmd_name, args=args)
-    except Exception:
+    except (ValidationError, ArgumentParsingError):
+        # Return None for invalid command names or malformed arguments
+        # This allows the parser to try other patterns (JS, list children)
         return None
 
 
