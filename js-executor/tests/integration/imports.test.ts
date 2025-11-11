@@ -34,5 +34,5 @@ Deno.test("imports from other urls (esm.run) are forbidden", async () => {
     camelCase("hello world")
   `,
   )
-  assertEquals(result, { success: false, output: "", error: "Only esm.sh urls are supported", value: undefined })
+  assertEquals(result, { success: false, output: "", error: "Only esm.sh, jsr.io, registry.npmjs.org urls are supported", value: undefined })
 })
