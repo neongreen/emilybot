@@ -80,7 +80,6 @@ description = "Typecheck python"
 alias = "pyright"
 run = "uv run pyright --project=."
 
-
 [tasks."check:deno"]
 description = "Typecheck js-executor/ JS code"
 dir = "js-executor"
