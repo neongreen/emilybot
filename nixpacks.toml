@@ -8,7 +8,7 @@ providers = ["deno"]
 nixPkgs = [
   "...",
   # Install Python since we removed the python provider
-  "python313",
+  "python3",
   # Install sops and age so that we can decrypt the secrets from .env.yaml
   "sops",
   "age",
