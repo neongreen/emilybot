@@ -12,6 +12,9 @@ nixPkgs = [
   "unzip",
 ]
 cmds = [
+  # Install specific UV version explicitly (workaround for Coolify issue #7152)
+  # See NIXPACKS_UV_RESEARCH.md for details
+  "pip install uv==0.9.8",
   # Download the same version of Deno we have in mise.toml (and which was used to generate the lockfile)
   "curl -fsSL https://deno.land/install.sh | sh -s v2.4.1",
 ]
