@@ -10,14 +10,18 @@ nixPkgs = [
   "age",
   # Needed for the deno installer
   "unzip",
-  # Install UV via nixpkgs (workaround for Coolify issue #7152)
-  # This bypasses both the Coolify environment variable bug and the missing pip issue
-  # See NIXPACKS_UV_RESEARCH.md for details (Method 5)
-  "uv",
 ]
 cmds = [
   # Download the same version of Deno we have in mise.toml (and which was used to generate the lockfile)
   "curl -fsSL https://deno.land/install.sh | sh -s v2.4.1",
+]
+
+[phases.install]
+# Install specific UV version in the install phase (workaround for Coolify issue #7152)
+# This phase runs after Python is set up, so pip is available
+# Bypasses Coolify's environment variable bug by explicitly installing UV
+cmds = [
+  "pip install uv==0.9.8",
 ]
 
 [start]
