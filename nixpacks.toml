@@ -1,10 +1,14 @@
 # Used by Coolify
+# Removed "python" provider to prevent nixpacks from auto-detecting UV and trying to install it
+# We'll manually install Python packages in the install phase
 
-providers = ["deno", "python"]
+providers = ["deno"]
 
 [phases.setup]
 nixPkgs = [
   "...",
+  # Install Python since we removed the python provider
+  "python313",
   # Install sops and age so that we can decrypt the secrets from .env.yaml
   "sops",
   "age",
@@ -14,19 +18,19 @@ nixPkgs = [
 cmds = [
   # Download the same version of Deno we have in mise.toml (and which was used to generate the lockfile)
   "curl -fsSL https://deno.land/install.sh | sh -s v2.4.1",
-  # Hide uv.lock temporarily so nixpacks doesn't auto-detect UV
-  "mv uv.lock uv.lock.bak",
 ]
 
 [phases.install]
-# Install UV manually since nixpacks' auto-install has empty $NIXPACKS_UV_VERSION
-# We hid uv.lock in setup to prevent nixpacks from trying to install UV
+# Manually install UV and Python packages (no python provider = no auto-detection)
 cmds = [
+  # Install UV using official installer
   "curl -LsSf https://astral.sh/uv/install.sh | sh",
-  # Restore uv.lock for the actual UV sync command
-  "mv uv.lock.bak uv.lock",
+  # Create venv and install dependencies with UV
+  "python -m venv --copies /opt/venv",
+  ". /opt/venv/bin/activate && ~/.local/bin/uv sync --no-dev --frozen",
 ]
 
 [start]
 # Run the app with the decrypted secrets
-cmd = """PATH=/root/.deno/bin:$PATH bash -c 'deno install; sops exec-env .env.yaml "uv run emilybot"'"""
+# Activate venv and add tools to PATH
+cmd = """PATH=/root/.deno/bin:/root/.local/bin:/opt/venv/bin:$PATH bash -c 'deno install; sops exec-env .env.yaml "uv run emilybot"'"""
