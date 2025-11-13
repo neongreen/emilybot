@@ -240,19 +240,19 @@ class JavaScriptExecutor:
                 elif error_type == "syntax":
                     return (
                         False,
-                        f"❌ JavaScript syntax error: {stderr_text}",
+                        f"❌ {stderr_text}",
                         None,
                     )
                 elif error_type == "runtime":
                     return (
                         False,
-                        f"⚠️ JavaScript runtime error: {stderr_text}",
+                        f"❌ {stderr_text}",
                         None,
                     )
                 else:
                     return (
                         False,
-                        f"❌ JavaScript execution failed: {error_message}",
+                        f"❌ {error_message}",
                         None,
                     )
 

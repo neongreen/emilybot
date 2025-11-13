@@ -66,7 +66,7 @@ async def cmd_cmd(ctx: EmilyContext, alias: str, *, args: list[str]) -> None:
         if success:
             await ctx.send(format_show_content(output, value))
         else:
-            await ctx.send(f"❌ Error executing JavaScript: {output}")
+            await ctx.send(output)  # Error message is already formatted
 
     except ValidationError as e:
         await ctx.send(format_validation_error(str(e)))
