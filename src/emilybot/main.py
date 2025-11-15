@@ -30,7 +30,7 @@ async def execute_js(ctx: EmilyContext, code: str) -> None:
     if success:
         await ctx.send(format_show_content(output, value))
     else:
-        await ctx.send(f"❌ JavaScript error: {output}")
+        await ctx.send(output)  # Error message is already formatted
 
 
 async def init_bot(dev: bool) -> EmilyBot:

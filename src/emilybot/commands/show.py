@@ -132,7 +132,7 @@ async def cmd_random(ctx: EmilyContext, alias: str) -> None:
             ctx, code=f"$.cmd('{json.dumps(entry.name)}')"
         )
         if not success:
-            await ctx.send(f"❌ Error executing JavaScript: {output}")
+            await ctx.send(output)  # Error message is already formatted
             return
 
         # Split content into lines and filter out blank lines
