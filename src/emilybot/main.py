@@ -90,16 +90,15 @@ async def init_bot(dev: bool) -> EmilyBot:
                 # Not in a git repo or git not available
                 commit_info = "*No git info available*"
 
-            # Find user by global name
-            user = discord.utils.find(
-                lambda u: u.global_name == "availablegreen", bot.users
-            )
-
-            if user:
+            # Send DM to Ema
+            try:
+                user = await bot.fetch_user(328950281570353153)  # Ema
                 await user.send(f"🚀 **Bot started!**\n\n{commit_info}")
-                logging.info(f"Sent startup notification to {user.global_name}")
-            else:
-                logging.warning("Could not find user 'availablegreen' to notify")
+                logging.info(f"Sent startup notification to {user.name}")
+            except discord.NotFound:
+                logging.warning("Could not find Ema (ID: 328950281570353153)")
+            except discord.Forbidden:
+                logging.warning("Cannot DM Ema (privacy settings)")
         except Exception as e:
             logging.error(f"Failed to send startup notification: {e}")
 
