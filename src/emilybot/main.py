@@ -25,18 +25,11 @@ from emilybot.parser import parse_message, Command, JS, ListChildren
 async def execute_js(ctx: EmilyContext, code: str) -> None:
     """Execute JavaScript. All wrapping like '$ ', '```js`, etc should be handled by the parser."""
 
-    logging.debug(f"⚡ execute_js: code='{code}'")
-
     success, output, value = await run_code(ctx, code=code)
-    logging.debug(
-        f"📊 JavaScript execution result: success={success}, output='{output}', value='{value}'"
-    )
 
     if success:
-        logging.debug("✅ JavaScript executed successfully")
         await ctx.send(format_show_content(output, value))
     else:
-        logging.debug(f"❌ JavaScript execution failed: {output}")
         await ctx.send(f"❌ JavaScript error: {output}")
 
 
@@ -111,12 +104,10 @@ async def init_bot(dev: bool) -> EmilyBot:
         """
 
         if message.author.bot:
-            logging.debug("🤖 Skipping bot message")
             return
 
         ctx = await bot.get_context(message)
         if ctx.command:
-            logging.debug(f"🔍 Command: {ctx.command.name}")
             await bot.invoke(ctx)
             return
 
@@ -131,18 +122,14 @@ async def init_bot(dev: bool) -> EmilyBot:
                 message_content = message_content[1:]
 
             parsed = parse_message(message_content, extra_prefixes=[] if dev else ["."])
-            logging.debug(f"📝 Parsed result: {type(parsed).__name__} = {parsed}")
 
             # Note: ctx.args doesn't give us args :(
             match parsed:
                 case Command(cmd=cmd, args=args):
-                    logging.debug(f"🚀 Executing command: '{cmd}' with args: {args}")
                     await cmd_cmd(ctx, cmd, args=args)
                 case JS(code=code):
-                    logging.debug(f"⚡ Executing JavaScript: '{code}'")
                     await execute_js(ctx, code)
                 case ListChildren(parent=parent):
-                    logging.debug(f"📜 Listing children of: '{parent}'")
                     await cmd_show(ctx, f"{parent}/")
                 case None:
                     return
@@ -150,7 +137,6 @@ async def init_bot(dev: bool) -> EmilyBot:
                     assert_never(parsed)
 
         except Exception as e:
-            logging.debug(f"💥 Exception during parsing: {type(e).__name__}: {e}")
             logging.error("Error parsing command", exc_info=True)
             await ctx.send(f"❌ Error parsing command: {str(e)}")
 
@@ -238,6 +224,12 @@ async def main_async() -> None:
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[logging.StreamHandler()],
     )
+
+    # Silence discord.py's verbose logging
+    logging.getLogger("discord").setLevel(logging.WARNING)
+    logging.getLogger("discord.http").setLevel(logging.WARNING)
+    logging.getLogger("discord.gateway").setLevel(logging.WARNING)
+
     TOKEN = os.environ.get("TOKEN")
     if TOKEN is None:
         print("❌ TOKEN is not set")
