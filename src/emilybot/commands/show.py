@@ -24,6 +24,21 @@ def format_validation_error(error_message: str) -> str:
     return f"❌ {error_message}"
 
 
+def trim_text(text: str, max_length: int = 900) -> str:
+    """Trim text to max_length characters and append '...' if trimmed.
+
+    Args:
+        text: The text to trim
+        max_length: Maximum length before trimming (default: 900)
+
+    Returns:
+        Original text if length <= max_length, otherwise trimmed text with '...'
+    """
+    if len(text) <= max_length:
+        return text
+    return text[:max_length] + "..."
+
+
 async def format_entry_content(entry: Entry, ctx: EmilyContext) -> str:
     """Format entry content, *not* executing JavaScript.
 
@@ -37,10 +52,12 @@ async def format_entry_content(entry: Entry, ctx: EmilyContext) -> str:
 
     # Format the entry content without executing JavaScript
     formatted_content = f'**===** 📜 *Content of "{entry.name}"* **===**\n'
-    formatted_content += f"```\n{entry.content}\n```\n"
+    trimmed_content = trim_text(entry.content)
+    formatted_content += f"```\n{trimmed_content}\n```\n"
     if entry.run and entry.run.strip():
         formatted_content += f'\n**===** 🔧 *JavaScript of "{entry.name}"* **===**\n'
-        formatted_content += f"```js\n{entry.run}\n```"
+        trimmed_js = trim_text(entry.run)
+        formatted_content += f"```js\n{trimmed_js}\n```"
 
     return formatted_content
 
