@@ -13,9 +13,7 @@ from emilybot.database import DB
 class PaginatedView(discord.ui.View):
     """A view with Previous/Next buttons for paginating long messages."""
 
-    def __init__(
-        self, pages: list[str], *, author_id: int, timeout: float = 180.0
-    ):
+    def __init__(self, pages: list[str], *, author_id: int, timeout: float = 180.0):
         super().__init__(timeout=timeout)
         self.pages = pages
         self.current_page = 0
@@ -126,9 +124,7 @@ class EmilyContext(commands.Context["EmilyBot"]):
         # Default fallback config
         return {"reactions": {"success": "✔️", "error": "❌"}}
 
-    def _split_into_pages(
-        self, content: str, max_length: int = 1900
-    ) -> list[str]:
+    def _split_into_pages(self, content: str, max_length: int = 1900) -> list[str]:
         """Split content into pages that fit within Discord's message limit.
 
         Uses max_length of 1900 to leave room for page indicators.
@@ -165,7 +161,7 @@ class EmilyContext(commands.Context["EmilyBot"]):
         # Add page indicators
         if len(pages) > 1:
             pages = [
-                f"{page.rstrip()}\n\n*Page {i+1}/{len(pages)}*"
+                f"{page.rstrip()}\n\n*Page {i + 1}/{len(pages)}*"
                 for i, page in enumerate(pages)
             ]
 
