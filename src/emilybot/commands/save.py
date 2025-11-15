@@ -22,10 +22,6 @@ async def cmd_add(
 ) -> None:
     """`.add [alias] [text]`: Add content to an existing entry or create a new one."""
 
-    import logging
-
-    logging.info(f"cmd_add called: alias={repr(alias)}, content={repr(content)}")
-
     db = ctx.bot.db
     server_id = ctx.guild.id if ctx.guild else None
 
