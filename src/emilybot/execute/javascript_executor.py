@@ -1,378 +1,45 @@
-"""JavaScript execution service using Deno CLI subprocess."""
-
-import asyncio
-import json
-import logging
-import shlex
-from dataclasses import dataclass, asdict
-import os
-from pathlib import Path
-import shutil
-from tempfile import TemporaryDirectory
-from typing import Any, Tuple, TypedDict, Literal
-
-
-@dataclass
-class CtxUser:
-    id: str  # instead of 'int' because in JS it overflows 'number'
-
-    handle: str
-    """Discord username, e.g. `availablegreen`"""
-
-    name: str
-    """Display name as shown in the server"""
-
-    global_name: str | None
-    """Global display name as shown in the user's profile. Not sure when it might be None."""
-
-    avatar_url: str
-    """User's avatar URL as shown in the server"""
-
-    def as_json(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-def create_test_user(**kwargs: Any) -> CtxUser:
-    return CtxUser(
-        **{
-            "id": "1",
-            "handle": "Test user",
-            "name": "Test user",
-            "global_name": "Test user",
-            "avatar_url": "https://cdn.discordapp.com/avatars/1/1234567890.png",
-            **kwargs,
-        },
-    )
-
-
-@dataclass
-class CtxServer:
-    id: str
-
-    def as_json(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass
-class CtxReplyTo:
-    user: CtxUser
-    text: str
-
-    def as_json(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass
-class CtxMessage:
-    text: str
-
-
-@dataclass
-class Context:
-    message: CtxMessage
-    reply_to: CtxReplyTo | None
-    user: CtxUser
-    server: CtxServer | None
-
-    def as_json(self) -> dict[str, Any]:
-        """Serialize Context to JSON string."""
-        return {
-            "message": asdict(self.message),
-            "reply_to": self.reply_to.as_json() if self.reply_to else None,
-            "user": asdict(self.user),
-            "server": asdict(self.server) if self.server else None,
-        }
-
-
-def run_code_context(code: str) -> Context:
-    return Context(
-        message=CtxMessage(text=f".run {code}"),
-        reply_to=None,
-        user=CtxUser(
-            id="1",
-            handle="Test user",
-            name="Test user",
-            global_name="Test user",
-            avatar_url="https://cdn.discordapp.com/avatars/1/1234567890.png",
-        ),
-        server=None,
-    )
-
-
-class CommandData(TypedDict):
-    """Data for a command in the global context. Has to match the TypeScript CommandData type."""
-
-    name: str  # Command name
-    content: str  # Command content
-    run: str | None  # JavaScript code to execute when command is run
-
-
-class ExecutionResult(TypedDict):
-    """Result of JavaScript execution."""
-
-    success: bool
-    output: str  # Console.log output
-    error: str | None  # Error message if failed (optional)
-
-
-# Error type literal
-ErrorType = Literal["memory", "syntax", "runtime"]
-
-
-@dataclass
-class JSExecutionError(Exception):
-    """Exception raised when JavaScript execution fails."""
-
-    error_type: ErrorType
-    message: str
-
-
-class JavaScriptExecutor:
-    """Executes JavaScript code using Deno CLI subprocess with timeout and error handling."""
-
-    def __init__(self, *, timeout: float = 5.0):
-        """Initialize the JavaScript executor.
-
-        Args:
-            timeout: Maximum execution time in seconds
-        """
-        self.timeout = timeout
-        deno_path = shutil.which("deno")
-        if not deno_path:
-            raise FileNotFoundError("Deno CLI not found in PATH")
-        self.deno_path = deno_path
-        self.executor_script = "js-executor/main.ts"
-
-    async def execute(
-        self,
-        code: str,
-        context: Context,
-        commands: list[CommandData] = [],
-    ) -> Tuple[bool, str, str | None]:
-        """Execute JavaScript code with context and available commands.
-
-        Returns:
-            Tuple of (success: bool, output: str, result: str)
-            - If success=True, output contains console.log output
-            - If success=False, output contains error message
-
-        Raises:
-            JSExecutionError: When execution fails with specific error types
-        """
-        try:
-            # XXX: ctx left for backwards compatibility, will remove later
-            fields_json = json.dumps({**context.as_json(), "ctx": context.as_json()})
-            commands_json = json.dumps(commands)
-
-            DEBUG = os.getenv("DEBUG")
-            with TemporaryDirectory(
-                delete=DEBUG != "1" and DEBUG != "true"
-            ) as temp_dir:
-                logging.debug(f"Created temporary directory: {temp_dir}")
-                temp_path = Path(temp_dir)
-                fields_path = temp_path / "fields.json"
-                commands_path = temp_path / "commands.json"
-                fields_path.write_text(fields_json)
-                commands_path.write_text(commands_json)
-
-                # Build command
-                cmd = [
-                    self.deno_path,
-                    "run",
-                    "--quiet",
-                    "--allow-env=QTS_DEBUG,LOG_LEVEL,DEBUG",  # 'LOG_LEVEL' enables logs in the executor, 'QTS_DEBUG' is used by the QuickJS runtime, 'DEBUG' is used by the executor
-                    f"--allow-read=js-executor/,node_modules,{temp_path}",
-                    "--allow-net=esm.sh",
-                    self.executor_script,
-                    f"--fieldsFile={str(fields_path)}",
-                    f"--commandsFile={str(commands_path)}",
-                    code,
-                ]
-
-                # Execute with timeout
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=Path.cwd(),
-                    env={"NO_COLOR": "1"},
-                )
-
-                try:
-                    logging.info("Starting Deno process")
-                    logging.debug(f"Deno command: {shlex.join(cmd)}")
-                    stdout, stderr = await asyncio.wait_for(
-                        process.communicate(), timeout=self.timeout
-                    )
-                except asyncio.TimeoutError:
-                    # Kill the process if it's still running
-                    logging.debug("Deno process timed out, killing it")
-                    try:
-                        process.kill()
-                        await process.wait()
-                    except ProcessLookupError:
-                        pass  # Process already terminated
-                    return (
-                        False,
-                        f"⏱️ JavaScript execution timed out ({self.timeout}s limit)",
-                        None,
-                    )
-
-            # Decode output
-            stdout_text = stdout.decode("utf-8").strip() if stdout else ""
-            stderr_text = stderr.decode("utf-8").strip() if stderr else ""
-
-            logging.debug(f"Deno stderr: {stderr_text}")
-            logging.debug(f"Deno stdout: {stdout_text}")
-
-            # Check exit code and classify errors
-            if process.returncode == 0:
-                parsed = json.loads(stdout_text)
-                return True, parsed.get("output", ""), parsed.get("value", None)
-            else:
-                # Classify error based on stderr content
-                error_type = self._classify_error(stderr_text)
-                error_message = stderr_text or "Unknown execution error"
-
-                # For user-facing errors, return a clean message
-                if error_type == "memory":
-                    return False, "💾 JavaScript execution exceeded memory limits", None
-                elif error_type == "syntax":
-                    return (
-                        False,
-                        f"❌ JavaScript syntax error: {stderr_text}",
-                        None,
-                    )
-                elif error_type == "runtime":
-                    return (
-                        False,
-                        f"⚠️ JavaScript runtime error: {stderr_text}",
-                        None,
-                    )
-                else:
-                    return (
-                        False,
-                        f"❌ JavaScript execution failed: {error_message}",
-                        None,
-                    )
-
-        except FileNotFoundError:
-            return False, f"❌ Deno executable not found at: {self.deno_path}", None
-        except (TypeError, ValueError) as e:
-            return False, f"❌ Failed to encode context as JSON: {e}", None
-        except JSExecutionError:
-            # Re-raise JSExecutionError as-is
-            raise
-        except Exception as e:
-            logging.error(f"Unexpected error in JavaScript execution: {e}")
-            return False, f"❌ Unexpected execution error: {e}", None
-
-    def _classify_error(self, stderr: str) -> str:
-        """Classify error type based on stderr content.
-
-        Args:
-            stderr: Standard error output from Deno process
-
-        Returns:
-            Error type: "timeout", "memory", "syntax", or "runtime"
-        """
-        stderr_lower = stderr.lower()
-
-        if "memory" in stderr_lower or "out of memory" in stderr_lower:
-            return "memory"
-        elif "syntaxerror" in stderr_lower or "syntax error" in stderr_lower:
-            return "syntax"
-        else:
-            return "runtime"
-
-
-def extract_js_code(raw_code: str) -> str:
-    """Parse and clean JavaScript code by stripping triple backticks.
-
-    Handles various backtick formats (markdown):
-    - Plain triple backticks:
-      ```
-      code
-      ```
-
-    - With a language identifier (for now we accept anything):
-      ```js|javascript|...
-      code
-      ```
-
-    - With additional text after language identifier:
-      ```js foo bar
-      code
-      ```
-
-    Args:
-        raw_code: Raw JavaScript code that may contain triple backticks
-
-    Returns:
-        Cleaned JavaScript code with backticks and language identifiers removed
-
-    Examples:
-        >>> extract_js_code('```js\\nfoo\\n```')
-        'foo'
-        >>> extract_js_code('```js foo ```')
-        'js foo'
-        >>> extract_js_code('```\\nfoo\\n```')
-        'foo'
-        >>> extract_js_code('```foo```')
-        'foo'
-        >>> extract_js_code('foo(abc)')
-        'foo(abc)'
-    """
-    code = raw_code.strip()
-
-    # Handle empty or whitespace-only input
-    if not code:
-        return ""
-
-    # Handle single-line case (no newlines)
-    if "\n" not in code:
-        # Strip backticks from start and end
-        if code.startswith("```") and code.endswith("```"):
-            return code[3:-3].strip()
-        return code
-
-    lines = code.splitlines()
-
-    # Remove opening backticks line (first line that is exactly ```<identifier>)
-    if lines and _is_code_block_opener(lines[0]):
-        lines.pop(0)
-
-    # Remove closing backticks line (last line that is exactly ```)
-    if lines and lines[-1].strip() == "```":
-        lines.pop()
-
-    # Handle edge case where we removed all lines
-    if not lines:
-        return ""
-
-    return "\n".join(lines).strip()
-
-
-def _is_code_block_opener(line: str) -> bool:
-    """Check if a line is a code block opener (```<identifier> with no extra content).
-
-    Args:
-        line: Line to check
-
-    Returns:
-        True if the line is exactly ``` followed by optional identifier and whitespace
-    """
-    stripped = line.strip()
-    if not stripped.startswith("```"):
-        return False
-
-    # Remove the opening ```
-    content = stripped[3:].strip()
-
-    # If there's no content after ```, it's a valid opener
-    if not content:
-        return True
-
-    # If there's content, it should be just an identifier (no spaces or extra text)
-    # This allows ```js, ```javascript, etc. but not ```js foo bar
-    return " " not in content
+"""JavaScript execution service using Deno CLI subprocess.
+
+DEPRECATED: This module is a compatibility layer. Import from the following modules instead:
+- emilybot.execute.context: Context data classes
+- emilybot.execute.code_extraction: Code extraction utilities
+- emilybot.execute.executor: JavaScriptExecutor and types
+"""
+
+# Re-export everything from the new modules for backward compatibility
+from emilybot.execute.context import (
+    CtxUser,
+    CtxServer,
+    CtxReplyTo,
+    CtxMessage,
+    Context,
+    create_test_user,
+    run_code_context,
+)
+from emilybot.execute.code_extraction import extract_js_code
+from emilybot.execute.executor import (
+    CommandData,
+    ExecutionResult,
+    ErrorType,
+    JSExecutionError,
+    JavaScriptExecutor,
+)
+
+__all__ = [
+    # Context data classes
+    "CtxUser",
+    "CtxServer",
+    "CtxReplyTo",
+    "CtxMessage",
+    "Context",
+    "create_test_user",
+    "run_code_context",
+    # Code extraction
+    "extract_js_code",
+    # Executor and types
+    "CommandData",
+    "ExecutionResult",
+    "ErrorType",
+    "JSExecutionError",
+    "JavaScriptExecutor",
+]
