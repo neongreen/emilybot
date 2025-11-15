@@ -103,6 +103,30 @@ class TestParseArguments:
         assert _parse_arguments(StringView("test123")) == ["test123"]
         assert _parse_arguments(StringView("!@#$%")) == ["!@#$%"]
 
+    def test_apostrophes_and_contractions(self) -> None:
+        """Test that apostrophes in contractions are handled correctly.
+
+        Single quotes (both straight ' and curly ') should NOT be treated as
+        quote delimiters to allow natural use of contractions and possessives.
+        """
+        # Straight apostrophes (U+0027)
+        assert _parse_arguments(StringView("I'm")) == ["I'm"]
+        assert _parse_arguments(StringView("don't")) == ["don't"]
+        assert _parse_arguments(StringView("can't stop")) == ["can't", "stop"]
+        assert _parse_arguments(StringView("it's great")) == ["it's", "great"]
+
+        # Curly/smart apostrophes (U+2019) - using Unicode escapes
+        assert _parse_arguments(StringView("I\u2019m")) == ["I\u2019m"]
+        assert _parse_arguments(StringView("don\u2019t")) == ["don\u2019t"]
+        assert _parse_arguments(StringView("can\u2019t stop")) == ["can\u2019t", "stop"]
+
+        # Possessives with straight apostrophe
+        assert _parse_arguments(StringView("John's")) == ["John's"]
+        assert _parse_arguments(StringView("users'")) == ["users'"]
+
+        # Possessives with curly apostrophe (U+2019)
+        assert _parse_arguments(StringView("John\u2019s")) == ["John\u2019s"]
+
     def test_empty_quoted_string(self) -> None:
         """Test empty quoted string."""
         assert _parse_arguments(StringView('""')) == [""]

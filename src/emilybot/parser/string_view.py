@@ -103,9 +103,10 @@ class ExpectedClosingQuoteError(ArgumentParsingError):
 
 
 # map from opening quotes to closing quotes
+# NOTE: Single quotes (both straight ' and curly '') are NOT included
+# to allow apostrophes in contractions like "I'm", "don't", etc.
 _quotes = {
     "\u0022": "\u0022",  # '"': '"'
-    "\u2018": "\u2019",  # ''': '''
     "\u201a": "\u201b",  # '‚': '‛'
     "\u201c": "\u201d",  # '"': '"'
     "\u201e": "\u201f",  # '„': '‟'
