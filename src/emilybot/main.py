@@ -36,6 +36,7 @@ async def execute_js(ctx: EmilyContext, code: str) -> None:
 async def init_bot(dev: bool) -> EmilyBot:
     intents = discord.Intents.default()
     intents.message_content = True
+    intents.reactions = True  # Required for on_reaction_add
 
     if dev:
         logging.info("Running in development mode. Using `#$` as command prefix.")
@@ -101,6 +102,50 @@ async def init_bot(dev: bool) -> EmilyBot:
                 logging.warning("Cannot DM Ema (privacy settings)")
         except Exception as e:
             logging.error(f"Failed to send startup notification: {e}")
+
+    @bot.listen()
+    async def on_reaction_add(  # pyright: ignore[reportUnusedFunction]
+        reaction: discord.Reaction, user: discord.User | discord.Member
+    ) -> None:
+        """Delete bot messages when specific reactions are added."""
+        # Ignore bot reactions
+        if user.bot:
+            return
+
+        # Only handle reactions on bot's own messages
+        if reaction.message.author != bot.user:
+            return
+
+        # Define deletion emojis
+        # - Custom emoji: <:miss:1363721012801179779>
+        # - Unicode: 🗑️ (wastebasket) and ❌ (x)
+        deletion_emojis = {
+            "miss:1363721012801179779",  # Custom emoji ID format
+            "🗑️",  # Wastebasket
+            "❌",  # X mark
+        }
+
+        # Check if the reaction emoji matches any deletion emoji
+        emoji_str = str(reaction.emoji)
+        # For custom emojis, extract the name:id part
+        if isinstance(reaction.emoji, discord.PartialEmoji | discord.Emoji):
+            emoji_str = f"{reaction.emoji.name}:{reaction.emoji.id}"
+
+        if emoji_str in deletion_emojis:
+            try:
+                await reaction.message.delete()
+                logging.info(
+                    f"Deleted message {reaction.message.id} after {emoji_str} reaction from {user.name}"
+                )
+            except discord.NotFound:
+                # Message was already deleted
+                pass
+            except discord.Forbidden:
+                logging.warning(
+                    f"Cannot delete message {reaction.message.id} - missing permissions"
+                )
+            except Exception as e:
+                logging.error(f"Error deleting message: {e}")
 
     async def on_message(message: discord.Message) -> None:
         """
