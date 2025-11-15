@@ -73,13 +73,24 @@ async def init_bot(dev: bool) -> EmilyBot:
 
         # Send startup notification to availablegreen
         try:
-            # Get git commit info
-            commit_hash = subprocess.check_output(
-                ["git", "rev-parse", "--short", "HEAD"], text=True
-            ).strip()
-            commit_msg = subprocess.check_output(
-                ["git", "log", "-1", "--pretty=%B"], text=True
-            ).strip()
+            # Get git commit info (skip if not in a git repo)
+            try:
+                commit_hash = subprocess.check_output(
+                    ["git", "rev-parse", "--short", "HEAD"],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                ).strip()
+                commit_msg = subprocess.check_output(
+                    ["git", "log", "-1", "--pretty=%B"],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                ).strip()
+                commit_info = (
+                    f"**Commit:** `{commit_hash}`\n" f"**Message:** {commit_msg}"
+                )
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                # Not in a git repo or git not available
+                commit_info = "*No git info available*"
 
             # Find user by global name
             user = discord.utils.find(
@@ -87,11 +98,7 @@ async def init_bot(dev: bool) -> EmilyBot:
             )
 
             if user:
-                await user.send(
-                    f"🚀 **Bot started!**\n\n"
-                    f"**Commit:** `{commit_hash}`\n"
-                    f"**Message:** {commit_msg}"
-                )
+                await user.send(f"🚀 **Bot started!**\n\n{commit_info}")
                 logging.info(f"Sent startup notification to {user.global_name}")
             else:
                 logging.warning("Could not find user 'availablegreen' to notify")
