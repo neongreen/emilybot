@@ -3,6 +3,7 @@ import logging
 import os
 import discord
 import sys
+import subprocess
 from pathlib import Path
 from typing import Any, Optional, assert_never
 from watchfiles import awatch  # type: ignore
@@ -76,6 +77,33 @@ async def init_bot(dev: bool) -> EmilyBot:
     @bot.listen()
     async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]
         logging.info(f"We have logged in as {bot.user}")
+
+        # Send startup notification to availablegreen
+        try:
+            # Get git commit info
+            commit_hash = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], text=True
+            ).strip()
+            commit_msg = subprocess.check_output(
+                ["git", "log", "-1", "--pretty=%B"], text=True
+            ).strip()
+
+            # Find user by global name
+            user = discord.utils.find(
+                lambda u: u.global_name == "availablegreen", bot.users
+            )
+
+            if user:
+                await user.send(
+                    f"🚀 **Bot started!**\n\n"
+                    f"**Commit:** `{commit_hash}`\n"
+                    f"**Message:** {commit_msg}"
+                )
+                logging.info(f"Sent startup notification to {user.global_name}")
+            else:
+                logging.warning("Could not find user 'availablegreen' to notify")
+        except Exception as e:
+            logging.error(f"Failed to send startup notification: {e}")
 
     async def on_message(message: discord.Message) -> None:
         """
