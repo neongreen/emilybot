@@ -172,7 +172,6 @@ class EmilyContext(commands.Context["EmilyBot"]):
         content: str | None = None,
         *args: Any,
         suppress_embeds: bool = True,
-        paginate: bool = True,
         **kwargs: Any,
     ) -> Message:
         """Like the normal send, but suppresses embeds by default and supports pagination for long messages.
@@ -180,13 +179,10 @@ class EmilyContext(commands.Context["EmilyBot"]):
         Args:
             content: The message content
             suppress_embeds: Whether to suppress link embeds (default: True)
-            paginate: Whether to use pagination for long messages (default: True)
             **kwargs: Additional arguments to pass to discord.py's send
         """
-        # If content is short enough or pagination is disabled, send normally
-        if not content or len(content) <= 2000 or not paginate:
-            if content and len(content) > 2000:
-                content = content[: 2000 - 3] + "..."
+        # If content is short enough, send normally
+        if not content or len(content) <= 2000:
             return await super().send(
                 content, *args, suppress_embeds=suppress_embeds, **kwargs
             )
