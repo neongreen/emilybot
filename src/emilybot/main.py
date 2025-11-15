@@ -104,48 +104,63 @@ async def init_bot(dev: bool) -> EmilyBot:
             logging.error(f"Failed to send startup notification: {e}")
 
     @bot.listen()
-    async def on_reaction_add(  # pyright: ignore[reportUnusedFunction]
-        reaction: discord.Reaction, user: discord.User | discord.Member
+    async def on_raw_reaction_add(  # pyright: ignore[reportUnusedFunction]
+        payload: discord.RawReactionActionEvent,
     ) -> None:
-        """Delete bot messages when specific reactions are added."""
-        # Ignore bot reactions
-        if user.bot:
-            return
+        """Delete bot messages when specific reactions are added.
 
-        # Only handle reactions on bot's own messages
-        if reaction.message.author != bot.user:
+        Uses raw events to work with both cached and uncached messages.
+        """
+        # Ignore bot reactions
+        if payload.user_id == bot.user.id:  # type: ignore
             return
 
         # Define deletion emojis
         # - Custom emoji: <:miss:1363721012801179779>
         # - Unicode: 🗑️ (wastebasket) and ❌ (x)
         deletion_emojis = {
-            "miss:1363721012801179779",  # Custom emoji ID format
+            "1363721012801179779",  # Custom emoji ID (just the ID number)
             "🗑️",  # Wastebasket
             "❌",  # X mark
         }
 
         # Check if the reaction emoji matches any deletion emoji
-        emoji_str = str(reaction.emoji)
-        # For custom emojis, extract the name:id part
-        if isinstance(reaction.emoji, discord.PartialEmoji | discord.Emoji):
-            emoji_str = f"{reaction.emoji.name}:{reaction.emoji.id}"
+        emoji_str = str(payload.emoji)
+        # For custom emojis, use the ID
+        if payload.emoji.id:
+            emoji_str = str(payload.emoji.id)
 
-        if emoji_str in deletion_emojis:
-            try:
-                await reaction.message.delete()
-                logging.info(
-                    f"Deleted message {reaction.message.id} after {emoji_str} reaction from {user.name}"
-                )
-            except discord.NotFound:
-                # Message was already deleted
-                pass
-            except discord.Forbidden:
-                logging.warning(
-                    f"Cannot delete message {reaction.message.id} - missing permissions"
-                )
-            except Exception as e:
-                logging.error(f"Error deleting message: {e}")
+        if emoji_str not in deletion_emojis:
+            return
+
+        # Fetch the message to check if it's from the bot
+        try:
+            channel = bot.get_channel(payload.channel_id)
+            if channel is None:
+                channel = await bot.fetch_channel(payload.channel_id)
+
+            if not isinstance(channel, discord.abc.Messageable):
+                return
+
+            message = await channel.fetch_message(payload.message_id)
+
+            # Only delete if it's the bot's own message
+            if message.author != bot.user:
+                return
+
+            await message.delete()
+            logging.info(
+                f"Deleted message {message.id} after {emoji_str} reaction from user {payload.user_id}"
+            )
+        except discord.NotFound:
+            # Message was already deleted
+            pass
+        except discord.Forbidden:
+            logging.warning(
+                f"Cannot delete message {payload.message_id} - missing permissions"
+            )
+        except Exception as e:
+            logging.error(f"Error deleting message: {e}", exc_info=True)
 
     async def on_message(message: discord.Message) -> None:
         """
