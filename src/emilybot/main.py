@@ -170,14 +170,19 @@ async def init_bot(dev: bool) -> EmilyBot:
         if message.author.bot:
             return
 
+        logging.info(f"on_message: {repr(message.content)}")
         ctx = await bot.get_context(message)
+        logging.info(f"ctx.command: {ctx.command}")
         if ctx.command:
+            logging.info(f"Invoking built-in command: {ctx.command}")
             await bot.invoke(ctx)
+            logging.info(f"Built-in command finished, returning")
             return
 
         # If we get here, it's not a built-in command (registered via @command).
         # We use our own parsing logic then.
 
+        logging.info("Not a built-in command, using custom parser")
         message_content = message.content
 
         try:
