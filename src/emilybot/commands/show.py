@@ -36,10 +36,11 @@ async def format_entry_content(entry: Entry, ctx: EmilyContext) -> str:
     """
 
     # Format the entry content without executing JavaScript
-    formatted_content = f"**{entry.name}**\n"
-    formatted_content += f"**Content:**\n{entry.content}\n"
+    formatted_content = f'**===** 📜 *Content of "{entry.name}"* **===**\n'
+    formatted_content += f"```\n{entry.content}\n```\n"
     if entry.run and entry.run.strip():
-        formatted_content += f"**JavaScript Code:**\n```js\n{entry.run}\n```"
+        formatted_content += f'\n**===** 🔧 *JavaScript of "{entry.name}"* **===**\n'
+        formatted_content += f"```js\n{entry.run}\n```"
 
     return formatted_content
 
