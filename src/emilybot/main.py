@@ -85,9 +85,7 @@ async def init_bot(dev: bool) -> EmilyBot:
                     text=True,
                     stderr=subprocess.DEVNULL,
                 ).strip()
-                commit_info = (
-                    f"**Commit:** `{commit_hash}`\n" f"**Message:** {commit_msg}"
-                )
+                commit_info = f"**Commit:** `{commit_hash}`\n**Message:** {commit_msg}"
             except (subprocess.CalledProcessError, FileNotFoundError):
                 # Not in a git repo or git not available
                 commit_info = "*No git info available*"
