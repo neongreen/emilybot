@@ -39,6 +39,63 @@ def trim_text(text: str, max_length: int = 900) -> str:
     return text[:max_length] + "..."
 
 
+def allocate_display_budget(
+    content_length: int,
+    js_length: int,
+    total_budget: int = 1800,
+    min_per_section: int = 200,
+) -> tuple[int, int]:
+    """Allocate display budget between content and JavaScript based on their lengths.
+
+    Args:
+        content_length: Actual length of content text
+        js_length: Actual length of JavaScript code
+        total_budget: Total characters available (default: 1800)
+        min_per_section: Minimum characters per section if both exist (default: 200)
+
+    Returns:
+        Tuple of (content_limit, js_limit) for how many characters to display
+    """
+    # If both fit within budget, show everything
+    if content_length + js_length <= total_budget:
+        return (content_length, js_length)
+
+    # If only one section exists, give it the full budget
+    if js_length == 0:
+        return (min(content_length, total_budget), 0)
+    if content_length == 0:
+        return (0, min(js_length, total_budget))
+
+    # If content is very short, give JS the remaining budget
+    if content_length <= min_per_section:
+        js_limit = min(js_length, total_budget - content_length)
+        return (content_length, js_limit)
+
+    # If JS is very short, give content the remaining budget
+    if js_length <= min_per_section:
+        content_limit = min(content_length, total_budget - js_length)
+        return (content_limit, js_length)
+
+    # Both are long - allocate proportionally, ensuring minimums
+    total_length = content_length + js_length
+    content_ratio = content_length / total_length
+    js_ratio = js_length / total_length
+
+    # Proportional allocation
+    content_limit = int(total_budget * content_ratio)
+    js_limit = int(total_budget * js_ratio)
+
+    # Ensure minimums are met
+    if content_limit < min_per_section:
+        content_limit = min_per_section
+        js_limit = total_budget - content_limit
+    elif js_limit < min_per_section:
+        js_limit = min_per_section
+        content_limit = total_budget - js_limit
+
+    return (content_limit, js_limit)
+
+
 async def format_entry_content(entry: Entry, ctx: EmilyContext) -> str:
     """Format entry content, *not* executing JavaScript.
 
@@ -49,14 +106,20 @@ async def format_entry_content(entry: Entry, ctx: EmilyContext) -> str:
     Returns:
         Formatted content and JS code
     """
+    # Calculate smart allocation based on actual lengths
+    js_text = entry.run.strip() if entry.run else ""
+    content_limit, js_limit = allocate_display_budget(
+        content_length=len(entry.content),
+        js_length=len(js_text),
+    )
 
     # Format the entry content without executing JavaScript
     formatted_content = f'**===** 📜 *Content of "{entry.name}"* **===**\n'
-    trimmed_content = trim_text(entry.content)
+    trimmed_content = trim_text(entry.content, max_length=content_limit)
     formatted_content += f"```\n{trimmed_content}\n```\n"
-    if entry.run and entry.run.strip():
+    if js_text:
         formatted_content += f'\n**===** 🔧 *JavaScript of "{entry.name}"* **===**\n'
-        trimmed_js = trim_text(entry.run)
+        trimmed_js = trim_text(js_text, max_length=js_limit)
         formatted_content += f"```js\n{trimmed_js}\n```"
 
     return formatted_content
