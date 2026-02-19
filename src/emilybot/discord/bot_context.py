@@ -47,18 +47,22 @@ class EmilyContext(commands.Context["EmilyBot"]):
         """
         # If content is short enough, send normally
         if not content or len(content) <= 2000:
-            return await super().send(
+            message = await super().send(
                 content, *args, suppress_embeds=suppress_embeds, **kwargs
             )
+            self.bot.message_owners[message.id] = self.author.id
+            return message
 
         # Split into pages
         pages = split_into_pages(content)
 
         # If it fits in one page after splitting, send normally
         if len(pages) == 1:
-            return await super().send(
+            message = await super().send(
                 pages[0], *args, suppress_embeds=suppress_embeds, **kwargs
             )
+            self.bot.message_owners[message.id] = self.author.id
+            return message
 
         # Send with pagination
         view = PaginatedView(pages, author_id=self.author.id)
@@ -66,6 +70,7 @@ class EmilyContext(commands.Context["EmilyBot"]):
             pages[0], *args, suppress_embeds=suppress_embeds, view=view, **kwargs
         )
         view.message = message
+        self.bot.message_owners[message.id] = self.author.id
         return message
 
     async def react_success(self) -> None:

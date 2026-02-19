@@ -148,7 +148,28 @@ async def init_bot(dev: bool) -> EmilyBot:
             if message.author != bot.user:
                 return
 
+            owner_id = bot.message_owners.get(message.id)
+            is_owner = owner_id == payload.user_id
+
+            is_admin = False
+            if not is_owner and message.guild is not None:
+                member = payload.member
+                if member is None:
+                    member = message.guild.get_member(payload.user_id)
+                if member is None:
+                    try:
+                        member = await message.guild.fetch_member(payload.user_id)
+                    except discord.NotFound:
+                        member = None
+
+                if member is not None:
+                    is_admin = member.guild_permissions.administrator
+
+            if not is_owner and not is_admin:
+                return
+
             await message.delete()
+            bot.message_owners.pop(message.id, None)
             logging.info(
                 f"Deleted message {message.id} after {emoji_str} reaction from user {payload.user_id}"
             )

@@ -11,6 +11,9 @@ class EmilyBot(commands.Bot):
     def __init__(self, command_prefix: str | list[str], *args: Any, **kwargs: Any):
         super().__init__(command_prefix, *args, **kwargs)
         self.db = DB()
+        # Track which user triggered each bot response so reaction-deletes
+        # can be restricted to the original invoker.
+        self.message_owners: dict[int, int] = {}
         # Use the first prefix as the primary one for display purposes
         if isinstance(command_prefix, list):
             self.just_command_prefix = command_prefix[0]
