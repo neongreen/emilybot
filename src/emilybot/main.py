@@ -14,6 +14,7 @@ from emilybot.commands.show import cmd_list, cmd_random, cmd_show
 from emilybot.commands.edit import cmd_edit
 from emilybot.commands.delete import cmd_rm
 from emilybot.commands.help import cmd_help
+from emilybot.commands.errors import on_command_error
 from emilybot.commands.promote import cmd_promote, cmd_demote, cmd_demote_all
 from emilybot.commands.set import cmd_set
 from emilybot.commands.run import cmd_cmd, cmd_run
@@ -67,6 +68,7 @@ async def init_bot(dev: bool) -> EmilyBot:
     bot.add_command(cmd_set)
     bot.add_command(cmd_run)
     bot.add_command(cmd_cmd)
+    bot.add_listener(on_command_error, "on_command_error")
 
     @bot.listen()
     async def on_ready() -> None:  # pyright: ignore[reportUnusedFunction]
