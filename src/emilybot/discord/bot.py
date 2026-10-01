@@ -40,6 +40,8 @@ def format_save_error(db: DB, error: DBSaveError) -> str:
     """User-facing reply for a failed save. Commands save the alias table first, then the log."""
     if error.path == db.log.file_path:
         return "⚠️ The change was saved, but recording it in the history failed."
-    if error.replaced:
+    if error.file_state == "new":
         return "⚠️ The change was written, but the disk did not confirm it was stored."
+    if error.file_state == "unknown":
+        return "❌ Saving failed partway, so the change was not kept. The next successful save rewrites the stored data."
     return "❌ Saving failed, so nothing was changed."
