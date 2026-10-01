@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime
 from discord.ext import commands
 from emilybot.discord import EmilyContext
@@ -64,7 +65,7 @@ async def _promote_demote_implementation(
             return
 
         # Update entry
-        entry.promoted = promote
+        entry = replace(entry, promoted=promote)
         db.remember.update(entry)
 
         # Log the action
@@ -126,7 +127,7 @@ async def cmd_demote_all(ctx: EmilyContext) -> None:
     # Demote all found entries
     demoted_count = 0
     for entry in promoted_entries:
-        entry.promoted = False
+        entry = replace(entry, promoted=False)
         db.remember.update(entry)
 
         # Log the action

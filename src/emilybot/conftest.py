@@ -26,6 +26,7 @@ Examples:
 
 import logging
 import uuid
+from dataclasses import replace
 from discord import Message
 import pytest
 import tempfile
@@ -73,28 +74,24 @@ def server_context(
 
     # Server-specific command
     entry = entry_factory(name="test-command", content="This is a test command")
-    entry.server_id = server_id
-    entry.user_id = user_id
+    entry = replace(entry, server_id=server_id, user_id=user_id)
     db.remember.add(entry)
 
     # Promoted server command
     entry = entry_factory(
         name="another-cmd", content="Another command content", promoted=True
     )
-    entry.server_id = server_id
-    entry.user_id = user_id
+    entry = replace(entry, server_id=server_id, user_id=user_id)
     db.remember.add(entry)
 
     # DM command (should not appear in server context)
     entry = entry_factory(name="dm-command", content="DM only command")
-    entry.server_id = None
-    entry.user_id = user_id
+    entry = replace(entry, server_id=None, user_id=user_id)
     db.remember.add(entry)
 
     # Different user's command (should not appear)
     entry = entry_factory(name="other-user-cmd", content="Other user's command")
-    entry.server_id = server_id
-    entry.user_id = other_user_id
+    entry = replace(entry, server_id=server_id, user_id=other_user_id)
     db.remember.add(entry)
 
     yield SimpleNamespace(

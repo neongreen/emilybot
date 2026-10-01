@@ -4,12 +4,16 @@ import uuid
 from pathlib import Path
 from typing import Optional, overload, Literal
 import re
-from typed_json_db import JsonDB
+from emilybot.atomic_json_db import AtomicJsonDB
 
 
-@dataclass
+@dataclass(frozen=True)
 class Entry:
-    """Rows in the `remember` table"""
+    """Rows in the `remember` table.
+
+    Frozen: change an entry with `dataclasses.replace` and pass the copy to
+    `db.remember.update`, so a failed save leaves the stored entry unchanged.
+    """
 
     id: uuid.UUID
     """Unique ID"""
@@ -87,11 +91,12 @@ class DB:
         data_dir = data_dir
         data_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize JsonDB with type annotation
-        self.remember = JsonDB[Entry](
+        # Each file is saved atomically; the pair is not one transaction (see
+        # emilybot.atomic_json_db).
+        self.remember = AtomicJsonDB[Entry](
             Entry, data_dir / "remember.json", primary_key="id"
         )
-        self.log = JsonDB[Action](Action, data_dir / "remember_log.json")
+        self.log = AtomicJsonDB[Action](Action, data_dir / "remember_log.json")
 
     @overload
     def find_alias(
