@@ -4,6 +4,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Action, ActionDelete
 from emilybot.utils.list import first
+from emilybot.suggestions import format_suggestion_lines
 from emilybot.validation import parse_path, ValidationError
 
 
@@ -39,7 +40,9 @@ async def cmd_rm(ctx: EmilyContext, alias: str) -> None:
         entry = first(db.find_alias(alias, server_id=server_id, user_id=user_id))
 
         if not entry:
-            await ctx.send(format_not_found_message(alias))
+            await ctx.send(
+                format_not_found_message(alias) + format_suggestion_lines(ctx, alias)
+            )
             return
 
         # Delete entry

@@ -5,6 +5,7 @@ from discord.ext import commands
 from emilybot.discord import EmilyContext
 from emilybot.database import Action, ActionEdit
 from emilybot.utils.list import first
+from emilybot.suggestions import format_suggestion_lines
 from emilybot.validation import validate_path, ValidationError
 from emilybot.execute.javascript_executor import extract_js_code
 
@@ -36,6 +37,10 @@ async def cmd_set(
 
     try:
         # Split alias and attribute (last part if split by dots, from the end)
+        if "." not in place:
+            raise ValidationError(
+                f"Write `{prefix}set {place}.run [JS code]` to give '{place}' code."
+            )
         alias, attr = place.rsplit(".", 1)
 
         # Validate alias
@@ -60,7 +65,10 @@ async def cmd_set(
         entry = first(db.find_alias(alias, server_id=server_id, user_id=user_id))
 
         if not entry:
-            await ctx.send(format_not_found_message(alias, prefix))
+            await ctx.send(
+                format_not_found_message(alias, prefix)
+                + format_suggestion_lines(ctx, alias)
+            )
             return
 
         # Handle .run attribute

@@ -10,7 +10,7 @@ from emilybot.discord.views import PaginatedView
 from emilybot.discord.message_formatting import split_into_pages
 
 if TYPE_CHECKING:
-    pass
+    from emilybot.discord.bot import EmilyBot
 
 
 class EmilyContext(commands.Context["EmilyBot"]):

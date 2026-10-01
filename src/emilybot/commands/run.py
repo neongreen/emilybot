@@ -7,6 +7,7 @@ from emilybot.discord import EmilyContext
 from emilybot.execute.javascript_executor import extract_js_code
 from emilybot.execute.run_code import run_code
 from emilybot.format import format_show_content
+from emilybot.suggestions import format_suggestion_lines
 from emilybot.utils.list import first
 from emilybot.validation import parse_path, ValidationError
 
@@ -51,7 +52,10 @@ async def cmd_cmd(ctx: EmilyContext, alias: str, *, args: list[str]) -> None:
         entry = first(db.find_alias(alias, server_id=server_id, user_id=ctx.author.id))
 
         if not entry:
-            await ctx.send(format_not_found_message(alias, command_prefix))
+            await ctx.send(
+                format_not_found_message(alias, command_prefix)
+                + format_suggestion_lines(ctx, alias)
+            )
             return
 
         # Parse arguments
