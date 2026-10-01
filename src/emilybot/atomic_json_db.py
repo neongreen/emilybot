@@ -14,6 +14,11 @@ methods, and replaces every write:
   and fsynced, then moved over the destination with `os.replace`, and the
   directory is fsynced so the rename itself is durable;
 - writers are serialized with a lock;
+- if the destination cannot be replaced by rename (for example a single-file
+  bind mount, where `os.replace` fails with EBUSY or EXDEV) or no temp file can
+  be created next to it, the fully serialized bytes are written into the
+  destination in place and fsynced. That is the old non-atomic behavior, so it
+  is never worse than before; a warning is logged once per file;
 - a file that exists but cannot be parsed raises `DBLoadError` and is never
   overwritten.
 
@@ -22,17 +27,31 @@ example the alias table and its history log) are not one transaction. A crash
 or a failure between two saves can leave one file updated and the other not.
 """
 
+import errno
 import json
+import logging
 import os
 import tempfile
 import threading
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, List, Optional, Type, TypeVar
+from typing import Any, List, Literal, Optional, Type, TypeVar
 
 from typed_json_db import JsonDB, JsonDBException, JsonSerializer
 
 T = TypeVar("T")
+
+FileState = Literal["old", "new", "unknown"]
+
+# os.replace errors that mean "this destination cannot be swapped by rename",
+# as opposed to a failed disk or a full filesystem.
+_REPLACE_UNSUPPORTED = {errno.EBUSY, errno.EXDEV, errno.EPERM, errno.EINVAL}
+# mkstemp errors that mean "no temp file can be created in this directory",
+# while the destination file itself may still be writable.
+_TEMP_UNSUPPORTED = {errno.EACCES, errno.EPERM, errno.EROFS}
+
+# Destinations that fell back to in-place writes. Each is warned about once.
+_in_place_paths: set[Path] = set()
 
 
 class DBLoadError(JsonDBException):
@@ -49,16 +68,18 @@ class DBLoadError(JsonDBException):
 class DBSaveError(JsonDBException):
     """Writing a database file failed.
 
-    `replaced` is False when the destination still holds the previous complete
-    contents and memory was not changed. It is True only when the new file was
-    moved into place but making the directory entry durable failed; memory then
-    matches the new file.
+    `file_state` says what the destination holds afterwards:
+    - "old": the previous complete contents; memory was not changed.
+    - "new": the new contents were moved into place, but making the directory
+      entry durable failed; memory matches the new file.
+    - "unknown": an in-place write failed partway; memory was not changed, and
+      the next successful save rewrites the whole file from memory.
     """
 
-    def __init__(self, path: Path, reason: str, *, replaced: bool) -> None:
+    def __init__(self, path: Path, reason: str, *, file_state: FileState) -> None:
         super().__init__(f"Could not save {path}: {reason}")
         self.path = path
-        self.replaced = replaced
+        self.file_state: FileState = file_state
 
 
 def _serialize(items: List[Any]) -> str:
@@ -86,38 +107,97 @@ def _new_file_mode(destination: Path) -> int:
         return 0o666 & ~umask
 
 
+def _write_in_place(destination: Path, data: bytes) -> None:
+    """Overwrite `destination` with `data` without a rename. Not atomic.
+
+    The bytes are fully serialized before the file is touched; they are written
+    over the old contents, then the file is truncated to their length and
+    fsynced. Raises `DBSaveError`.
+    """
+    try:
+        fd = os.open(destination, os.O_WRONLY | os.O_CREAT, 0o666)
+    except OSError as e:
+        raise DBSaveError(destination, str(e), file_state="old") from e
+    try:
+        view = memoryview(data)
+        while view:
+            written = os.write(fd, view)
+            view = view[written:]
+        os.ftruncate(fd, len(data))
+        os.fsync(fd)
+    except OSError as e:
+        raise DBSaveError(destination, str(e), file_state="unknown") from e
+    finally:
+        os.close(fd)
+
+
+def _fall_back_to_in_place(destination: Path, error: OSError) -> None:
+    if destination not in _in_place_paths:
+        _in_place_paths.add(destination)
+        logging.warning(
+            "Cannot replace %s atomically (%s); writing it in place from now on. "
+            "Saves to this file are not crash-safe.",
+            destination,
+            error,
+        )
+
+
+def _remove_temp(tmp_path: Path) -> None:
+    try:
+        tmp_path.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def write_json_atomic(destination: Path, text: str) -> None:
     """Replace `destination` with `text` so readers see either the old or the new file.
 
-    Raises `DBSaveError`.
+    Falls back to an in-place write when the destination cannot be replaced by
+    rename (see module docstring). Raises `DBSaveError`.
     """
+    data = text.encode("utf-8")
+    if destination in _in_place_paths:
+        _write_in_place(destination, data)
+        return
     directory = destination.parent
     try:
         fd, tmp_name = tempfile.mkstemp(
             dir=directory, prefix=f".{destination.name}.", suffix=".tmp"
         )
     except OSError as e:
-        raise DBSaveError(destination, str(e), replaced=False) from e
+        if e.errno in _TEMP_UNSUPPORTED and destination.exists():
+            _fall_back_to_in_place(destination, e)
+            _write_in_place(destination, data)
+            return
+        raise DBSaveError(destination, str(e), file_state="old") from e
     tmp_path = Path(tmp_name)
+    replace_error: Optional[OSError] = None
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
             f.flush()
             os.fsync(f.fileno())
         os.chmod(tmp_path, _new_file_mode(destination))
-        os.replace(tmp_path, destination)
-    except BaseException as e:
         try:
-            tmp_path.unlink()
-        except FileNotFoundError:
-            pass
+            os.replace(tmp_path, destination)
+        except OSError as e:
+            if e.errno not in _REPLACE_UNSUPPORTED:
+                raise
+            replace_error = e
+    except BaseException as e:
+        _remove_temp(tmp_path)
         if isinstance(e, Exception):
-            raise DBSaveError(destination, str(e), replaced=False) from e
+            raise DBSaveError(destination, str(e), file_state="old") from e
         raise
+    if replace_error is not None:
+        _remove_temp(tmp_path)
+        _fall_back_to_in_place(destination, replace_error)
+        _write_in_place(destination, data)
+        return
     try:
         _fsync_dir(directory)
     except OSError as e:
-        raise DBSaveError(destination, str(e), replaced=True) from e
+        raise DBSaveError(destination, str(e), file_state="new") from e
 
 
 class AtomicJsonDB(JsonDB[T]):
@@ -141,7 +221,7 @@ class AtomicJsonDB(JsonDB[T]):
         try:
             text = _serialize(items)
         except (TypeError, ValueError, OverflowError) as e:
-            raise DBSaveError(self.file_path, str(e), replaced=False) from e
+            raise DBSaveError(self.file_path, str(e), file_state="old") from e
         write_json_atomic(self.file_path, text)
 
     def _commit(self, candidate: List[T]) -> None:
@@ -149,7 +229,7 @@ class AtomicJsonDB(JsonDB[T]):
         try:
             self._save(candidate)
         except DBSaveError as e:
-            if e.replaced:
+            if e.file_state == "new":
                 self._publish(candidate)
             raise
         self._publish(candidate)

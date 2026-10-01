@@ -1,6 +1,7 @@
 """Tests for crash-safe database saves (emilybot.atomic_json_db)."""
 
 import dataclasses
+import errno
 import json
 import os
 import signal
@@ -209,7 +210,7 @@ def test_failed_write_keeps_file_and_memory(
         with pytest.raises(DBSaveError) as info:
             mutations(db, entry)[which]()
 
-    assert info.value.replaced is False
+    assert info.value.file_state == "old"
     assert {p: read_bytes(p) for p in tmp_path.iterdir()} == files
     assert temp_files(tmp_path) == []
     assert db.remember.all() == remember_before
@@ -272,10 +273,105 @@ def test_directory_sync_failure_reports_after_replacement(tmp_path: Path) -> Non
     ):
         with pytest.raises(DBSaveError) as info:
             db.remember.add(entry)
-    assert info.value.replaced is True
+    assert info.value.file_state == "new"
     # The new file is in place, and memory matches it.
     assert db.remember.get(entry.id) == entry
     assert DB(tmp_path).remember.get(entry.id) == entry
+
+
+# --- in-place fallback (single-file bind mounts) ---
+
+
+def replace_error(code: int) -> OSError:
+    return OSError(code, os.strerror(code))
+
+
+@pytest.mark.parametrize("code", [errno.EBUSY, errno.EXDEV, errno.EPERM, errno.EINVAL])
+def test_unreplaceable_destination_falls_back_to_in_place_write(
+    tmp_path: Path, code: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    db = DB(tmp_path)
+    entry = make_entry(content="x" * 5000)
+    db.remember.add(entry)
+    path = tmp_path / "remember.json"
+    inode = path.stat().st_ino
+
+    with patch(
+        "emilybot.atomic_json_db.os.replace", side_effect=replace_error(code)
+    ) as replace:
+        shorter = dataclasses.replace(entry, content="short")
+        db.remember.update(shorter)
+        assert db.remember.get(entry.id) == shorter
+        other = make_entry("second")
+        db.remember.add(other)
+        db.remember.remove(entry.id)
+        # After the first failure the file is written in place directly.
+        assert replace.call_count == 1
+
+    assert path.stat().st_ino == inode
+    assert DB(tmp_path).remember.all() == [other]
+    # json.loads rejects leftover bytes from the longer old file.
+    assert [item["name"] for item in json.loads(path.read_text())] == ["second"]
+    assert temp_files(tmp_path) == []
+    warnings = [r for r in caplog.records if "in place" in r.getMessage()]
+    assert len(warnings) == 1
+
+
+def test_in_place_write_failure_keeps_memory_and_next_save_repairs(
+    tmp_path: Path,
+) -> None:
+    db = DB(tmp_path)
+    entry = make_entry()
+    db.remember.add(entry)
+    path = tmp_path / "remember.json"
+
+    real_write = os.write
+
+    def half_write(fd: int, data: Any) -> int:
+        real_write(fd, bytes(data[: len(data) // 2]))
+        raise OSError(errno.EIO, "injected: I/O error")
+
+    with patch(
+        "emilybot.atomic_json_db.os.replace", side_effect=replace_error(errno.EBUSY)
+    ):
+        with patch("emilybot.atomic_json_db.os.write", side_effect=half_write):
+            with pytest.raises(DBSaveError) as info:
+                db.remember.update(dataclasses.replace(entry, content="y" * 9000))
+        assert info.value.file_state == "unknown"
+        assert db.remember.all() == [entry]
+
+        later = dataclasses.replace(entry, content="later")
+        db.remember.update(later)
+
+    assert DB(tmp_path).remember.all() == [later]
+    assert [item["content"] for item in json.loads(path.read_text())] == ["later"]
+
+
+def test_unwritable_directory_falls_back_to_in_place_write(tmp_path: Path) -> None:
+    db = DB(tmp_path)
+    entry = make_entry()
+    with patch(
+        "emilybot.atomic_json_db.tempfile.mkstemp",
+        side_effect=replace_error(errno.EACCES),
+    ):
+        db.remember.add(entry)
+    assert DB(tmp_path).remember.all() == [entry]
+
+
+def test_other_replace_errors_do_not_fall_back(tmp_path: Path) -> None:
+    db = DB(tmp_path)
+    entry = make_entry()
+    db.remember.add(entry)
+    before = read_bytes(tmp_path / "remember.json")
+    with patch(
+        "emilybot.atomic_json_db.os.replace", side_effect=replace_error(errno.EIO)
+    ):
+        with pytest.raises(DBSaveError) as info:
+            db.remember.update(dataclasses.replace(entry, content="new"))
+    assert info.value.file_state == "old"
+    assert read_bytes(tmp_path / "remember.json") == before
+    assert db.remember.all() == [entry]
+    assert temp_files(tmp_path) == []
 
 
 # --- interrupted writer process ---
@@ -334,7 +430,7 @@ def failing_save(db: DB, which: str) -> Any:
     return patch.object(
         target,
         "_save",
-        side_effect=DBSaveError(target.file_path, "injected", replaced=False),
+        side_effect=DBSaveError(target.file_path, "injected", file_state="old"),
     )
 
 
@@ -408,10 +504,12 @@ async def test_successful_set_still_reacts(make_ctx: MakeCtx, db: DB) -> None:
 
 def test_save_error_messages(tmp_path: Path) -> None:
     db = DB(tmp_path)
-    remember_error = DBSaveError(db.remember.file_path, "x", replaced=False)
+    remember_error = DBSaveError(db.remember.file_path, "x", file_state="old")
     assert format_save_error(db, remember_error).startswith("❌")
     assert "nothing was changed" in format_save_error(db, remember_error)
-    unconfirmed = DBSaveError(db.remember.file_path, "x", replaced=True)
+    unconfirmed = DBSaveError(db.remember.file_path, "x", file_state="new")
     assert "did not confirm" in format_save_error(db, unconfirmed)
-    log_error = DBSaveError(db.log.file_path, "x", replaced=False)
+    partial = DBSaveError(db.remember.file_path, "x", file_state="unknown")
+    assert "partway" in format_save_error(db, partial)
+    log_error = DBSaveError(db.log.file_path, "x", file_state="old")
     assert "history" in format_save_error(db, log_error)
