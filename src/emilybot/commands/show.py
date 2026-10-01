@@ -1,6 +1,8 @@
+import io
 import json
 import re
 import random
+import discord
 from discord.ext import commands
 from emilybot.execute.run_code import run_code
 from emilybot.discord import EmilyContext
@@ -96,6 +98,29 @@ def allocate_display_budget(
     return (content_limit, js_limit)
 
 
+def _format_entry_sections(entry: Entry, content_limit: int, js_limit: int) -> str:
+    js_text = entry.run.strip() if entry.run else ""
+    formatted_content = f'**===** 📜 *Content of "{entry.name}"* **===**\n'
+    trimmed_content = trim_text(entry.content, max_length=content_limit)
+    formatted_content += f"```\n{trimmed_content}\n```\n"
+    if js_text:
+        formatted_content += f'\n**===** 🔧 *JavaScript of "{entry.name}"* **===**\n'
+        trimmed_js = trim_text(js_text, max_length=js_limit)
+        formatted_content += f"```js\n{trimmed_js}\n```"
+    return formatted_content
+
+
+def _entry_display_limits(entry: Entry) -> tuple[int, int, bool]:
+    """Return (content_limit, js_limit, shortened) for the `.show` display."""
+    js_text = entry.run.strip() if entry.run else ""
+    content_limit, js_limit = allocate_display_budget(
+        content_length=len(entry.content),
+        js_length=len(js_text),
+    )
+    shortened = len(entry.content) > content_limit or len(js_text) > js_limit
+    return content_limit, js_limit, shortened
+
+
 async def format_entry_content(entry: Entry, ctx: EmilyContext) -> str:
     """Format entry content, *not* executing JavaScript.
 
@@ -106,23 +131,53 @@ async def format_entry_content(entry: Entry, ctx: EmilyContext) -> str:
     Returns:
         Formatted content and JS code
     """
-    # Calculate smart allocation based on actual lengths
-    js_text = entry.run.strip() if entry.run else ""
-    content_limit, js_limit = allocate_display_budget(
-        content_length=len(entry.content),
-        js_length=len(js_text),
-    )
+    content_limit, js_limit, _ = _entry_display_limits(entry)
+    return _format_entry_sections(entry, content_limit, js_limit)
 
-    # Format the entry content without executing JavaScript
-    formatted_content = f'**===** 📜 *Content of "{entry.name}"* **===**\n'
-    trimmed_content = trim_text(entry.content, max_length=content_limit)
-    formatted_content += f"```\n{trimmed_content}\n```\n"
-    if js_text:
-        formatted_content += f'\n**===** 🔧 *JavaScript of "{entry.name}"* **===**\n'
-        trimmed_js = trim_text(js_text, max_length=js_limit)
-        formatted_content += f"```js\n{trimmed_js}\n```"
 
-    return formatted_content
+def safe_attachment_stem(name: str) -> str:
+    """Turn an alias name into a filename stem without path separators."""
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_")
+    return stem[:80] or "alias"
+
+
+def entry_source_files(entry: Entry) -> list[discord.File]:
+    """Attach the exact stored content and JavaScript of an entry."""
+    stem = safe_attachment_stem(entry.name)
+    files: list[discord.File] = []
+    if entry.content:
+        files.append(
+            discord.File(io.BytesIO(entry.content.encode("utf-8")), f"{stem}.txt")
+        )
+    if entry.run:
+        files.append(discord.File(io.BytesIO(entry.run.encode("utf-8")), f"{stem}.js"))
+    return files
+
+
+async def send_entry(entry: Entry, ctx: EmilyContext) -> None:
+    """Send the `.show` display, attaching the complete source when it is shortened.
+
+    Never executes the entry's JavaScript.
+    """
+    content_limit, js_limit, shortened = _entry_display_limits(entry)
+    display = _format_entry_sections(entry, content_limit, js_limit)
+    if not shortened:
+        await ctx.send(display)
+        return
+
+    try:
+        await ctx.send(
+            display + "\n📎 *Shortened above; full source attached.*",
+            files=entry_source_files(entry),
+        )
+    except discord.HTTPException:
+        # Uploads forbidden or rejected: send everything through pagination.
+        full = _format_entry_sections(
+            entry, len(entry.content), len(entry.run.strip() if entry.run else "")
+        )
+        await ctx.send(
+            "📎 *Could not attach the source here, so here it is in full:*\n" + full
+        )
 
 
 def format_entry_line(entry: Entry) -> str:
@@ -160,8 +215,7 @@ async def cmd_show(ctx: EmilyContext, alias: str) -> None:
     else:
         entry = first(db.find_alias(alias, server_id=server_id, user_id=ctx.author.id))
         if entry:
-            formatted_content = await format_entry_content(entry, ctx)
-            await ctx.send(formatted_content)
+            await send_entry(entry, ctx)
         else:
             await ctx.send(format_not_found_message(alias, command_prefix))
 
@@ -210,7 +264,7 @@ async def cmd_random(ctx: EmilyContext, alias: str) -> None:
 
         # Run
         success, output, _ = await run_code(
-            ctx, code=f"$.cmd('{json.dumps(entry.name)}')"
+            ctx, code=f"$.cmd({json.dumps(entry.name)})"
         )
         if not success:
             await ctx.send(output)  # Error message is already formatted
