@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert"
-import { execute, TIMEOUT_ERROR } from "../../executor.ts"
+import { execute, OUTPUT_LIMIT_CHARS, TIMEOUT_ERROR, TRUNCATED_MARKER } from "../../executor.ts"
 import type { CommandData } from "../../types.ts"
 
 // A corpus shaped like production: ~1000 aliases, some with code, one with a 400 KB content blob.
@@ -103,4 +103,30 @@ Deno.test("result values are unwrapped and inspected", async () => {
     value: undefined,
     error: "t",
   })
+})
+
+Deno.test("printed output and the result are capped", async () => {
+  const result = await execute(
+    {},
+    [],
+    `for (let i = 0; i < 1000; i++) print("x".repeat(100))
+    Object.fromEntries(Array.from({ length: 20000 }, (_, i) => ["key" + i, i]))`,
+  )
+  assertEquals(result.success, true)
+  assertEquals(result.output.length, OUTPUT_LIMIT_CHARS + TRUNCATED_MARKER.length)
+  assert(result.output.endsWith(TRUNCATED_MARKER))
+  assertEquals(result.value!.length, OUTPUT_LIMIT_CHARS + TRUNCATED_MARKER.length)
+})
+
+Deno.test("import fetches count against the same deadline", async () => {
+  const result = await execute(
+    {},
+    [],
+    `
+    const { camelCase } = await import('https://esm.sh/change-case@5.4.0?deadline-test=' + Math.random())
+    camelCase("a b")
+  `,
+    { timeoutMs: 1 },
+  )
+  assertEquals(result, { success: false, output: "", value: undefined, error: TIMEOUT_ERROR(1) })
 })

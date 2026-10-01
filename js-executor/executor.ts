@@ -3,7 +3,8 @@
  *
  * Commands and fields enter the VM as one JSON string; `prelude.js` builds `$`, `$name` globals and the lib helpers
  * inside the VM. Only strings cross the boundary: printed output, lazy command wrapping, and module source from the
- * module loader. User code runs under an interrupt deadline (`timeoutMs`), so runaway loops end with a timeout error.
+ * module loader. User code, including fetching its imports, runs under one deadline (`timeoutMs`), so runaway loops
+ * and slow imports end with a timeout error. Collected output and the inspected result are capped in size.
  */
 
 import type { QuickJSContext, QuickJSHandle, QuickJSRuntime, QuickJSWASMModule } from "quickjs-emscripten"
@@ -13,8 +14,11 @@ import { debug } from "./logging.ts"
 import { wrapUserCode } from "./parse.ts"
 import type { CommandData, ExecutionResult } from "./types.ts"
 
-/** Default user-code execution budget. Time spent fetching imports does not count against it. */
+/** Default budget for user code, including fetching its imports. */
 export const DEFAULT_TIMEOUT_MS = 5000
+/** Max characters of printed output and of the inspected result kept on the host; the rest is dropped. */
+export const OUTPUT_LIMIT_CHARS = 64 * 1024
+export const TRUNCATED_MARKER = "…(output truncated)"
 const MEMORY_LIMIT_BYTES = 1024 * 1024 * 10 // 10 MB for user code, on top of the loaded commands
 
 export const TIMEOUT_ERROR = (ms: number) =>
@@ -163,8 +167,10 @@ export async function execute(
   const runtime = QuickJS.newRuntime()
   const ctx = runtime.newContext()
   const output: string[] = []
+  let outputChars = 0
+  let outputTruncated = false
 
-  // Deadline for user code. Fetching imports pushes it back by the time spent fetching.
+  // One deadline for user code and its import fetches.
   let deadline = Infinity
   let timedOut = false
   runtime.setInterruptHandler(() => {
@@ -175,19 +181,29 @@ export async function execute(
     return false
   })
   runtime.setModuleLoader((moduleName) => {
-    const start = Date.now()
-    try {
-      return quickJsModuleLoader(moduleName)
-    } finally {
-      deadline += Date.now() - start
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) {
+      timedOut = true
+      return { value: `throw new Error("Timed out before importing ${JSON.stringify(moduleName).slice(1, -1)}")` }
     }
+    const result = quickJsModuleLoader(moduleName, { timeoutMs: remaining })
+    if (Date.now() > deadline) timedOut = true
+    return result
   }, quickJsModuleNormalizer)
 
   try {
     // --- Bridge functions (strings only) ---
     const hostPrint = ctx.newFunction("__host_print", (argsHandle) => {
+      if (outputTruncated) return
       const args: unknown[] = JSON.parse(ctx.getString(argsHandle))
-      output.push(args.map((a) => typeof a === "string" ? a : inspect(decodeValue(a))).join(" "))
+      const line = args.map((a) => typeof a === "string" ? a : inspect(decodeValue(a))).join(" ")
+      if (outputChars + line.length > OUTPUT_LIMIT_CHARS) {
+        output.push(line.slice(0, Math.max(0, OUTPUT_LIMIT_CHARS - outputChars)) + TRUNCATED_MARKER)
+        outputTruncated = true
+      } else {
+        output.push(line)
+        outputChars += line.length + 1
+      }
     })
     const hostWrap = ctx.newFunction("__host_wrap", (nameHandle, codeHandle) => {
       const name = ctx.getString(nameHandle)
@@ -239,6 +255,7 @@ export async function execute(
     if (!isUndefined) {
       const encoded = ctx.unwrapResult(ctx.callFunction(encodeFn, ctx.undefined, value))
       inspected = inspect(decodeValue(JSON.parse(ctx.getString(encoded))))
+      if (inspected.length > OUTPUT_LIMIT_CHARS) inspected = inspected.slice(0, OUTPUT_LIMIT_CHARS) + TRUNCATED_MARKER
       encoded.dispose()
     }
     value.dispose()

@@ -78,11 +78,14 @@ export function processImportPath(url: string): string {
  * This is because I have no idea how to make QuickJS accept an error thrown by a module loader.
  * Maybe it's better now that we have sync fetch.
  */
-export function quickJsModuleLoader(moduleName: string): SuccessOrFail<JSModuleLoadSuccess, Error> {
+export function quickJsModuleLoader(
+  moduleName: string,
+  options: { timeoutMs?: number } = {},
+): SuccessOrFail<JSModuleLoadSuccess, Error> {
   try {
     const url = processImportPath(moduleName)
     // TODO: for esm links request es2015 or 2020 or idk
-    const response = syncFetch(url)
+    const response = syncFetch(url, { timeoutMs: options.timeoutMs })
     if (!response.ok) {
       throw new Error(`${response.status}`)
     }

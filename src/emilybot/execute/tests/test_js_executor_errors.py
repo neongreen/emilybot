@@ -1,7 +1,10 @@
 """Test script for JavaScript executor error handling."""
 
+import asyncio
+
 import pytest
 
+from emilybot.execute.executor import MAX_CONCURRENT_RUNS
 from emilybot.execute.javascript_executor import (
     JavaScriptExecutor,
     Context,
@@ -74,3 +77,19 @@ async def test_multiple_console_log_calls(
     assert "Line 1" in output
     assert "Line 2" in output
     assert "User name: TestUser" in output
+
+
+@pytest.mark.asyncio
+async def test_concurrent_runs_queue(
+    executor: JavaScriptExecutor, test_context: Context
+):
+    """More concurrent runs than slots all complete; extra ones wait for a slot."""
+    results = await asyncio.gather(
+        *(
+            executor.execute(f"console.log({i})", test_context, [])
+            for i in range(MAX_CONCURRENT_RUNS + 2)
+        )
+    )
+    assert [(ok, out) for ok, out, _ in results] == [
+        (True, str(i)) for i in range(MAX_CONCURRENT_RUNS + 2)
+    ]

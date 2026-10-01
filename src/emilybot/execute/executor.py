@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import shutil
+import weakref
 from tempfile import TemporaryDirectory
 from typing import Tuple, TypedDict, Literal
 
@@ -40,6 +41,21 @@ class JSExecutionError(Exception):
 
     error_type: ErrorType
     message: str
+
+
+# Shared across executor instances (one is created per request): spammed commands queue
+# here instead of running in parallel and slowing each other into timeouts.
+MAX_CONCURRENT_RUNS = 3
+_deno_slots: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = weakref.WeakKeyDictionary()
+
+
+def _deno_slots_for_loop() -> asyncio.Semaphore:
+    """The run-slot semaphore for the current event loop (a semaphore is bound to one loop)."""
+    loop = asyncio.get_running_loop()
+    slots = _deno_slots.get(loop)
+    if slots is None:
+        slots = _deno_slots[loop] = asyncio.Semaphore(MAX_CONCURRENT_RUNS)
+    return slots
 
 
 class JavaScriptExecutor:
@@ -111,34 +127,14 @@ class JavaScriptExecutor:
                     code,
                 ]
 
-                # Execute with timeout
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=Path.cwd(),
-                    env={"NO_COLOR": "1"},
-                )
-
-                try:
-                    logging.info("Starting Deno process")
-                    logging.debug(f"Deno command: {shlex.join(cmd)}")
-                    stdout, stderr = await asyncio.wait_for(
-                        process.communicate(), timeout=self.backstop
-                    )
-                except asyncio.TimeoutError:
-                    # Kill the process if it's still running
-                    logging.debug("Deno process timed out, killing it")
-                    try:
-                        process.kill()
-                        await process.wait()
-                    except ProcessLookupError:
-                        pass  # Process already terminated
+                ran = await self._run_deno(cmd)
+                if ran is None:
                     return (
                         False,
                         f"⏱️ JavaScript execution timed out ({self.timeout}s limit)",
                         None,
                     )
+                stdout, stderr, returncode = ran
 
             # Decode output
             stdout_text = stdout.decode("utf-8").strip() if stdout else ""
@@ -148,7 +144,7 @@ class JavaScriptExecutor:
             logging.debug(f"Deno stdout: {stdout_text}")
 
             # Check exit code and classify errors
-            if process.returncode == 0:
+            if returncode == 0:
                 parsed = json.loads(stdout_text)
                 return True, parsed.get("output", ""), parsed.get("value", None)
             else:
@@ -194,6 +190,35 @@ class JavaScriptExecutor:
         except Exception as e:
             logging.error(f"Unexpected error in JavaScript execution: {e}")
             return False, f"❌ Unexpected execution error: {e}", None
+
+    async def _run_deno(self, cmd: list[str]) -> tuple[bytes, bytes, int | None] | None:
+        """Run the executor process, waiting for a free slot first.
+
+        Returns (stdout, stderr, returncode), or None if the backstop killed it.
+        """
+        async with _deno_slots_for_loop():
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=Path.cwd(),
+                env={"NO_COLOR": "1"},
+            )
+            try:
+                logging.info("Starting Deno process")
+                logging.debug(f"Deno command: {shlex.join(cmd)}")
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=self.backstop
+                )
+            except asyncio.TimeoutError:
+                logging.debug("Deno process hit the backstop, killing it")
+                try:
+                    process.kill()
+                    await process.wait()
+                except ProcessLookupError:
+                    pass  # Process already terminated
+                return None
+            return stdout, stderr, process.returncode
 
     def _classify_error(self, stderr: str) -> str:
         """Classify error type based on stderr content.
