@@ -45,13 +45,18 @@ class JSExecutionError(Exception):
 class JavaScriptExecutor:
     """Executes JavaScript code using Deno CLI subprocess with timeout and error handling."""
 
-    def __init__(self, *, timeout: float = 5.0):
+    def __init__(self, *, timeout: float = 5.0, startup_allowance: float = 10.0):
         """Initialize the JavaScript executor.
 
         Args:
-            timeout: Maximum execution time in seconds
+            timeout: Execution budget for user code in seconds, enforced inside the
+                sandbox. Time spent fetching imports does not count against it.
+            startup_allowance: Extra wall-clock time on top of `timeout` before the
+                Deno process is killed. This backstop only fires if the process
+                itself gets stuck, so startup cost can never cause a timeout.
         """
         self.timeout = timeout
+        self.backstop = timeout + startup_allowance
         deno_path = shutil.which("deno")
         if not deno_path:
             raise FileNotFoundError("Deno CLI not found in PATH")
@@ -97,10 +102,12 @@ class JavaScriptExecutor:
                     "--quiet",
                     "--allow-env=QTS_DEBUG,LOG_LEVEL,DEBUG",  # 'LOG_LEVEL' enables logs in the executor, 'QTS_DEBUG' is used by the QuickJS runtime, 'DEBUG' is used by the executor
                     f"--allow-read=js-executor/,node_modules,{temp_path}",
-                    "--allow-net=esm.sh",
+                    # Must match the allowed hosts in js-executor/imports.ts
+                    "--allow-net=esm.sh,jsr.io,registry.npmjs.org",
                     self.executor_script,
                     f"--fieldsFile={str(fields_path)}",
                     f"--commandsFile={str(commands_path)}",
+                    f"--timeoutMs={int(self.timeout * 1000)}",
                     code,
                 ]
 
@@ -117,7 +124,7 @@ class JavaScriptExecutor:
                     logging.info("Starting Deno process")
                     logging.debug(f"Deno command: {shlex.join(cmd)}")
                     stdout, stderr = await asyncio.wait_for(
-                        process.communicate(), timeout=self.timeout
+                        process.communicate(), timeout=self.backstop
                     )
                 except asyncio.TimeoutError:
                     # Kill the process if it's still running
@@ -150,7 +157,13 @@ class JavaScriptExecutor:
                 error_message = stderr_text or "Unknown execution error"
 
                 # For user-facing errors, return a clean message
-                if error_type == "memory":
+                if error_type == "timeout":
+                    return (
+                        False,
+                        f"⏱️ JavaScript execution timed out ({self.timeout}s limit)",
+                        None,
+                    )
+                elif error_type == "memory":
                     return False, "💾 JavaScript execution exceeded memory limits", None
                 elif error_type == "syntax":
                     return (
@@ -193,7 +206,9 @@ class JavaScriptExecutor:
         """
         stderr_lower = stderr.lower()
 
-        if "memory" in stderr_lower or "out of memory" in stderr_lower:
+        if stderr_lower.startswith("javascript execution timed out"):
+            return "timeout"
+        elif "memory" in stderr_lower or "out of memory" in stderr_lower:
             return "memory"
         elif "syntaxerror" in stderr_lower or "syntax error" in stderr_lower:
             return "syntax"

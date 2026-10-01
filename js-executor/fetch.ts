@@ -14,8 +14,9 @@ type SyncResponse = {
  */
 export function syncFetch(
   url: string,
-  init: { method?: string; headers?: Record<string, string>; maxBodyBytes?: number } = {},
+  init: { method?: string; headers?: Record<string, string>; maxBodyBytes?: number; timeoutMs?: number } = {},
 ): SyncResponse {
+  const timeoutMs = init.timeoutMs ?? 5000
   const max = init.maxBodyBytes ?? (8 * 1024 * 1024) // 8 MiB cap
   const ctrlSab = new SharedArrayBuffer(16) // [done, status, ok, len]
   const ctrl = new Int32Array(ctrlSab)
@@ -57,8 +58,8 @@ export function syncFetch(
 
   worker.postMessage({ url, init: { method: init.method, headers }, ctrlSab, bodySab })
 
-  // block until worker signals
-  Atomics.wait(ctrl, 0, 0)
+  // block until worker signals or the timeout passes
+  const waited = Atomics.wait(ctrl, 0, 0, timeoutMs)
 
   try {
     worker.terminate()
@@ -66,6 +67,7 @@ export function syncFetch(
     // ignore
   }
 
+  if (waited === "timed-out") throw new Error(`Fetching ${url} timed out after ${timeoutMs / 1000}s`)
   const done = Atomics.load(ctrl, 0)
   if (done < 0) throw new Error("syncFetch failed")
   const len = Atomics.load(ctrl, 3)

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-01
+
+**JS execution:**
+
+- Commands run much faster: a typical alias now takes well under a second instead of several seconds,
+  so trivial aliases no longer hit "execution timed out".
+- The 5 second limit now counts only time spent running your code (not startup or fetching imports).
+  An infinite loop ends with "JavaScript execution timed out (5s limit)".
+- Imports from `jsr.io` and `registry.npmjs.org` now actually work in the bot (they were only allowed in tests).
+- Printing objects shows more detail for `Map`, `Set`, regular expressions, errors, and async functions.
+
 ## 2025-11-11
 
 **Internal improvements:**

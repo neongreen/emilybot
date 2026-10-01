@@ -54,9 +54,9 @@ async def test_runtime_error(executor: JavaScriptExecutor, test_context: Context
 async def test_timeout(executor: JavaScriptExecutor, test_context: Context):
     """Test timeout handling."""
     timeout_code = "while(true) { /* infinite loop */ }"
-    success, _output, _value = await executor.execute(timeout_code, test_context, [])
+    success, output, _value = await executor.execute(timeout_code, test_context, [])
     assert not success
-    # Timeout should result in failure, but the exact error message may vary
+    assert output == "⏱️ JavaScript execution timed out (1.0s limit)"
 
 
 @pytest.mark.asyncio
