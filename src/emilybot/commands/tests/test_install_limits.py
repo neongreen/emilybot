@@ -69,6 +69,7 @@ async def test_invalid_definition_files(db: DB, body: bytes) -> None:
         ("remember", "unknown", "contents are unknown"),
         ("remember", "new", "Definitions were written"),
         ("log", "old", "Definitions were saved"),
+        ("log", "unknown", "history contents are unknown"),
         ("log", "new", "Definitions and history were written"),
     ],
 )

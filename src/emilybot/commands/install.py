@@ -101,6 +101,8 @@ class InstallView(discord.ui.View):
                 result = "Definitions were saved, but saving their history failed."
                 if e.file_state == "new":
                     result = "Definitions and history were written, but the disk did not confirm history was stored."
+                elif e.file_state == "unknown":
+                    result = "Definitions were saved, but history saving failed partway. Stored history contents are unknown."
             elif e.file_state == "new":
                 result = "Definitions were written, but the disk did not confirm storage. History was not saved."
             elif e.file_state == "unknown":
