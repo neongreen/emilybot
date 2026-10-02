@@ -16,6 +16,9 @@ export interface ExecutionResult {
 /** A store as loaded from the host. */
 export type StoreSnapshot = { version: number; data: Record<string, unknown> }
 
+/** Loading a store: the store, a reason stores are unavailable, or "busy" (the file was being written; try again). */
+export type StoreLoad = StoreSnapshot | { error: string } | { busy: true }
+
 /** What a successful run did to stores: versions it read, and its writes per alias id. */
 export type StoreTransaction = {
   reads: Record<string, number>
@@ -23,7 +26,7 @@ export type StoreTransaction = {
 }
 
 /** Why execution failed. Must match `ErrorType` in src/emilybot/execute/executor.py. */
-export type ErrorKind = "timeout" | "memory" | "output" | "syntax" | "runtime"
+export type ErrorKind = "timeout" | "memory" | "output" | "syntax" | "runtime" | "busy"
 
 export type CommandData = {
   id?: string // Alias UUID; needed for `this.store`

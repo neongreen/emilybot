@@ -13,7 +13,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Literal, NotRequired, Tuple, TypedDict, cast
 
 from emilybot.execute.context import Context
-from emilybot.store import StoreTransaction, StoreWrite
+from emilybot.store import StoreAccess, StoreTransaction, StoreWrite
 
 
 class CommandData(TypedDict):
@@ -34,7 +34,7 @@ class ExecutionResult(TypedDict):
 
 
 # Why execution failed. Must match `ErrorKind` in js-executor/types.ts.
-ErrorType = Literal["timeout", "memory", "output", "syntax", "runtime"]
+ErrorType = Literal["timeout", "memory", "output", "syntax", "runtime", "busy"]
 
 
 @dataclass
@@ -72,6 +72,10 @@ class ExecutionOutcome:
     """Writes to commit (with `StoreDB.commit`) before showing the output"""
 
 
+STORE_BUSY_MESSAGE = (
+    "⏳ The bot is busy: this command's stored data changed while it ran. "
+    "Nothing was saved; try again."
+)
 TIMEOUT_MESSAGE = "⏱️ JavaScript execution timed out ({limit}s limit)"
 BACKSTOP_MESSAGE = "⏱️ The JavaScript executor did not respond in time"
 OUTPUT_MESSAGE = "📜 JavaScript output exceeded the 1 MiB limit"
@@ -126,13 +130,14 @@ class JavaScriptExecutor:
         context: Context,
         commands: list[CommandData] = [],
         *,
-        stores: dict[str, Any] | None = None,
+        stores: StoreAccess | None = None,
     ) -> "ExecutionOutcome":
         """Like `execute`, plus the store transaction of a successful run.
 
         Args:
-            stores: The server's stores as `StoreDB.snapshot_for_server` returns
-                them. Enables `this.store`; without it `this.store` is undefined.
+            stores: Where this server's stores are (`StoreDB.access`). Enables
+                `this.store`; without it `this.store` is undefined. The store file
+                is read only if the run uses `this.store`.
         """
         try:
             # XXX: ctx left for backwards compatibility, will remove later
@@ -147,20 +152,27 @@ class JavaScriptExecutor:
                 temp_path = Path(temp_dir)
                 fields_path = temp_path / "fields.json"
                 commands_path = temp_path / "commands.json"
-                fields_path.write_text(fields_json)
-                commands_path.write_text(commands_json)
+                fields_path.write_text(fields_json, encoding="utf-8")
+                commands_path.write_text(commands_json, encoding="utf-8")
+                readable = f"js-executor/,node_modules,{temp_path}"
                 stores_args: list[str] = []
-                if stores is not None:
-                    stores_path = temp_path / "stores.json"
-                    stores_path.write_text(json.dumps(stores, ensure_ascii=False))
-                    stores_args = [f"--storesFile={stores_path}"]
+                if stores is not None and stores.unavailable:
+                    stores_args = [f"--storesError={stores.unavailable}"]
+                elif stores is not None:
+                    readable += (
+                        f",{stores.path}"  # this one file, not the data directory
+                    )
+                    stores_args = [
+                        f"--storesFile={stores.path}",
+                        f"--serverId={stores.server_id}",
+                    ]
 
                 cmd = [
                     self.deno_path,
                     "run",
                     "--quiet",
                     "--allow-env=QTS_DEBUG,LOG_LEVEL,DEBUG",  # 'LOG_LEVEL' enables logs in the executor, 'QTS_DEBUG' is used by the QuickJS runtime, 'DEBUG' is used by the executor
-                    f"--allow-read=js-executor/,node_modules,{temp_path}",
+                    f"--allow-read={readable}",
                     # Must match the allowed hosts in js-executor/imports.ts
                     "--allow-net=esm.sh,jsr.io,registry.npmjs.org",
                     self.executor_script,
@@ -233,6 +245,8 @@ class JavaScriptExecutor:
         error = error or "Unknown execution error"
         if kind == "timeout":
             return TIMEOUT_MESSAGE.format(limit=self.timeout)
+        elif kind == "busy":
+            return STORE_BUSY_MESSAGE
         elif kind == "output":
             return OUTPUT_MESSAGE
         elif kind == "memory":

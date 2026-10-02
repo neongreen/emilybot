@@ -18,7 +18,7 @@ import { DEBUG_SYNC, newQuickJSWASMModule, RELEASE_SYNC } from "quickjs-emscript
 import { quickJsModuleLoader, quickJsModuleNormalizer } from "./imports.ts"
 import { debug } from "./logging.ts"
 import { wrapUserCode } from "./parse.ts"
-import type { CommandData, ErrorKind, ExecutionResult, StoreSnapshot, StoreTransaction } from "./types.ts"
+import type { CommandData, ErrorKind, ExecutionResult, StoreLoad, StoreTransaction } from "./types.ts"
 
 /** Default elapsed-time budget for user code, including fetching its imports. */
 export const DEFAULT_TIMEOUT_MS = 5000
@@ -42,7 +42,7 @@ export type ExecuteOptions = {
    * Enables `this.store` and returns the store of the alias with this id (version 0 and no data if it has none),
    * or an error when stores cannot be read. Called at most once per alias, on first use.
    */
-  loadStore?: (aliasId: string) => StoreSnapshot | { error: string }
+  loadStore?: (aliasId: string) => StoreLoad
 }
 
 let quickJsModule: Promise<QuickJSWASMModule> | undefined
@@ -271,11 +271,16 @@ export async function execute(
     const storeReads: Record<string, number> = {}
     const hostStoreLoad = ctx.newFunction("__host_store_load", (idHandle) => {
       const id = ctx.getString(idHandle)
-      let result: StoreSnapshot | { error: string }
+      let result: StoreLoad
       try {
         result = options.loadStore ? options.loadStore(id) : { error: "not available here" }
       } catch (error) {
         result = { error: error instanceof Error ? error.message : String(error) }
+      }
+      if ("busy" in result) {
+        // Ends the run even if user code catches the error below
+        stop("busy")
+        result = { error: "the stored data is being saved right now; try again" }
       }
       if ("version" in result) storeReads[id] = result.version
       return ctx.newString(JSON.stringify(result))
@@ -370,6 +375,8 @@ export async function execute(
       ? TIMEOUT_ERROR(timeoutMs)
       : kind === "output"
       ? OUTPUT_LIMIT_ERROR
+      : kind === "busy"
+      ? "The stored data was being saved while this run read it; nothing was saved, try again"
       : error instanceof Error
       ? error.message
       : String(error)

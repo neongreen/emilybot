@@ -3,14 +3,15 @@
 A store belongs to one alias record, keyed by the alias's Entry UUID, within the
 alias's server. All stores live in one file, `data/store.json`:
 
-    {"stores": {"<entry uuid>": {"server_id": 123, "version": 4, "data": {...}}}}
+    {"stores": {"<entry uuid>": {"server_id": "123", "version": 4, "data": {...}}}}
 
-A run reads stores through a snapshot and returns its buffered writes; `commit`
+A run reads the file itself, lazily, on first `this.store` use (see
+storeLoaderFromFile in js-executor/main.ts), and returns its buffered writes; `commit`
 applies them only if every store the run read is still at the version it read and
 the owning aliases still exist with the same code. Everything a commit touches is
 written in one atomic save (see `emilybot.atomic_json_db.write_json_atomic`).
 
-A missing file is an empty set of stores. A file that cannot be parsed is left as
+A missing or empty file is an empty set of stores. A file that cannot be parsed is left as
 it is and logged; store features then fail with a clear message, and everything
 else keeps working.
 """
@@ -52,6 +53,17 @@ class StoreTransaction:
 
 
 @dataclass(frozen=True)
+class StoreAccess:
+    """What the executor needs to give a run `this.store`."""
+
+    server_id: int
+    path: Path
+    """store.json; read by the executor only if the run uses `this.store`"""
+    unavailable: str | None = None
+    """Why stores cannot be used, if they cannot"""
+
+
+@dataclass(frozen=True)
 class StoreRecord:
     server_id: int
     version: int
@@ -89,6 +101,8 @@ class StoreDB:
         except OSError as e:
             self._fail_load(str(e))
             return
+        if not text.strip():
+            return  # Empty, e.g. a freshly created file mount: no stores yet
         try:
             raw = cast(dict[str, Any], json.loads(text))
             for alias_id, rec in cast(dict[str, Any], raw["stores"]).items():
@@ -119,17 +133,8 @@ class StoreDB:
     def get(self, alias_id: uuid.UUID) -> StoreRecord | None:
         return self._stores.get(str(alias_id))
 
-    def snapshot_for_server(self, server_id: int) -> dict[str, Any]:
-        """The stores file the executor reads (see storeLoaderFromFile in js-executor/main.ts)."""
-        if self._unavailable:
-            return {"error": self._unavailable}
-        return {
-            "stores": {
-                alias_id: {"version": rec.version, "data": rec.data}
-                for alias_id, rec in self._stores.items()
-                if rec.server_id == server_id
-            }
-        }
+    def access(self, server_id: int) -> StoreAccess:
+        return StoreAccess(server_id, self.path.resolve(), self._unavailable)
 
     def commit(
         self,
@@ -216,7 +221,8 @@ class StoreDB:
             {
                 "stores": {
                     alias_id: {
-                        "server_id": rec.server_id,
+                        # A string: Discord ids do not fit in a JavaScript number
+                        "server_id": str(rec.server_id),
                         "version": rec.version,
                         "data": rec.data,
                     }

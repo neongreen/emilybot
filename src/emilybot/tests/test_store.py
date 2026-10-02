@@ -25,7 +25,7 @@ from emilybot.store import (
     StoreTransaction,
     StoreUnavailable,
 )
-from emilybot.test_utils import AuthorConfig, ChannelConfig
+from emilybot.test_utils import AuthorConfig, ChannelConfig, GuildConfig
 
 SERVER = 12345  # GuildConfig default
 
@@ -47,7 +47,16 @@ def always(_id: uuid.UUID) -> bool:
 def test_missing_file_is_empty(tmp_path: Path):
     store = StoreDB(tmp_path / "store.json")
     assert store.unavailable is None
-    assert store.snapshot_for_server(SERVER) == {"stores": {}}
+    assert store.access(SERVER).unavailable is None
+
+
+@pytest.mark.parametrize("text", ["", "  \n"])
+def test_empty_file_is_empty(tmp_path: Path, text: str):
+    (tmp_path / "store.json").write_text(text)
+    store = StoreDB(tmp_path / "store.json")
+    assert store.unavailable is None
+    store.commit(SERVER, txn(uuid.uuid4(), 0, k=1), always)
+    assert json.loads((tmp_path / "store.json").read_text(encoding="utf-8"))["stores"]
 
 
 def test_commit_persists_and_bumps_version(tmp_path: Path):
@@ -78,9 +87,9 @@ def test_snapshot_is_per_server(tmp_path: Path):
     a, b = uuid.uuid4(), uuid.uuid4()
     store.commit(SERVER, txn(a, 0, k=1), always)
     store.commit(999, txn(b, 0, k=2), always)
-    assert store.snapshot_for_server(SERVER) == {
-        "stores": {str(a): {"version": 1, "data": {"k": 1}}}
-    }
+    saved = json.loads((tmp_path / "store.json").read_text(encoding="utf-8"))["stores"]
+    assert saved[str(a)] == {"server_id": str(SERVER), "version": 1, "data": {"k": 1}}
+    assert saved[str(b)]["server_id"] == "999"
 
 
 def test_conflicts_commit_nothing(tmp_path: Path):
@@ -148,7 +157,7 @@ def test_malformed_file_is_kept_and_stores_fail_clearly(tmp_path: Path):
     path.write_text('{"stores": ')
     store = StoreDB(path)
     assert store.unavailable is not None
-    assert "error" in store.snapshot_for_server(SERVER)
+    assert store.access(SERVER).unavailable is not None
     with pytest.raises(StoreUnavailable):
         store.commit(SERVER, txn(uuid.uuid4(), 0, k=1), always)
     assert path.read_text() == '{"stores": '
@@ -195,6 +204,17 @@ async def test_counter_persists_across_runs(
         )
     rec = db.store.get(entry.id)
     assert rec is not None and (rec.version, rec.data) == (3, {"n": 3})
+
+
+async def test_real_discord_ids_keep_full_precision(
+    make_ctx: MakeCtx, db: DB, entry_factory: Callable[..., Entry]
+):
+    guild = 1363717601859207340  # larger than 2**53
+    entry = entry_factory(name="counter", content="c", server_id=guild, run=COUNTER)
+    db.remember.add(entry)
+    for expected in ["1", "2"]:
+        ctx = make_ctx(".counter", guild=GuildConfig(id=guild))
+        assert await run_code(ctx, code="$counter()") == (True, expected, None)
 
 
 async def test_dm_aliases_have_no_store(
@@ -297,6 +317,37 @@ async def test_code_changed_during_run_commits_nothing(
     db.remember.update(replace(entry, run=code + " // edited"))
     assert await task == (False, STORE_BUSY_MESSAGE, None)
     assert db.store.get(entry.id) is None
+
+
+@pytest.mark.parametrize(
+    "code", [COUNTER, "try { this.store.get('n') } catch {}\nprint('after')"]
+)
+async def test_half_written_store_file_makes_the_run_busy(
+    make_ctx: MakeCtx, db: DB, add_alias: Callable[..., Entry], code: str
+):
+    entry = add_alias("counter", COUNTER)
+    await run_code(make_ctx(".counter"), code="$counter()")
+    # An in-place save caught halfway: the executor reads the file, not memory
+    db.store.path.write_text(
+        '{"stores": {"' + str(entry.id) + '": {"serv', encoding="utf-8"
+    )
+    add_alias("probe", code)
+    assert await run_code(make_ctx(".probe"), code="$probe()") == (
+        False,
+        STORE_BUSY_MESSAGE,
+        None,
+    )
+    rec = db.store.get(entry.id)
+    assert rec is not None and rec.data == {"n": 1}
+
+
+async def test_runs_without_a_store_file_and_without_using_it(
+    make_ctx: MakeCtx, db: DB, add_alias: Callable[..., Entry]
+):
+    assert not db.store.path.exists()
+    add_alias("plain", "print('fine')")
+    assert await run_code(make_ctx(".plain"), code="$plain()") == (True, "fine", None)
+    assert not db.store.path.exists()
 
 
 async def test_unreadable_store_file(

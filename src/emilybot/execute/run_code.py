@@ -17,12 +17,11 @@ from emilybot.execute.javascript_executor import (
 from emilybot.command_query_service import CommandQueryService
 from emilybot.execute.admission import BUSY_MESSAGE, ExecutorBusy, get_admission
 from emilybot.atomic_json_db import DBSaveError
+from emilybot.execute.executor import STORE_BUSY_MESSAGE
 from emilybot.store import StoreConflict, StoreQuotaExceeded, StoreUnavailable
 
-STORE_BUSY_MESSAGE = (
-    "⏳ The bot is busy: this command's stored data changed while it ran. "
-    "Nothing was saved; try again."
-)
+__all__ = ["STORE_BUSY_MESSAGE", "run_code"]
+
 STORE_SAVE_FAILED_MESSAGE = (
     "⚠️ Could not save this command's stored data. Nothing was changed; try again."
 )
@@ -101,7 +100,7 @@ async def _run_code(
     server_id = ctx.guild.id if ctx.guild else None
     db = ctx.bot.db
     # Stores exist for server aliases only; in DMs `this.store` is undefined
-    stores = db.store.snapshot_for_server(server_id) if server_id is not None else None
+    stores = db.store.access(server_id) if server_id is not None else None
     run_at_start = {c.get("id"): c["run"] for c in available_commands}
 
     outcome = await js_executor.run(code, context, available_commands, stores=stores)
