@@ -10,7 +10,7 @@ from pathlib import Path
 import shutil
 import time
 from tempfile import TemporaryDirectory
-from typing import Any, Literal, NotRequired, Tuple, TypedDict, cast
+from typing import Literal, NotRequired, Tuple, TypedDict, cast
 
 from emilybot.execute.context import Context
 from emilybot.store import StoreAccess, StoreTransaction, StoreWrite
