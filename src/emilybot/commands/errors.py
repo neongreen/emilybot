@@ -33,5 +33,6 @@ async def on_command_error(ctx: EmilyContext, error: commands.CommandError) -> N
         await ctx.send(format_input_error(ctx, error))
         return
     logging.error(
-        f"Error in command {ctx.command}", exc_info=(type(error), error, error.__traceback__)
+        f"Error in command {ctx.command}",
+        exc_info=(type(error), error, error.__traceback__),
     )

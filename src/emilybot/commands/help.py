@@ -236,7 +236,12 @@ async def cmd_help(ctx: EmilyContext, topic: Optional[str] = None) -> None:
     )
 
     # Build the final message
-    message_parts = ["__Quick start__", format_quick_start(), "", "__What Emily knows__"]
+    message_parts = [
+        "__Quick start__",
+        format_quick_start(),
+        "",
+        "__What Emily knows__",
+    ]
 
     if promoted_str:
         message_parts.append(promoted_str)
