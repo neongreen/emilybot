@@ -9,7 +9,13 @@ import pytest
 from emilybot.conftest import MakeCtx
 from emilybot.database import DB, Entry
 from emilybot.execute.run_code import run_code
-from emilybot.persistence import covering_mount, ephemeral_reason, parse_mountinfo
+from emilybot import persistence
+from emilybot.persistence import (
+    Mount,
+    covering_mount,
+    ephemeral_reason,
+    parse_mountinfo,
+)
 from emilybot.store import StoreDB, StoreTransaction, StoreUnavailable
 
 FIXTURES = Path(__file__).parent / "fixtures" / "mountinfo"
@@ -17,7 +23,7 @@ APP_DATA = Path("/app/data")
 
 
 @pytest.mark.parametrize(
-    ("fixture", "directory", "persistent"),
+    ("fixture", "path", "persistent"),
     [
         ("container-data-dir-bind.txt", APP_DATA, True),  # -v hostdir:/app/data
         (
@@ -29,10 +35,16 @@ APP_DATA = Path("/app/data")
         ("dev-ext4.txt", Path("/home/me/emilybot/data"), True),
         ("dev-ext4.txt", Path("/tmp/emilybot/data"), False),  # tmpfs /tmp
         ("spaces.txt", Path("/app/my data"), True),  # escaped mount point
+        # The store file itself: a single-file bind of store.json is persistent
+        ("container-file-binds-with-store.txt", APP_DATA / "store.json", True),
+        ("container-file-bind.txt", APP_DATA / "store.json", False),
+        ("container-data-dir-bind.txt", APP_DATA / "store.json", True),
+        # Mount paths that are not UTF-8 do not stop the check
+        ("non-utf8.txt", APP_DATA / "store.json", True),
     ],
 )
-def test_ephemeral_reason(fixture: str, directory: Path, persistent: bool):
-    reason = ephemeral_reason(directory, FIXTURES / fixture)
+def test_ephemeral_reason(fixture: str, path: Path, persistent: bool):
+    reason = ephemeral_reason(path, FIXTURES / fixture)
     assert (reason is None) == persistent
     if reason:
         assert "not on persistent storage" in reason
@@ -40,6 +52,25 @@ def test_ephemeral_reason(fixture: str, directory: Path, persistent: bool):
 
 def test_unreadable_mountinfo_allows(tmp_path: Path):
     assert ephemeral_reason(APP_DATA, tmp_path / "missing") is None
+
+
+def test_any_error_in_the_check_allows(monkeypatch: pytest.MonkeyPatch):
+    def broken(text: str) -> list[Mount]:
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(persistence, "parse_mountinfo", broken)
+    path = APP_DATA / "store.json"
+    assert ephemeral_reason(path, FIXTURES / "container-file-bind.txt") is None
+    assert (
+        StoreDB(path, mountinfo=FIXTURES / "container-file-bind.txt").unavailable
+        is None
+    )
+
+
+def test_non_utf8_mountinfo_does_not_stop_startup():
+    assert b"\xff" in (FIXTURES / "non-utf8.txt").read_bytes()
+    store = StoreDB(APP_DATA / "store.json", mountinfo=FIXTURES / "non-utf8.txt")
+    assert store.unavailable is None
 
 
 def test_longest_prefix_and_later_mounts_win():
@@ -73,6 +104,11 @@ def test_store_refuses_ephemeral_storage():
         store.commit(
             1, StoreTransaction({alias: 0}, {alias: {"k": {"v": 1}}}), lambda _: True
         )
+
+
+def test_store_allows_a_store_json_file_bind():
+    fixture = FIXTURES / "container-file-binds-with-store.txt"
+    assert StoreDB(APP_DATA / "store.json", mountinfo=fixture).unavailable is None
 
 
 def test_store_allows_directory_bind():

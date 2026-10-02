@@ -11,7 +11,7 @@ applies them only if every store the run read is still at the version it read an
 the owning aliases still exist with the same code. Everything a commit touches is
 written in one atomic save (see `emilybot.atomic_json_db.write_json_atomic`).
 
-Stores are disabled when the file's directory is on a container's writable
+Stores are disabled when store.json would be on a container's writable
 layer or tmpfs (see emilybot.persistence), so saved data is never silently lost
 on redeploy.
 
@@ -102,10 +102,11 @@ class StoreDB:
         self._unavailable: str | None = None
         # Saved data on a container's writable layer would vanish on the next
         # redeploy; refuse it rather than lose it silently.
-        ephemeral = ephemeral_reason(path.parent, mountinfo or persistence.MOUNTINFO)
+        # The file itself: a single-file bind mount of store.json is persistent
+        ephemeral = ephemeral_reason(path, mountinfo or persistence.MOUNTINFO)
         if ephemeral:
             self._unavailable = ephemeral
-            logging.error(f"Stores are disabled: {ephemeral} ({path.parent})")
+            logging.error(f"Stores are disabled: {ephemeral} ({path})")
             return
         try:
             text = path.read_text(encoding="utf-8")

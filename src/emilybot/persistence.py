@@ -1,4 +1,4 @@
-"""Detect whether a directory is on storage that survives a redeploy.
+"""Detect whether a file or directory is on storage that survives a redeploy.
 
 In a container, a directory that no volume or bind mount covers lives in the
 container's writable layer (overlay) and is lost when the container is
@@ -58,9 +58,9 @@ def parse_mountinfo(text: str) -> list[Mount]:
     return mounts
 
 
-def covering_mount(directory: Path, mounts: list[Mount]) -> Mount | None:
-    """The mount that holds `directory`: the longest mount point that is a prefix of it."""
-    path = str(directory)
+def covering_mount(target: Path, mounts: list[Mount]) -> Mount | None:
+    """The mount that holds `target` (a file or directory): the longest mount point that is a prefix of it."""
+    path = str(target)
     best: Mount | None = None
     for mount in mounts:
         mp = mount.mount_point
@@ -71,29 +71,40 @@ def covering_mount(directory: Path, mounts: list[Mount]) -> Mount | None:
     return best
 
 
-def ephemeral_reason(directory: Path, mountinfo: Path = MOUNTINFO) -> str | None:
-    """Why `directory` would be lost on redeploy, or None if it looks persistent.
+def ephemeral_reason(path: Path, mountinfo: Path = MOUNTINFO) -> str | None:
+    """Why `path` would be lost on redeploy, or None if it looks persistent.
 
-    Allows (returns None) when mountinfo cannot be read, e.g. not on Linux.
+    `path` may be a file: a single-file bind mount of it counts. Allows (returns
+    None) when the check cannot be made, e.g. not on Linux, and on any error, so
+    the check can disable stores but never stop the bot.
     """
     try:
-        mounts = parse_mountinfo(mountinfo.read_text(encoding="utf-8"))
-    except OSError as e:
-        logging.info(
-            f"Cannot read {mountinfo} ({e}); assuming {directory} is persistent"
+        return _ephemeral_reason(path, mountinfo)
+    except Exception:
+        logging.exception(
+            f"Checking whether {path} is persistent failed; assuming it is"
         )
         return None
-    directory = directory.resolve()
-    mount = covering_mount(directory, mounts)
+
+
+def _ephemeral_reason(path: Path, mountinfo: Path) -> str | None:
+    try:
+        # Mount paths are raw bytes; keep undecodable ones instead of failing
+        text = mountinfo.read_text(encoding="utf-8", errors="surrogateescape")
+    except OSError as e:
+        logging.info(f"Cannot read {mountinfo} ({e}); assuming {path} is persistent")
+        return None
+    path = path.resolve()
+    mount = covering_mount(path, parse_mountinfo(text))
     if mount is None:
         logging.info(
-            f"No mount covers {directory} in {mountinfo}; assuming it is persistent"
+            f"No mount covers {path} in {mountinfo}; assuming it is persistent"
         )
         return None
     persistent = mount.fstype not in EPHEMERAL_FSTYPES
     logging.info(
-        f"{directory} is on mount {mount.mount_point} "
-        f"(fstype {mount.fstype}, source {mount.source}): "
+        f"{path} is on mount {mount.mount_point!r} "
+        f"(fstype {mount.fstype}, source {mount.source!r}): "
         f"{'persistent' if persistent else 'NOT persistent'}"
     )
     if persistent:
