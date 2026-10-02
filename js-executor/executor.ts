@@ -41,7 +41,7 @@ export type ExecuteOptions = {
 }
 
 let quickJsModule: Promise<QuickJSWASMModule> | undefined
-function getQuickJS(): Promise<QuickJSWASMModule> {
+export function getQuickJS(): Promise<QuickJSWASMModule> {
   quickJsModule ??= newQuickJSWASMModule(Deno.env.get("DEBUG") === "1" ? DEBUG_SYNC : RELEASE_SYNC)
   return quickJsModule
 }

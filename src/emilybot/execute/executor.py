@@ -213,16 +213,16 @@ class JavaScriptExecutor:
                 process.communicate(), timeout=self.backstop
             )
         except asyncio.TimeoutError:
-            await _kill_and_reap(process)
+            await kill_and_reap(process)
             return None
         except BaseException:
             # Cancellation (or anything else): never leave the child running
-            await asyncio.shield(_kill_and_reap(process))
+            await asyncio.shield(kill_and_reap(process))
             raise
         return stdout, stderr, process.returncode
 
 
-async def _kill_and_reap(process: asyncio.subprocess.Process) -> None:
+async def kill_and_reap(process: asyncio.subprocess.Process) -> None:
     try:
         process.kill()
     except ProcessLookupError:

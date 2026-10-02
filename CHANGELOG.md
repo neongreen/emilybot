@@ -4,6 +4,9 @@
 
 **JS execution:**
 
+- `.set name.run` now checks the code first. Code with a syntax error is rejected with the line and column,
+  and the alias keeps its old code. The code is not run while checking.
+
 - Commands run much faster: a typical alias now takes well under a second instead of several seconds,
   so trivial aliases no longer hit "execution timed out".
 - The 5 second limit now counts only time your code runs, including nested commands and fetching imports,
