@@ -8,8 +8,9 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import shutil
+import time
 from tempfile import TemporaryDirectory
-from typing import Tuple, TypedDict, Literal
+from typing import Literal, Tuple, TypedDict, cast
 
 from emilybot.execute.context import Context
 
@@ -30,8 +31,8 @@ class ExecutionResult(TypedDict):
     error: str | None  # Error message if failed (optional)
 
 
-# Error type literal
-ErrorType = Literal["memory", "syntax", "runtime"]
+# Why execution failed. Must match `ErrorKind` in js-executor/types.ts.
+ErrorType = Literal["timeout", "memory", "output", "syntax", "runtime"]
 
 
 @dataclass
@@ -42,16 +43,43 @@ class JSExecutionError(Exception):
     message: str
 
 
-class JavaScriptExecutor:
-    """Executes JavaScript code using Deno CLI subprocess with timeout and error handling."""
+class _ExecutorOutput(TypedDict, total=False):
+    """What js-executor/main.ts prints to stdout."""
 
-    def __init__(self, *, timeout: float = 5.0):
+    success: bool
+    output: str
+    value: str | None
+    error: str
+    kind: ErrorType
+    timings: dict[str, float]
+
+
+TIMEOUT_MESSAGE = "⏱️ JavaScript execution timed out ({limit}s limit)"
+BACKSTOP_MESSAGE = "⏱️ The JavaScript executor did not respond in time"
+OUTPUT_MESSAGE = "📜 JavaScript output exceeded the 1 MiB limit"
+MEMORY_MESSAGE = "💾 JavaScript execution exceeded memory limits"
+
+
+class JavaScriptExecutor:
+    """Executes JavaScript code in a fresh Deno process per call.
+
+    Concurrency is not limited here; callers that serve users go through
+    `emilybot.execute.admission`.
+    """
+
+    def __init__(self, *, timeout: float = 5.0, startup_allowance: float = 10.0):
         """Initialize the JavaScript executor.
 
         Args:
-            timeout: Maximum execution time in seconds
+            timeout: Elapsed-time budget for user code in seconds, enforced inside
+                the sandbox. It covers nested commands and import fetches, and
+                excludes process startup.
+            startup_allowance: Extra wall-clock time on top of `timeout` before the
+                Deno process is killed. This backstop catches a stuck process; it is
+                a safety bound, not a guarantee that startup always fits.
         """
         self.timeout = timeout
+        self.backstop = timeout + startup_allowance
         deno_path = shutil.which("deno")
         if not deno_path:
             raise FileNotFoundError("Deno CLI not found in PATH")
@@ -69,10 +97,7 @@ class JavaScriptExecutor:
         Returns:
             Tuple of (success: bool, output: str, result: str)
             - If success=True, output contains console.log output
-            - If success=False, output contains error message
-
-        Raises:
-            JSExecutionError: When execution fails with specific error types
+            - If success=False, output contains a user-facing error message
         """
         try:
             # XXX: ctx left for backwards compatibility, will remove later
@@ -90,112 +115,116 @@ class JavaScriptExecutor:
                 fields_path.write_text(fields_json)
                 commands_path.write_text(commands_json)
 
-                # Build command
                 cmd = [
                     self.deno_path,
                     "run",
                     "--quiet",
                     "--allow-env=QTS_DEBUG,LOG_LEVEL,DEBUG",  # 'LOG_LEVEL' enables logs in the executor, 'QTS_DEBUG' is used by the QuickJS runtime, 'DEBUG' is used by the executor
                     f"--allow-read=js-executor/,node_modules,{temp_path}",
-                    "--allow-net=esm.sh",
+                    # Must match the allowed hosts in js-executor/imports.ts
+                    "--allow-net=esm.sh,jsr.io,registry.npmjs.org",
                     self.executor_script,
                     f"--fieldsFile={str(fields_path)}",
                     f"--commandsFile={str(commands_path)}",
+                    f"--timeoutMs={int(self.timeout * 1000)}",
                     code,
                 ]
 
-                # Execute with timeout
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=Path.cwd(),
-                    env={"NO_COLOR": "1"},
-                )
+                started = time.monotonic()
+                ran = await self._run_deno(cmd)
+                total_ms = (time.monotonic() - started) * 1000
+                if ran is None:
+                    logging.warning(f"Deno process hit the {self.backstop}s backstop")
+                    return False, BACKSTOP_MESSAGE, None
+                stdout, stderr, returncode = ran
 
-                try:
-                    logging.info("Starting Deno process")
-                    logging.debug(f"Deno command: {shlex.join(cmd)}")
-                    stdout, stderr = await asyncio.wait_for(
-                        process.communicate(), timeout=self.timeout
-                    )
-                except asyncio.TimeoutError:
-                    # Kill the process if it's still running
-                    logging.debug("Deno process timed out, killing it")
-                    try:
-                        process.kill()
-                        await process.wait()
-                    except ProcessLookupError:
-                        pass  # Process already terminated
-                    return (
-                        False,
-                        f"⏱️ JavaScript execution timed out ({self.timeout}s limit)",
-                        None,
-                    )
-
-            # Decode output
             stdout_text = stdout.decode("utf-8").strip() if stdout else ""
             stderr_text = stderr.decode("utf-8").strip() if stderr else ""
-
             logging.debug(f"Deno stderr: {stderr_text}")
-            logging.debug(f"Deno stdout: {stdout_text}")
+            logging.debug(f"Deno stdout: {stdout_text[:2000]}")
 
-            # Check exit code and classify errors
-            if process.returncode == 0:
-                parsed = json.loads(stdout_text)
-                return True, parsed.get("output", ""), parsed.get("value", None)
-            else:
-                # Classify error based on stderr content
-                error_type = self._classify_error(stderr_text)
-                error_message = stderr_text or "Unknown execution error"
+            try:
+                parsed: object = json.loads(stdout_text)
+            except json.JSONDecodeError:
+                parsed = None
+            if not isinstance(parsed, dict):
+                # The executor failed before running user code (bad input, crash)
+                return (
+                    False,
+                    f"❌ JavaScript execution failed: {stderr_text or 'Unknown execution error'}",
+                    None,
+                )
 
-                # For user-facing errors, return a clean message
-                if error_type == "memory":
-                    return False, "💾 JavaScript execution exceeded memory limits", None
-                elif error_type == "syntax":
-                    return (
-                        False,
-                        f"❌ JavaScript syntax error: {stderr_text}",
-                        None,
-                    )
-                elif error_type == "runtime":
-                    return (
-                        False,
-                        f"⚠️ JavaScript runtime error: {stderr_text}",
-                        None,
-                    )
-                else:
-                    return (
-                        False,
-                        f"❌ JavaScript execution failed: {error_message}",
-                        None,
-                    )
+            result = cast(_ExecutorOutput, parsed)
+            timings = result.get("timings") or {}
+            logging.info(
+                "JS execution: total %.0f ms, bootstrap %.0f ms, user code %.0f ms",
+                total_ms,
+                timings.get("bootstrapMs", -1),
+                timings.get("userMs", -1),
+            )
+
+            if returncode == 0 and result.get("success"):
+                return True, result.get("output", ""), result.get("value")
+            return (
+                False,
+                self._error_message(result.get("kind"), result.get("error")),
+                None,
+            )
 
         except FileNotFoundError:
             return False, f"❌ Deno executable not found at: {self.deno_path}", None
         except (TypeError, ValueError) as e:
             return False, f"❌ Failed to encode context as JSON: {e}", None
-        except JSExecutionError:
-            # Re-raise JSExecutionError as-is
-            raise
         except Exception as e:
             logging.error(f"Unexpected error in JavaScript execution: {e}")
             return False, f"❌ Unexpected execution error: {e}", None
 
-    def _classify_error(self, stderr: str) -> str:
-        """Classify error type based on stderr content.
-
-        Args:
-            stderr: Standard error output from Deno process
-
-        Returns:
-            Error type: "timeout", "memory", "syntax", or "runtime"
-        """
-        stderr_lower = stderr.lower()
-
-        if "memory" in stderr_lower or "out of memory" in stderr_lower:
-            return "memory"
-        elif "syntaxerror" in stderr_lower or "syntax error" in stderr_lower:
-            return "syntax"
+    def _error_message(self, kind: ErrorType | None, error: str | None) -> str:
+        """User-facing message for a failed execution."""
+        error = error or "Unknown execution error"
+        if kind == "timeout":
+            return TIMEOUT_MESSAGE.format(limit=self.timeout)
+        elif kind == "output":
+            return OUTPUT_MESSAGE
+        elif kind == "memory":
+            return MEMORY_MESSAGE
+        elif kind == "syntax":
+            return f"❌ JavaScript syntax error: {error}"
         else:
-            return "runtime"
+            return f"⚠️ JavaScript runtime error: {error}"
+
+    async def _run_deno(self, cmd: list[str]) -> tuple[bytes, bytes, int | None] | None:
+        """Run the executor process.
+
+        Returns (stdout, stderr, returncode), or None if the backstop killed it.
+        The process is killed and reaped on the backstop and on cancellation.
+        """
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=Path.cwd(),
+            env={"NO_COLOR": "1"},
+        )
+        logging.debug(f"Deno command: {shlex.join(cmd)}")
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(), timeout=self.backstop
+            )
+        except asyncio.TimeoutError:
+            await _kill_and_reap(process)
+            return None
+        except BaseException:
+            # Cancellation (or anything else): never leave the child running
+            await asyncio.shield(_kill_and_reap(process))
+            raise
+        return stdout, stderr, process.returncode
+
+
+async def _kill_and_reap(process: asyncio.subprocess.Process) -> None:
+    try:
+        process.kill()
+    except ProcessLookupError:
+        pass  # Already exited
+    await process.wait()

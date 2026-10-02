@@ -8,7 +8,6 @@
     "npm:astring@^1.9.0": "1.9.0",
     "npm:meriyah@^6.1.4": "6.1.4",
     "npm:quickjs-emscripten-core@0.31": "0.31.0",
-    "npm:quickjs-emscripten-sync@^1.5.2": "1.5.2_quickjs-emscripten@0.31.0",
     "npm:quickjs-emscripten@0.31": "0.31.0",
     "npm:zod@^4.0.14": "4.0.14"
   },
@@ -70,12 +69,6 @@
         "@jitl/quickjs-ffi-types"
       ]
     },
-    "quickjs-emscripten-sync@1.5.2_quickjs-emscripten@0.31.0": {
-      "integrity": "sha512-TWwKQWXOKgQPt0efKIzFFZjHTu+9InM3Ou2s+jh4aYBy765zy20jZRiBZb52OU2JQ7DkBklICe03h9XOwDy3+Q==",
-      "dependencies": [
-        "quickjs-emscripten"
-      ]
-    },
     "quickjs-emscripten@0.31.0": {
       "integrity": "sha512-K7Yt78aRPLjPcqv3fIuLW1jW3pvwO21B9pmFOolsjM/57ZhdVXBr51GqJpalgBlkPu9foAvhEAuuQPnvIGvLvQ==",
       "dependencies": [
@@ -102,7 +95,6 @@
           "jsr:@std/cli@^1.0.21",
           "jsr:@std/collections@^1.1.2",
           "npm:meriyah@^6.1.4",
-          "npm:quickjs-emscripten-sync@^1.5.2",
           "npm:quickjs-emscripten@0.31",
           "npm:zod@^4.0.14"
         ]

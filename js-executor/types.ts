@@ -9,14 +9,11 @@ export interface ExecutionResult {
   output: string // Console.log output
   value?: string // Result of the executed code, if not undefined
   error?: string // Error message if failed
+  kind?: ErrorKind // Why it failed
 }
 
-export type ErrorType = "timeout" | "memory" | "syntax" | "runtime"
-
-export interface JSExecutionError {
-  type: ErrorType
-  message: string
-}
+/** Why execution failed. Must match `ErrorType` in src/emilybot/execute/executor.py. */
+export type ErrorKind = "timeout" | "memory" | "output" | "syntax" | "runtime"
 
 export type CommandData = {
   name: string

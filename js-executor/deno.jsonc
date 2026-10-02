@@ -9,7 +9,6 @@
     "@std/collections": "jsr:@std/collections@^1.1.2",
     "meriyah": "npm:meriyah@^6.1.4",
     "quickjs-emscripten": "npm:quickjs-emscripten@^0.31.0",
-    "quickjs-emscripten-sync": "npm:quickjs-emscripten-sync@^1.5.2",
     "zod": "npm:zod@^4.0.14"
   },
   "lint": {
