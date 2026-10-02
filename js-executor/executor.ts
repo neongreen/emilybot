@@ -3,8 +3,14 @@
  *
  * Commands and fields enter the VM as one JSON string; `prelude.js` builds `$`, `$name` globals and the lib helpers
  * inside the VM. Only strings cross the boundary: printed output, lazy command wrapping, and module source from the
- * module loader. User code, including fetching its imports, runs under one deadline (`timeoutMs`), so runaway loops
- * and slow imports end with a timeout error. Collected output and the inspected result are capped in size.
+ * module loader.
+ *
+ * Limits, all per invocation:
+ * - one elapsed-time deadline (`timeoutMs`) that starts after the trusted bootstrap and covers compiling and running
+ *   user code, nested commands, promise jobs and import fetches. A host callback (parsing a command, a fetch) cannot
+ *   be preempted mid-call; the fetch gets only the remaining time, and the Python caller keeps a process backstop.
+ * - a QuickJS heap limit for user code, on top of the loaded commands.
+ * - an output budget (UTF-8 bytes) shared by printed output and the inspected result. Exceeding it stops execution.
  */
 
 import type { QuickJSContext, QuickJSHandle, QuickJSRuntime, QuickJSWASMModule } from "quickjs-emscripten"
@@ -12,22 +18,26 @@ import { DEBUG_SYNC, newQuickJSWASMModule, RELEASE_SYNC } from "quickjs-emscript
 import { quickJsModuleLoader, quickJsModuleNormalizer } from "./imports.ts"
 import { debug } from "./logging.ts"
 import { wrapUserCode } from "./parse.ts"
-import type { CommandData, ExecutionResult } from "./types.ts"
+import type { CommandData, ErrorKind, ExecutionResult } from "./types.ts"
 
-/** Default budget for user code, including fetching its imports. */
+/** Default elapsed-time budget for user code, including fetching its imports. */
 export const DEFAULT_TIMEOUT_MS = 5000
-/** Max characters of printed output and of the inspected result kept on the host; the rest is dropped. */
-export const OUTPUT_LIMIT_CHARS = 64 * 1024
-export const TRUNCATED_MARKER = "…(output truncated)"
+/** Budget for printed output plus the inspected result, in UTF-8 bytes. */
+export const OUTPUT_LIMIT_BYTES = 1024 * 1024
 const MEMORY_LIMIT_BYTES = 1024 * 1024 * 10 // 10 MB for user code, on top of the loaded commands
+/** Objects nested deeper than this print as `[Object]` / `[Array]`. */
+const INSPECT_DEPTH = 100
 
 export const TIMEOUT_ERROR = (ms: number) =>
   `JavaScript execution timed out (${ms / 1000}s limit). Check for infinite loops.`
+export const OUTPUT_LIMIT_ERROR = `Output exceeded the ${OUTPUT_LIMIT_BYTES / 1024 / 1024} MiB limit`
 
 const PRELUDE = Deno.readTextFileSync(new URL("./prelude.js", import.meta.url))
 
 export type ExecuteOptions = {
   timeoutMs?: number
+  /** Receives how long the trusted bootstrap and the user code took. */
+  onTimings?: (timings: { bootstrapMs: number; userMs: number }) => void
 }
 
 let quickJsModule: Promise<QuickJSWASMModule> | undefined
@@ -36,7 +46,9 @@ function getQuickJS(): Promise<QuickJSWASMModule> {
   return quickJsModule
 }
 
-const inspect = (x: unknown) => Deno.inspect(x, { depth: 999, colors: false, compact: true, breakLength: 100 })
+const inspect = (x: unknown) =>
+  Deno.inspect(x, { depth: INSPECT_DEPTH, colors: false, compact: true, breakLength: 100 })
+const utf8Length = (s: string) => new TextEncoder().encode(s).length
 
 /** Rebuilds a value encoded by `__encode` in prelude.js so that Deno.inspect prints it like the original. */
 export function decodeValue(encoded: unknown): unknown {
@@ -54,6 +66,8 @@ export function decodeValue(encoded: unknown): unknown {
         return Symbol(e.v)
       case "ref":
         return seen.get(e.i)
+      case "deep":
+        return e.a ? [{}] : { _: {} } // past the inspect depth, printed as [Array] / [Object]
     }
     const fill = (target: any) => {
       seen.set(e.i, target)
@@ -115,14 +129,26 @@ export function decodeValue(encoded: unknown): unknown {
   return go(encoded)
 }
 
-function errorMessage(ctx: QuickJSContext, handle: QuickJSHandle): string {
-  const err = ctx.dump(handle)
-  handle.dispose()
-  if (err && typeof err === "object" && "message" in err) return String(err.message)
-  return String(err)
+class ExecError extends Error {
+  constructor(public kind: ErrorKind, message: string) {
+    super(message)
+  }
 }
 
-class TimeoutError extends Error {}
+/** Converts a thrown VM value into an ExecError and disposes its handle. */
+function vmError(ctx: QuickJSContext, handle: QuickJSHandle): ExecError {
+  const err = ctx.dump(handle)
+  handle.dispose()
+  if (err && typeof err === "object" && "message" in err) {
+    const name = String(err.name)
+    const message = String(err.message)
+    // QuickJS reports deep recursion while compiling (e.g. a command calling itself) as a SyntaxError
+    if (name === "SyntaxError" && message !== "stack overflow") return new ExecError("syntax", message)
+    if (message === "out of memory") return new ExecError("memory", message)
+    return new ExecError("runtime", message)
+  }
+  return new ExecError("runtime", String(err))
+}
 
 /**
  * Runs pending jobs until the promise settles; returns the settled value handle.
@@ -137,13 +163,13 @@ function settle(ctx: QuickJSContext, runtime: QuickJSRuntime, handle: QuickJSHan
     }
     if (state.type === "rejected") {
       handle.dispose()
-      throw new Error(errorMessage(ctx, state.error))
+      throw vmError(ctx, state.error)
     }
     const jobs = runtime.executePendingJobs()
-    if (jobs.error) throw new Error(errorMessage(ctx, jobs.error))
+    if (jobs.error) throw vmError(ctx, jobs.error)
     if (jobs.value === 0) {
       handle.dispose()
-      throw new Error("Execution finished with a promise that never resolves")
+      throw new ExecError("runtime", "Execution finished with a promise that never resolves")
     }
   }
 }
@@ -160,6 +186,7 @@ export async function execute(
   code: string,
   options: ExecuteOptions = {},
 ): Promise<ExecutionResult> {
+  const startedAt = performance.now()
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const fieldValues = typeof fields === "function" ? fields(undefined) : fields
 
@@ -167,43 +194,60 @@ export async function execute(
   const runtime = QuickJS.newRuntime()
   const ctx = runtime.newContext()
   const output: string[] = []
-  let outputChars = 0
-  let outputTruncated = false
+  let outputBytes = 0
 
-  // One deadline for user code and its import fetches.
+  // Set once, when user code starts; never extended or reset.
   let deadline = Infinity
-  let timedOut = false
+  // Why the interrupt handler stopped execution, if it did.
+  let stopKind: ErrorKind | null = null
+  const stop = (kind: ErrorKind) => {
+    stopKind ??= kind
+    deadline = -Infinity
+  }
   runtime.setInterruptHandler(() => {
-    if (Date.now() > deadline) {
-      timedOut = true
+    if (performance.now() > deadline) {
+      stopKind ??= "timeout"
       return true
     }
     return false
   })
   runtime.setModuleLoader((moduleName) => {
-    const remaining = deadline - Date.now()
+    const remaining = deadline - performance.now()
     if (remaining <= 0) {
-      timedOut = true
-      return { value: `throw new Error("Timed out before importing ${JSON.stringify(moduleName).slice(1, -1)}")` }
+      stopKind ??= "timeout"
+      return { value: `throw new Error(${JSON.stringify(`Timed out before importing ${moduleName}`)})` }
     }
     const result = quickJsModuleLoader(moduleName, { timeoutMs: remaining })
-    if (Date.now() > deadline) timedOut = true
+    if (performance.now() > deadline) stopKind ??= "timeout"
     return result
   }, quickJsModuleNormalizer)
 
+  /** Adds to the output budget; stops execution when it runs out. */
+  const spend = (bytes: number): boolean => {
+    outputBytes += bytes
+    if (outputBytes > OUTPUT_LIMIT_BYTES) {
+      stop("output")
+      return false
+    }
+    return true
+  }
+
+  let bootstrapMs = 0
   try {
     // --- Bridge functions (strings only) ---
+
+    // Receives a JSON array of printed arguments (strings, or values encoded by `encode` in prelude.js),
+    // or null when the VM ran out of output budget while encoding.
     const hostPrint = ctx.newFunction("__host_print", (argsHandle) => {
-      if (outputTruncated) return
+      if (ctx.typeof(argsHandle) !== "string") return void stop("output")
+      // UTF-8 is at least as long as UTF-16, so this rejects oversized payloads before copying them out of the VM
+      const lengthHandle = ctx.getProp(argsHandle, "length")
+      const length = ctx.getNumber(lengthHandle)
+      lengthHandle.dispose()
+      if (outputBytes + length > OUTPUT_LIMIT_BYTES * 2 + 1024) return void stop("output")
       const args: unknown[] = JSON.parse(ctx.getString(argsHandle))
       const line = args.map((a) => typeof a === "string" ? a : inspect(decodeValue(a))).join(" ")
-      if (outputChars + line.length > OUTPUT_LIMIT_CHARS) {
-        output.push(line.slice(0, Math.max(0, OUTPUT_LIMIT_CHARS - outputChars)) + TRUNCATED_MARKER)
-        outputTruncated = true
-      } else {
-        output.push(line)
-        outputChars += line.length + 1
-      }
+      if (spend(utf8Length(line) + 1)) output.push(line)
     })
     const hostWrap = ctx.newFunction("__host_wrap", (nameHandle, codeHandle) => {
       const name = ctx.getString(nameHandle)
@@ -223,49 +267,73 @@ export async function execute(
     hostPrint.dispose()
     hostWrap.dispose()
 
-    const initJson = ctx.newString(JSON.stringify({ fields: fieldValues, commands }))
+    const initJson = ctx.newString(JSON.stringify({ fields: fieldValues, commands, outputLimit: OUTPUT_LIMIT_BYTES }))
     ctx.setProp(ctx.global, "__init_json", initJson)
     initJson.dispose()
 
-    ctx.unwrapResult(ctx.evalCode(PRELUDE, "prelude.js")).dispose()
+    const prelude = ctx.evalCode(PRELUDE, "prelude.js")
+    if (prelude.error) throw vmError(ctx, prelude.error)
+    prelude.value.dispose()
     const encodeFn = ctx.getProp(ctx.global, "__encode")
     ctx.unwrapResult(ctx.evalCode("delete globalThis.__encode")).dispose()
-    // The limit applies on top of what the commands and prelude already use
     const usageHandle = runtime.computeMemoryUsage()
     const usage = ctx.dump(usageHandle)
     usageHandle.dispose()
     runtime.setMemoryLimit(usage.memory_used_size + MEMORY_LIMIT_BYTES)
 
     // --- User code ---
-    const wrapped = wrapUserCode(code, "module")
+    const userStart = performance.now()
+    bootstrapMs = userStart - startedAt
+    deadline = userStart + timeoutMs
+
+    let wrapped: string
+    try {
+      wrapped = wrapUserCode(code, "module")
+    } catch (error) {
+      throw new ExecError("syntax", error instanceof Error ? error.message : String(error))
+    }
     debug("wrapped code:", wrapped)
-    deadline = Date.now() + timeoutMs
     const moduleResult = ctx.evalCode(wrapped, "file:///code.mjs", { type: "module" })
-    if (moduleResult.error) throw new Error(errorMessage(ctx, moduleResult.error))
+    if (moduleResult.error) throw vmError(ctx, moduleResult.error)
 
     // The module evaluates to its namespace (possibly via a promise); `default` is the promise of the user's result.
     const namespace = settle(ctx, runtime, moduleResult.value)
     const defaultExport = ctx.getProp(namespace, "default")
     namespace.dispose()
     const value = settle(ctx, runtime, defaultExport)
-    deadline = Infinity
 
-    const isUndefined = ctx.typeof(value) === "undefined"
     let inspected: string | undefined
-    if (!isUndefined) {
-      const encoded = ctx.unwrapResult(ctx.callFunction(encodeFn, ctx.undefined, value))
-      inspected = inspect(decodeValue(JSON.parse(ctx.getString(encoded))))
-      if (inspected.length > OUTPUT_LIMIT_CHARS) inspected = inspected.slice(0, OUTPUT_LIMIT_CHARS) + TRUNCATED_MARKER
-      encoded.dispose()
+    if (ctx.typeof(value) !== "undefined") {
+      const remaining = Math.max(0, OUTPUT_LIMIT_BYTES - outputBytes)
+      const budget = ctx.newNumber(remaining)
+      const encoded = ctx.callFunction(encodeFn, ctx.undefined, value, budget)
+      budget.dispose()
+      if (encoded.error) throw vmError(ctx, encoded.error)
+      if (ctx.typeof(encoded.value) !== "string") stop("output")
+      else {
+        inspected = inspect(decodeValue(JSON.parse(ctx.getString(encoded.value))))
+        if (!spend(utf8Length(inspected))) inspected = undefined
+      }
+      encoded.value.dispose()
     }
     value.dispose()
     encodeFn.dispose()
+    if (stopKind) throw new ExecError(stopKind, "")
 
+    options.onTimings?.({ bootstrapMs, userMs: performance.now() - startedAt - bootstrapMs })
     return { success: true, output: output.join("\n"), value: inspected }
   } catch (error) {
     debug("execute failed:", error)
-    const message = timedOut ? TIMEOUT_ERROR(timeoutMs) : error instanceof Error ? error.message : String(error)
-    return { success: false, output: "", value: undefined, error: message }
+    const kind: ErrorKind = stopKind ?? (error instanceof ExecError ? error.kind : "runtime")
+    const message = kind === "timeout"
+      ? TIMEOUT_ERROR(timeoutMs)
+      : kind === "output"
+      ? OUTPUT_LIMIT_ERROR
+      : error instanceof Error
+      ? error.message
+      : String(error)
+    options.onTimings?.({ bootstrapMs, userMs: performance.now() - startedAt - bootstrapMs })
+    return { success: false, output: "", value: undefined, error: message, kind }
   }
   // The runtime is not disposed: the executor process exits after one run, and disposing with leaked handles
   // after an interrupted or failed run asserts in the debug build.

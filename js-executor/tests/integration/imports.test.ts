@@ -38,6 +38,7 @@ Deno.test("imports from other urls (esm.run) are forbidden", async () => {
     success: false,
     output: "",
     error: "Only esm.sh, jsr.io, registry.npmjs.org urls are supported",
+    kind: "runtime",
     value: undefined,
   })
 })

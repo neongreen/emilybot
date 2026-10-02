@@ -87,7 +87,7 @@ export function quickJsModuleLoader(
     // TODO: for esm links request es2015 or 2020 or idk
     const response = syncFetch(url, { timeoutMs: options.timeoutMs })
     if (!response.ok) {
-      throw new Error(`${response.status}`)
+      throw new Error(`Importing ${url} failed with HTTP ${response.status}`)
     }
     const text = response.text()
     return { value: text }

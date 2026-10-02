@@ -18,54 +18,101 @@
 
   // Turns a VM value into a JSON-safe tree that the host rebuilds into an equivalent value for Deno.inspect.
   // Primitives other than non-finite numbers are kept as-is; everything else is a tagged object.
-  function encode(value) {
-    const ids = new Map()
-    const go = (v) => {
+  // Shared (non-circular) references are expanded, like Deno.inspect does, so the size of the tree bounds the size
+  // of the printed text; `budget` caps that size and encoding throws OVER_BUDGET past it.
+  const OVER_BUDGET = {}
+  const MAX_DEPTH = 100 // matches INSPECT_DEPTH in executor.ts
+  function encode(value, budget) {
+    let size = 0
+    let nextId = 0
+    const ancestors = new Map()
+    const charge = (n) => {
+      size += n
+      if (size > budget) throw OVER_BUDGET
+    }
+    const go = (v, depth) => {
+      charge(8)
       switch (typeof v) {
         case "undefined":
           return { t: "u" }
         case "number":
           return Number.isFinite(v) && !Object.is(v, -0) ? v : { t: "n", v: Object.is(v, -0) ? "-0" : String(v) }
         case "bigint":
+          charge(String(v).length)
           return { t: "b", v: String(v) }
         case "symbol":
+          charge(String(v.description).length)
           return { t: "y", v: v.description }
         case "string":
+          charge(v.length)
+          return v
         case "boolean":
           return v
       }
       if (v === null) return null
-      if (ids.has(v)) return { t: "ref", i: ids.get(v) }
-      const i = ids.size
-      ids.set(v, i)
-      const props = () => Object.keys(v).map((k) => [k, go(v[k])])
-      if (typeof v === "function") {
-        const kind = v.constructor && v.constructor.name
-        return { t: "f", i, n: v.name, k: kind, p: props() }
+      if (ancestors.has(v)) return { t: "ref", i: ancestors.get(v) }
+      if (depth > MAX_DEPTH) return { t: "deep", a: Array.isArray(v) }
+      const i = nextId++
+      ancestors.set(v, i)
+      try {
+        const props = () =>
+          Object.keys(v).map((k) => {
+            charge(k.length)
+            return [k, go(v[k], depth + 1)]
+          })
+        if (typeof v === "function") {
+          const kind = v.constructor && v.constructor.name
+          return { t: "f", i, n: v.name, k: kind, p: props() }
+        }
+        if (Array.isArray(v)) {
+          const items = []
+          for (let k = 0; k < v.length; k++) items.push(k in v ? go(v[k], depth + 1) : (charge(8), { t: "h" }))
+          return { t: "a", i, v: items }
+        }
+        if (v instanceof Date) return { t: "d", i, v: v.getTime() }
+        if (v instanceof RegExp) {
+          charge(v.source.length)
+          return { t: "r", i, s: v.source, f: v.flags }
+        }
+        if (v instanceof Error) {
+          charge(String(v.message).length + String(v.stack).length)
+          return { t: "e", i, n: v.name, m: v.message, s: v.stack }
+        }
+        if (v instanceof Map) return { t: "m", i, v: Array.from(v, ([k, x]) => [go(k, depth + 1), go(x, depth + 1)]) }
+        if (v instanceof Set) return { t: "s", i, v: Array.from(v, (x) => go(x, depth + 1)) }
+        if (v instanceof Promise) return { t: "p", i }
+        const proto = Object.getPrototypeOf(v)
+        const c = proto === null ? null : (proto.constructor && proto.constructor.name) || "Object"
+        return { t: "o", i, c, p: props() }
+      } finally {
+        ancestors.delete(v)
       }
-      if (Array.isArray(v)) {
-        const items = []
-        for (let k = 0; k < v.length; k++) items.push(k in v ? go(v[k]) : { t: "h" })
-        return { t: "a", i, v: items }
-      }
-      if (v instanceof Date) return { t: "d", i, v: v.getTime() }
-      if (v instanceof RegExp) return { t: "r", i, s: v.source, f: v.flags }
-      if (v instanceof Error) return { t: "e", i, n: v.name, m: v.message, s: v.stack }
-      if (v instanceof Map) return { t: "m", i, v: Array.from(v, ([k, x]) => [go(k), go(x)]) }
-      if (v instanceof Set) return { t: "s", i, v: Array.from(v, go) }
-      if (v instanceof Promise) return { t: "p", i }
-      const proto = Object.getPrototypeOf(v)
-      const c = proto === null ? null : (proto.constructor && proto.constructor.name) || "Object"
-      return { t: "o", i, c, p: props() }
     }
-    return go(value)
+    return go(value, 0)
   }
-  globalThis.__encode = (v) => JSON.stringify(encode(v))
+  // JSON of the encoded value, or null if it is over budget
+  const encodeJson = (v, budget) => {
+    try {
+      return JSON.stringify(encode(v, budget))
+    } catch (e) {
+      if (e === OVER_BUDGET) return null
+      throw e
+    }
+  }
+  globalThis.__encode = encodeJson
 
   // --- Output ---
 
+  // The host enforces the aggregate output budget; this bounds the work for a single call.
   function print(...args) {
-    hostPrint(JSON.stringify(args.map((a) => (typeof a === "object" && a !== null ? encode(a) : String(a)))))
+    let encoded = []
+    try {
+      for (const a of args) encoded.push(typeof a === "object" && a !== null ? encode(a, init.outputLimit) : String(a))
+    } catch (e) {
+      if (e !== OVER_BUDGET) throw e
+      encoded = null
+    }
+    hostPrint(encoded === null ? null : JSON.stringify(encoded))
   }
   globalThis.console = { log: print }
 
@@ -117,20 +164,17 @@
   // --- Commands ---
 
   // Wraps a command's code into a function body on first use; the host parses it with meriyah.
+  // Keyed by the code itself, so a command object whose `code` was reassigned gets its new code wrapped.
   const wrappedCache = new Map()
   function wrapCommand(name, code) {
-    if (!wrappedCache.has(name)) {
+    if (!wrappedCache.has(code)) {
       const res = JSON.parse(hostWrap(name, code))
-      wrappedCache.set(
-        name,
-        res.ok
-          ? res.code
-          : `throw new Error(${
-            JSON.stringify(`Command '${name}' has invalid JavaScript and cannot be executed: ${res.error}`)
-          })`,
-      )
+      wrappedCache.set(code, res)
     }
-    return wrappedCache.get(name)
+    const res = wrappedCache.get(code)
+    if (res.ok) return res.code
+    const message = `Command '${name}' has invalid JavaScript and cannot be executed: ${res.error}`
+    return `throw new SyntaxError(${JSON.stringify(message)})`
   }
 
   // `this` inside a command's code
@@ -182,8 +226,9 @@
       name: record.name,
       content: record.content,
       code: record.code,
+      // Reads `this` like before, so reassigning `$.commands.x.code` changes what runs
       run: function(...args) {
-        return runCommand(record, this, args)
+        return runCommand(this, this, args)
       },
     })
     $commandsMap__[record.name] = obj

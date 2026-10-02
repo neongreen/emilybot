@@ -39,15 +39,13 @@ async function main() {
     Deno.exit(1)
   }
 
+  // The result goes to stdout as JSON either way, so the caller can tell error kinds apart without parsing text.
+  // Exit code 1 without JSON on stdout means the executor itself failed (bad input, crash).
   try {
-    const result = await execute(fields, commands, code, { timeoutMs })
-    if (result.success) {
-      console.log(JSON.stringify(result))
-      Deno.exit(0)
-    } else {
-      console.error(result.error || "Unknown execution error")
-      Deno.exit(1)
-    }
+    let timings
+    const result = await execute(fields, commands, code, { timeoutMs, onTimings: (t) => timings = t })
+    console.log(JSON.stringify({ ...result, timings }))
+    Deno.exit(result.success ? 0 : 1)
   } catch (error) {
     console.error(`Execution failed: ${error instanceof Error ? error.message : String(error)}`)
     Deno.exit(1)

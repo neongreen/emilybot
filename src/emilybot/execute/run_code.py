@@ -11,6 +11,7 @@ from emilybot.execute.javascript_executor import (
     CtxServer,
 )
 from emilybot.command_query_service import CommandQueryService
+from emilybot.execute.admission import BUSY_MESSAGE, ExecutorBusy, get_admission
 
 
 async def run_code(
@@ -19,8 +20,19 @@ async def run_code(
     code: str,
 ) -> tuple[bool, str, str | None]:
     """Run JavaScript code directly and return the result."""
+    # Admission comes before collecting commands, so a burst queues cheaply
+    try:
+        async with get_admission().slot(caller=str(ctx.author.id)):
+            return await _run_code(ctx, code=code)
+    except ExecutorBusy:
+        return False, BUSY_MESSAGE, None
 
-    # Create JavaScript executor
+
+async def _run_code(
+    ctx: EmilyContext,
+    *,
+    code: str,
+) -> tuple[bool, str, str | None]:
     js_executor = JavaScriptExecutor()
 
     # Get available commands using command query service

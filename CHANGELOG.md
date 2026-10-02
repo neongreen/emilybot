@@ -6,10 +6,13 @@
 
 - Commands run much faster: a typical alias now takes well under a second instead of several seconds,
   so trivial aliases no longer hit "execution timed out".
-- The 5 second limit now counts only time spent running your code (not startup or fetching imports).
-  An infinite loop ends with "JavaScript execution timed out (5s limit)".
-- Imports from `jsr.io` and `registry.npmjs.org` now actually work in the bot (they were only allowed in tests).
+- The 5 second limit now counts only time your code runs, including nested commands and fetching imports,
+  but not startup. An infinite loop ends with "JavaScript execution timed out (5s limit)".
+- If the bot is already running a lot of code, a request gets "the bot is busy" instead of waiting forever.
+- Output (prints plus the result) is limited to 1 MiB; going over stops the code with an error.
+- Imports from `jsr.io` and `registry.npmjs.org` hosts are allowed in the bot, as they already were in tests.
 - Printing objects shows more detail for `Map`, `Set`, regular expressions, errors, and async functions.
+  Objects nested more than 100 levels deep print as `[Object]`.
 
 ## 2025-11-11
 

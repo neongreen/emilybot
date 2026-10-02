@@ -35,7 +35,7 @@ run = "DEBUG=1 uv run pytest -v -s"
 description = "Run tests for the executor"
 # Backstop only: user code and import fetches have their own timeouts
 run = """
-  coreutils timeout 120s deno test --allow-read --allow-net=esm.sh,jsr.io,registry.npmjs.org --allow-env
+  coreutils timeout 120s deno test --allow-read --allow-net=esm.sh,jsr.io,registry.npmjs.org,127.0.0.1 --allow-env
 """
 
 [tasks."js:parse"]
