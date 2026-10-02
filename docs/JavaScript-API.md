@@ -204,7 +204,7 @@ $.lib.random(0, 100) // Returns 0-100
 ```
 
 > **Implementation source**:
-> Library functions are defined in [`js-executor/lib.ts`](../js-executor/lib.ts) and added to context in [`js-executor/main.ts:46`](../js-executor/main.ts#L46)
+> Library functions are defined inside the sandbox in [`js-executor/prelude.js`](../js-executor/prelude.js); their names are listed in [`js-executor/lib.ts`](../js-executor/lib.ts)
 
 ## Dollar Prefix Behavior
 

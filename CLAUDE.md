@@ -76,7 +76,6 @@ Key areas documented:
 - TODOs in code (see search results for locations)
 - Test fixture duplication (✅ **FIXED** - see test_utils module)
 - Deprecated code marked for removal
-- Security concerns (prototype pollution in js-executor/lib.ts)
 
 ## Import Conventions
 

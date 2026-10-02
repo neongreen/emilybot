@@ -18,5 +18,6 @@ Deno.test("Error handling", async () => {
     output: "",
     value: undefined,
     error: "cannot read property 'property' of undefined",
+    kind: "runtime",
   })
 })
