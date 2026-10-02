@@ -2,7 +2,16 @@
 
 from dataclasses import dataclass
 from typing import Optional, cast
-from discord import Asset, Guild, Member, Message, MessageReference
+from discord import (
+    Asset,
+    DMChannel,
+    Guild,
+    Member,
+    Message,
+    MessageReference,
+    TextChannel,
+    Thread,
+)
 from unittest.mock import MagicMock
 
 
@@ -22,6 +31,16 @@ class GuildConfig:
     """Configuration for creating a mock guild."""
 
     id: int = 12345
+
+
+@dataclass
+class ChannelConfig:
+    """Configuration for creating a mock channel."""
+
+    id: int = 55555
+    name: str = "general"
+    parent_id: Optional[int] = None
+    """Set to make the channel a thread of this parent"""
 
 
 @dataclass
@@ -90,3 +109,24 @@ def create_mock_message_reference(
     message_ref = cast(MessageReference, MagicMock(spec=MessageReference))
     message_ref.resolved = original_message
     return message_ref
+
+
+def create_mock_channel(
+    config: Optional[ChannelConfig] = None, *, is_dm: bool = False
+) -> TextChannel | Thread | DMChannel:
+    """Create a mock text channel, thread (when `parent_id` is set), or DM channel."""
+    config = config or ChannelConfig()
+    if is_dm:
+        dm = cast(DMChannel, MagicMock(spec=DMChannel))
+        dm.id = config.id
+        return dm
+    if config.parent_id is not None:
+        thread = cast(Thread, MagicMock(spec=Thread))
+        thread.id = config.id
+        thread.name = config.name
+        thread.parent_id = config.parent_id
+        return thread
+    channel = cast(TextChannel, MagicMock(spec=TextChannel))
+    channel.id = config.id
+    channel.name = config.name
+    return channel

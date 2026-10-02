@@ -46,6 +46,20 @@ class CtxServer:
 
 
 @dataclass
+class CtxChannel:
+    """Where the message was sent. Informational; never used as a storage key."""
+
+    id: str
+    name: str | None
+    """`None` in DMs"""
+    parent_id: str | None
+    """The parent channel for a thread; `None` for a top-level channel and in DMs"""
+
+    def as_json(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class CtxReplyTo:
     user: CtxUser
     text: str
@@ -65,6 +79,7 @@ class Context:
     reply_to: CtxReplyTo | None
     user: CtxUser
     server: CtxServer | None
+    channel: CtxChannel | None = None
 
     def as_json(self) -> dict[str, Any]:
         """Serialize Context to JSON string."""
@@ -73,6 +88,7 @@ class Context:
             "reply_to": self.reply_to.as_json() if self.reply_to else None,
             "user": asdict(self.user),
             "server": asdict(self.server) if self.server else None,
+            "channel": self.channel.as_json() if self.channel else None,
         }
 
 

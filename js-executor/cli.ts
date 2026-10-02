@@ -11,6 +11,7 @@ const ArgsSchema = z.object({
   fieldsFile: z.string().optional().describe("Path to fields JSON file"),
   commandsFile: z.string().optional().describe("Path to commands JSON file"),
   timeoutMs: z.coerce.number().positive().optional().describe("User code execution budget in milliseconds"),
+  storesFile: z.string().optional().describe("Path to the server's alias stores JSON; enables `this.store`"),
 })
 
 export function getArgs(): {
@@ -18,6 +19,7 @@ export function getArgs(): {
   fieldsFile: string | null
   commandsFile: string | null
   timeoutMs: number | undefined
+  storesFile: string | null
 } {
   const rawArgs = parseArgs(Deno.args)
   // console.debug("rawArgs", rawArgs)
@@ -40,5 +42,6 @@ export function getArgs(): {
     fieldsFile: args.fieldsFile ?? null,
     commandsFile: args.commandsFile ?? null,
     timeoutMs: args.timeoutMs,
+    storesFile: args.storesFile ?? null,
   }
 }

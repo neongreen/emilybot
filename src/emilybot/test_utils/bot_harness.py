@@ -22,8 +22,10 @@ from emilybot.discord import EmilyBot, EmilyContext
 from emilybot.main import init_bot
 from emilybot.test_utils.mock_builders import (
     AuthorConfig,
+    ChannelConfig,
     GuildConfig,
     create_mock_author,
+    create_mock_channel,
     create_mock_guild,
 )
 
@@ -45,6 +47,8 @@ class BotHarness:
         *,
         author_id: int = 67890,
         guild_id: Optional[int] = 12345,
+        channel: Optional[ChannelConfig] = None,
+        author_name: Optional[str] = None,
     ) -> list[str]:
         """Send `content` as a message and return the replies it produced.
 
@@ -53,13 +57,18 @@ class BotHarness:
         before = len(self.sent.replies)
         message = cast(Message, MagicMock(spec=Message))
         message.content = content
-        author = create_mock_author(AuthorConfig(id=author_id))
+        author = create_mock_author(
+            AuthorConfig(id=author_id)
+            if author_name is None
+            else AuthorConfig(id=author_id, name=author_name, display_name=author_name)
+        )
         author.bot = False  # pyright: ignore[reportAttributeAccessIssue]
         message.author = author
         message.guild = (
             None if guild_id is None else create_mock_guild(GuildConfig(id=guild_id))
         )
         message.reference = None
+        message.channel = create_mock_channel(channel, is_dm=guild_id is None)
         tasks_before = asyncio.all_tasks()
         await self.bot.on_message(message)
         # Command errors are delivered as separately scheduled event tasks.

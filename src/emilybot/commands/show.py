@@ -8,6 +8,7 @@ from emilybot.execute.run_code import run_code
 from emilybot.discord import EmilyContext
 
 from emilybot.database import Entry
+from emilybot.store import StoreRecord, json_size
 from emilybot.utils.list import first
 from emilybot.validation import validate_path, ValidationError
 from emilybot.utils.inflect import inflect
@@ -155,13 +156,27 @@ def entry_source_files(entry: Entry) -> list[discord.File]:
     return files
 
 
+def format_store_summary(store: StoreRecord | None) -> str:
+    """One line about an alias's `this.store`: key names and size, never values."""
+    if store is None or not store.data:
+        return ""
+    keys = list(store.data)
+    shown = ", ".join(f"`{k}`" for k in keys[:20])
+    more = f" and {len(keys) - 20} more" if len(keys) > 20 else ""
+    return (
+        f"\n🗄️ *Stored data:* {len(keys)} {'key' if len(keys) == 1 else 'keys'}, "
+        f"{json_size(store.data)} bytes ({shown}{more}). Values are not shown."
+    )
+
+
 async def send_entry(entry: Entry, ctx: EmilyContext) -> None:
     """Send the `.show` display, attaching the complete source when it is shortened.
 
     Never executes the entry's JavaScript.
     """
     content_limit, js_limit, shortened = _entry_display_limits(entry)
-    display = _format_entry_sections(entry, content_limit, js_limit)
+    store_summary = format_store_summary(ctx.bot.db.store.get(entry.id))
+    display = _format_entry_sections(entry, content_limit, js_limit) + store_summary
     if not shortened:
         await ctx.send(display)
         return
@@ -173,8 +188,11 @@ async def send_entry(entry: Entry, ctx: EmilyContext) -> None:
         )
     except discord.HTTPException:
         # Uploads forbidden or rejected: send everything through pagination.
-        full = _format_entry_sections(
-            entry, len(entry.content), len(entry.run.strip() if entry.run else "")
+        full = (
+            _format_entry_sections(
+                entry, len(entry.content), len(entry.run.strip() if entry.run else "")
+            )
+            + store_summary
         )
         await ctx.send(
             "📎 *Could not attach the source here, so here it is in full:*\n" + full

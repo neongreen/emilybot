@@ -40,9 +40,11 @@ from emilybot.database import DB, Entry
 from emilybot.discord import EmilyBot, EmilyContext
 from emilybot.test_utils import (
     AuthorConfig,
+    ChannelConfig,
     GuildConfig,
     ReplyConfig,
     create_mock_author,
+    create_mock_channel,
     create_mock_guild,
     create_mock_message_reference,
 )
@@ -147,6 +149,7 @@ def make_ctx(db: DB) -> MakeCtx:
         reply: Optional[ReplyConfig] = None,
         author: Optional[AuthorConfig] = None,
         guild: Optional[GuildConfig] = None,
+        channel: Optional[ChannelConfig] = None,
         is_dm: bool = False,
     ) -> EmilyContext:
         """Create a mock context with flexible configuration.
@@ -181,6 +184,8 @@ def make_ctx(db: DB) -> MakeCtx:
         # Create message
         mock.message = cast(Message, MagicMock(spec=Message))
         mock.message.content = message
+        mock.channel = create_mock_channel(channel, is_dm=is_dm)
+        mock.message.channel = mock.channel
 
         # Handle reply if provided
         if reply:

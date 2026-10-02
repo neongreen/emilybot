@@ -37,6 +37,7 @@ class CommandQueryService:
         for entry in entries:
             commands.append(
                 {
+                    "id": str(entry.id),
                     "name": entry.name,
                     "content": entry.content,
                     "run": entry.run,

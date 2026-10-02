@@ -9,10 +9,10 @@ import { z, ZodError } from "zod/v4"
 import { getArgs } from "./cli.ts"
 import { execute } from "./executor.ts"
 import { LIB_NAMES } from "./lib.ts"
-import { validateCommands, validateFields } from "./types.ts"
+import { type StoreSnapshot, validateCommands, validateFields } from "./types.ts"
 
 async function main() {
-  const { code, fieldsFile, commandsFile, timeoutMs } = getArgs()
+  const { code, fieldsFile, commandsFile, timeoutMs, storesFile } = getArgs()
 
   // console.debug("args", { code, fieldsFile, commandsFile })
 
@@ -43,12 +43,29 @@ async function main() {
   // Exit code 1 without JSON on stdout means the executor itself failed (bad input, crash).
   try {
     let timings
-    const result = await execute(fields, commands, code, { timeoutMs, onTimings: (t) => timings = t })
+    const result = await execute(fields, commands, code, {
+      timeoutMs,
+      onTimings: (t) => timings = t,
+      loadStore: storesFile ? storeLoaderFromFile(storesFile) : undefined,
+    })
     console.log(JSON.stringify({ ...result, timings }))
     Deno.exit(result.success ? 0 : 1)
   } catch (error) {
     console.error(`Execution failed: ${error instanceof Error ? error.message : String(error)}`)
     Deno.exit(1)
+  }
+}
+
+/**
+ * Reads the stores file on first use. Its format, written by src/emilybot/execute/executor.py:
+ * `{ "stores": { [aliasId]: { version, data } } }`, or `{ "error": string }` when stores cannot be read.
+ */
+function storeLoaderFromFile(path: string): (aliasId: string) => StoreSnapshot | { error: string } {
+  let file: { stores?: Record<string, StoreSnapshot>; error?: string } | undefined
+  return (aliasId) => {
+    file ??= JSON.parse(Deno.readTextFileSync(path))
+    if (file!.error !== undefined) return { error: file!.error }
+    return file!.stores?.[aliasId] ?? { version: 0, data: {} }
   }
 }
 

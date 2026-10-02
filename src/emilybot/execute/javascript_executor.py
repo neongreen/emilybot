@@ -10,6 +10,7 @@ DEPRECATED: This module is a compatibility layer. Import from the following modu
 from emilybot.execute.context import (
     CtxUser,
     CtxServer,
+    CtxChannel,
     CtxReplyTo,
     CtxMessage,
     Context,
@@ -29,6 +30,7 @@ __all__ = [
     # Context data classes
     "CtxUser",
     "CtxServer",
+    "CtxChannel",
     "CtxReplyTo",
     "CtxMessage",
     "Context",

@@ -1,8 +1,11 @@
+import logging
 from datetime import datetime
 from discord.ext import commands
 from emilybot.discord import EmilyContext
 
+from emilybot.atomic_json_db import DBSaveError
 from emilybot.database import Action, ActionDelete
+from emilybot.store import StoreUnavailable
 from emilybot.utils.list import first
 from emilybot.suggestions import format_suggestion_lines
 from emilybot.validation import parse_path, ValidationError
@@ -48,6 +51,8 @@ async def cmd_rm(ctx: EmilyContext, alias: str) -> None:
         # Delete entry
         db.remember.remove(entry.id)
 
+        # The log keeps the alias's store, so restoring the alias from the log can restore its state
+        store = db.store.get(entry.id)
         action = Action(
             user_id=user_id,
             timestamp=datetime.now(),
@@ -55,9 +60,16 @@ async def cmd_rm(ctx: EmilyContext, alias: str) -> None:
                 kind="delete",
                 entry_id=entry.id,
                 entry=entry,
+                store=store.data if store else None,
             ),
         )
         db.log.add(action)
+        if store:
+            try:
+                db.store.delete(entry.id)
+            except (DBSaveError, StoreUnavailable) as e:
+                # The alias is gone, so nothing can reach this store any more
+                logging.error(f"Could not delete the store of {entry.id}", exc_info=e)
 
         await ctx.send(format_deleted_message(alias))
 

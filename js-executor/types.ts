@@ -10,12 +10,23 @@ export interface ExecutionResult {
   value?: string // Result of the executed code, if not undefined
   error?: string // Error message if failed
   kind?: ErrorKind // Why it failed
+  store?: StoreTransaction // Present when the run used `this.store`; commit it only if the run succeeded
+}
+
+/** A store as loaded from the host. */
+export type StoreSnapshot = { version: number; data: Record<string, unknown> }
+
+/** What a successful run did to stores: versions it read, and its writes per alias id. */
+export type StoreTransaction = {
+  reads: Record<string, number>
+  writes: Record<string, Record<string, { v: unknown } | { d: true }>>
 }
 
 /** Why execution failed. Must match `ErrorType` in src/emilybot/execute/executor.py. */
 export type ErrorKind = "timeout" | "memory" | "output" | "syntax" | "runtime"
 
 export type CommandData = {
+  id?: string // Alias UUID; needed for `this.store`
   name: string
   content: string
   run: string | null
@@ -23,6 +34,7 @@ export type CommandData = {
 
 // Command validation schemas
 const CommandDataSchema = z.object({
+  id: z.string().optional(),
   name: z.string(),
   content: z.string(),
   run: z.string().nullable(),
