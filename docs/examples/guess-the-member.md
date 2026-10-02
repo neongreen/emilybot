@@ -1,5 +1,11 @@
 # Guess the CRC Member: command text
 
+Install with one command:
+
+`.install https://github.com/neongreen/emilybot/blob/main/docs/examples/guess-the-member.md`
+
+Review the attached definitions and choose **Install**. You can also attach this Markdown file to `.install`. The installer processes definitions in order without running their code or adding the example puzzles.
+
 These are ordinary member commands. They need the `this.store` and `channel` support from emilybot PR #24.
 
 The game is split into five aliases, so that every message fits in Discord's 2,000-character limit:
@@ -26,7 +32,7 @@ All game state lives in `gcm`'s store. `gcm`'s code passes its own `this.store` 
 - **Honor system:** the answers live in `gcm`'s saved data, not in alias text. Anyone who edits these aliases could still print them.
 - **Busy replies:** each channel or thread has its own round, but all rounds share one saved store. If two game commands run at the same moment, even in different channels, one of them gets "the bot is busy… try again" and changes nothing.
 
-## Installing
+## Manual installation
 
 Send each block below as one message, in this order, in any channel of the server. The helpers must exist (blocks 2–5) before their code can be set. Each message should get the bot's success reaction (✔️). Character counts include the whole message.
 

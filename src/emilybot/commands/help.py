@@ -83,6 +83,18 @@ QUICK_START = Topic(
 )
 
 TOPICS: dict[str, Topic] = {
+    "install": Topic(
+        explanation=(
+            "Use one HTTPS GitHub file, raw Gist file or Discord attachment link,"
+            " or attach one .md/.txt file. Review the complete old/new definitions"
+            " in the attached review, then choose Install or Cancel within five minutes."
+            " Top-level fenced .add, .edit and .set NAME.run definitions are processed"
+            " in order without running code. Inside install, .add creates or replaces"
+            " content and preserves existing code. Other command blocks are skipped"
+            " examples. Identical definitions say already installed."
+        ),
+        examples=(),
+    ),
     "add": Topic(
         explanation=(
             "Saves text under a name. If the name exists, adds the text at the end"
@@ -159,7 +171,8 @@ def format_topic_help(ctx: EmilyContext, topic: str) -> str:
         parts = [(command.help or command_usage(command))]
         if detail := TOPICS.get(command.name):
             parts.append(detail.explanation)
-            parts.append("Example:\n" + format_topic_examples(detail.examples))
+            if detail.examples:
+                parts.append("Example:\n" + format_topic_examples(detail.examples))
         return "\n\n".join(parts)
 
     server_id = ctx.guild.id if ctx.guild else None

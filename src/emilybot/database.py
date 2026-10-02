@@ -83,10 +83,19 @@ class ActionPromote:
 
 
 @dataclass
+class ActionInstall:
+    """Complete before/after definitions for one installed alias."""
+
+    kind: Literal["install"]
+    old_entry: Optional[Entry]
+    new_entry: Entry
+
+
+@dataclass
 class Action:
     timestamp: datetime
     user_id: int
-    action: ActionCreate | ActionEdit | ActionDelete | ActionPromote
+    action: ActionCreate | ActionEdit | ActionDelete | ActionPromote | ActionInstall
 
 
 class DB:
