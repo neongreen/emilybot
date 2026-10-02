@@ -11,6 +11,10 @@ applies them only if every store the run read is still at the version it read an
 the owning aliases still exist with the same code. Everything a commit touches is
 written in one atomic save (see `emilybot.atomic_json_db.write_json_atomic`).
 
+Stores are disabled when store.json would be on a container's writable
+layer or tmpfs (see emilybot.persistence), so saved data is never silently lost
+on redeploy.
+
 A missing or empty file is an empty set of stores. A file that cannot be parsed is left as
 it is and logged; store features then fail with a clear message, and everything
 else keeps working.
@@ -25,6 +29,8 @@ from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
 
 from emilybot.atomic_json_db import DBSaveError, write_json_atomic
+from emilybot import persistence
+from emilybot.persistence import ephemeral_reason
 
 STORE_LIMIT_BYTES = 64 * 1024
 STORE_MAX_KEYS = 256
@@ -90,10 +96,18 @@ def json_size(value: JSONValue) -> int:
 
 
 class StoreDB:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, mountinfo: Path | None = None) -> None:
         self.path = path
         self._stores: dict[str, StoreRecord] = {}
         self._unavailable: str | None = None
+        # Saved data on a container's writable layer would vanish on the next
+        # redeploy; refuse it rather than lose it silently.
+        # The file itself: a single-file bind mount of store.json is persistent
+        ephemeral = ephemeral_reason(path, mountinfo or persistence.MOUNTINFO)
+        if ephemeral:
+            self._unavailable = ephemeral
+            logging.error(f"Stores are disabled: {ephemeral} ({path})")
+            return
         try:
             text = path.read_text(encoding="utf-8")
         except FileNotFoundError:

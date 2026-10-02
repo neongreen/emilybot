@@ -1,0 +1,4 @@
+23 1 254:0 / / rw,relatime shared:1 - ext4 /dev/root rw,resuid=0,resgid=0,stripe=4
+24 23 0:6 / /dev rw,relatime shared:2 - devtmpfs devtmpfs rw,size=16428260k,nr_inodes=4107065,mode=755
+27 24 0:24 / /dev/shm rw,nosuid,nodev,relatime shared:4 - tmpfs shm rw
+28 23 0:25 / /tmp rw,nosuid,nodev shared:6 - tmpfs tmpfs rw
