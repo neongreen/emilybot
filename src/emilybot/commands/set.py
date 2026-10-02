@@ -1,5 +1,6 @@
 """Command for setting attributes on existing entries."""
 
+import logging
 from dataclasses import replace
 from datetime import datetime
 from discord.ext import commands
@@ -8,6 +9,11 @@ from emilybot.database import Action, ActionEdit
 from emilybot.utils.list import first
 from emilybot.suggestions import format_suggestion_lines
 from emilybot.validation import validate_path, ValidationError
+from emilybot.execute.code_validation import (
+    InvalidCode,
+    ValidatorFailed,
+    validate_command_code,
+)
 from emilybot.execute.javascript_executor import extract_js_code
 
 
@@ -17,6 +23,24 @@ def format_not_found_message(alias: str, command_prefix: str) -> str:
         f"❓ Alias '{alias}' not found.\n"
         f"💡 Use `{command_prefix}add {alias} [text]` to create this alias first."
     )
+
+
+def format_invalid_code_message(alias: str, invalid: InvalidCode) -> str:
+    return (
+        f"❌ The code for `{alias}` has a JavaScript syntax error at {invalid.describe()}\n"
+        f"The alias was not changed."
+    )
+
+
+def format_validator_failed_message(alias: str) -> str:
+    return (
+        f"⚠️ Could not save the code for `{alias}`: checking it failed. "
+        f"The alias was not changed; try again."
+    )
+
+
+def format_deleted_during_validation_message(alias: str) -> str:
+    return f"❓ Alias '{alias}' was deleted while its code was being checked. Nothing was saved."
 
 
 def format_validation_error(error_message: str) -> str:
@@ -77,12 +101,25 @@ async def cmd_set(
             # Parse and clean JavaScript code
             code = extract_js_code(value)
 
-            # Store old value for logging
-            old_run_value = entry.run
+            # Check the code before replacing anything; empty code just clears `run`
+            if code.strip():
+                try:
+                    invalid = await validate_command_code(code)
+                except ValidatorFailed as e:
+                    logging.error(f"Validating code for {alias!r} failed: {e}")
+                    await ctx.send(format_validator_failed_message(alias))
+                    return
+                if invalid:
+                    await ctx.send(format_invalid_code_message(alias, invalid))
+                    return
 
-            # Update entry with JavaScript code
-            entry = replace(entry, run=code)
-            db.remember.update(entry)
+            # Validation awaited a subprocess: apply the edit to the entry as it is now
+            current = db.remember.get(entry.id)
+            if current is None:
+                await ctx.send(format_deleted_during_validation_message(alias))
+                return
+            old_run_value = current.run
+            db.remember.update(replace(current, run=code))
 
             # Log the action as an edit
             action = Action(
@@ -90,7 +127,7 @@ async def cmd_set(
                 timestamp=datetime.now(),
                 action=ActionEdit(
                     kind="edit",
-                    entry_id=entry.id,
+                    entry_id=current.id,
                     # TODO: this should be a separate kind of edit
                     old_content=f"run: {old_run_value}"
                     if old_run_value
