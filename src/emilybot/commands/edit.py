@@ -5,6 +5,7 @@ from emilybot.discord import EmilyContext
 
 from emilybot.database import Action, ActionEdit
 from emilybot.utils.list import first
+from emilybot.suggestions import format_suggestion_lines
 from emilybot.validation import parse_path, ValidationError
 
 
@@ -50,7 +51,10 @@ async def cmd_edit(
         entry = first(db.find_alias(alias, server_id=server_id, user_id=user_id))
 
         if not entry:
-            await ctx.send(format_not_found_message(alias, prefix))
+            await ctx.send(
+                format_not_found_message(alias, prefix)
+                + format_suggestion_lines(ctx, alias)
+            )
             return
 
         # Update entry
