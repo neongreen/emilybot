@@ -32,6 +32,26 @@ Emily:  2:30:45 PM
 
 ## Commands
 
+### Installing definitions from Markdown
+
+Send `.install https://github.com/neongreen/emilybot/blob/main/docs/examples/guess-the-member.md`,
+or attach one `.md` or `.txt` file to `.install`. Review the attached old/new content and code,
+then choose **Install** or **Cancel** within five minutes. Only the invoker can confirm.
+
+Each top-level fenced block beginning with `.add`, `.edit` or `.set NAME.run` is one definition.
+Definitions are processed in order without running their code. Inside install, `.add` creates an
+alias or replaces its content, preserving existing code. `.edit` and `.set` require the alias to
+exist at that point. Other command blocks are skipped examples. A four-backtick outer fence can
+contain a three-backtick JavaScript fence. Quoted and nested examples are ignored.
+
+Existing alias identity, promotion and stores stay intact. An identical reinstall changes nothing.
+If an alias changes after the preview, run `.install` again. The file can contain at most 50
+definitions and 256 KiB of UTF-8 text. Supported links use HTTPS GitHub file pages/raw files,
+raw Gist files (or a single-file Gist page), or Discord attachments.
+
+Definitions and history are saved separately. A history-save failure can leave the definitions
+installed without a history record; the reply reports which save failed.
+
 ### Storing text
 
 | Command               | What it does            | Example                            |

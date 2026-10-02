@@ -35,6 +35,7 @@ import tempfile
 import threading
 from dataclasses import asdict
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, List, Literal, Optional, Type, TypeVar
 
 from typed_json_db import JsonDB, JsonDBException, JsonSerializer
@@ -249,6 +250,21 @@ class AtomicJsonDB(JsonDB[T]):
             raise JsonDBException(
                 f"Item must be of type {self.data_class.__name__}, got {type(item).__name__}"
             )
+
+    def batch(self, transform: Callable[[List[T]], List[T]]) -> None:
+        """Re-check and transform current rows under the ordinary writer lock.
+
+        The callback must be synchronous. An exception leaves the rows untouched.
+        """
+        with self._write_lock:
+            candidate = transform(list(self.data))
+            for item in candidate:
+                self._check_type(item)
+            if self.primary_key is not None:
+                keys = [self._key(item) for item in candidate]
+                if len(set(keys)) != len(keys):
+                    raise JsonDBException("Duplicate primary key in batch")
+            self._commit(candidate)
 
     def save(self) -> None:
         with self._write_lock:

@@ -9,6 +9,7 @@ from typing import Any, Optional, assert_never
 from watchfiles import awatch  # type: ignore
 
 from emilybot.discord import EmilyBot, EmilyContext
+from emilybot.commands.install import cmd_install
 from emilybot.commands.save import cmd_add
 from emilybot.commands.show import cmd_list, cmd_random, cmd_show
 from emilybot.commands.edit import cmd_edit
@@ -55,6 +56,7 @@ async def init_bot(dev: bool) -> EmilyBot:
     )
     bot.remove_command("help")
 
+    bot.add_command(cmd_install)
     bot.add_command(cmd_add)
     bot.add_command(cmd_show)
     bot.add_command(cmd_random)
