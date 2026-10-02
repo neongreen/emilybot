@@ -10,14 +10,16 @@ from pathlib import Path
 import shutil
 import time
 from tempfile import TemporaryDirectory
-from typing import Literal, Tuple, TypedDict, cast
+from typing import Any, Literal, NotRequired, Tuple, TypedDict, cast
 
 from emilybot.execute.context import Context
+from emilybot.store import StoreAccess, StoreTransaction, StoreWrite
 
 
 class CommandData(TypedDict):
     """Data for a command in the global context. Has to match the TypeScript CommandData type."""
 
+    id: NotRequired[str]  # Alias Entry UUID; needed for `this.store`
     name: str  # Command name
     content: str  # Command content
     run: str | None  # JavaScript code to execute when command is run
@@ -32,7 +34,7 @@ class ExecutionResult(TypedDict):
 
 
 # Why execution failed. Must match `ErrorKind` in js-executor/types.ts.
-ErrorType = Literal["timeout", "memory", "output", "syntax", "runtime"]
+ErrorType = Literal["timeout", "memory", "output", "syntax", "runtime", "busy"]
 
 
 @dataclass
@@ -52,8 +54,28 @@ class _ExecutorOutput(TypedDict, total=False):
     error: str
     kind: ErrorType
     timings: dict[str, float]
+    store: "_StoreOutput"
 
 
+class _StoreOutput(TypedDict):
+    reads: dict[str, int]
+    writes: dict[str, dict[str, StoreWrite]]
+
+
+@dataclass(frozen=True)
+class ExecutionOutcome:
+    success: bool
+    output: str
+    """console.log output on success; a user-facing error message on failure"""
+    value: str | None = None
+    store: StoreTransaction | None = None
+    """Writes to commit (with `StoreDB.commit`) before showing the output"""
+
+
+STORE_BUSY_MESSAGE = (
+    "⏳ The bot is busy: this command's stored data changed while it ran. "
+    "Nothing was saved; try again."
+)
 TIMEOUT_MESSAGE = "⏱️ JavaScript execution timed out ({limit}s limit)"
 BACKSTOP_MESSAGE = "⏱️ The JavaScript executor did not respond in time"
 OUTPUT_MESSAGE = "📜 JavaScript output exceeded the 1 MiB limit"
@@ -99,6 +121,24 @@ class JavaScriptExecutor:
             - If success=True, output contains console.log output
             - If success=False, output contains a user-facing error message
         """
+        outcome = await self.run(code, context, commands)
+        return outcome.success, outcome.output, outcome.value
+
+    async def run(
+        self,
+        code: str,
+        context: Context,
+        commands: list[CommandData] = [],
+        *,
+        stores: StoreAccess | None = None,
+    ) -> "ExecutionOutcome":
+        """Like `execute`, plus the store transaction of a successful run.
+
+        Args:
+            stores: Where this server's stores are (`StoreDB.access`). Enables
+                `this.store`; without it `this.store` is undefined. The store file
+                is read only if the run uses `this.store`.
+        """
         try:
             # XXX: ctx left for backwards compatibility, will remove later
             fields_json = json.dumps({**context.as_json(), "ctx": context.as_json()})
@@ -112,21 +152,34 @@ class JavaScriptExecutor:
                 temp_path = Path(temp_dir)
                 fields_path = temp_path / "fields.json"
                 commands_path = temp_path / "commands.json"
-                fields_path.write_text(fields_json)
-                commands_path.write_text(commands_json)
+                fields_path.write_text(fields_json, encoding="utf-8")
+                commands_path.write_text(commands_json, encoding="utf-8")
+                readable = f"js-executor/,node_modules,{temp_path}"
+                stores_args: list[str] = []
+                if stores is not None and stores.unavailable:
+                    stores_args = [f"--storesError={stores.unavailable}"]
+                elif stores is not None:
+                    readable += (
+                        f",{stores.path}"  # this one file, not the data directory
+                    )
+                    stores_args = [
+                        f"--storesFile={stores.path}",
+                        f"--serverId={stores.server_id}",
+                    ]
 
                 cmd = [
                     self.deno_path,
                     "run",
                     "--quiet",
                     "--allow-env=QTS_DEBUG,LOG_LEVEL,DEBUG",  # 'LOG_LEVEL' enables logs in the executor, 'QTS_DEBUG' is used by the QuickJS runtime, 'DEBUG' is used by the executor
-                    f"--allow-read=js-executor/,node_modules,{temp_path}",
+                    f"--allow-read={readable}",
                     # Must match the allowed hosts in js-executor/imports.ts
                     "--allow-net=esm.sh,jsr.io,registry.npmjs.org",
                     self.executor_script,
                     f"--fieldsFile={str(fields_path)}",
                     f"--commandsFile={str(commands_path)}",
                     f"--timeoutMs={int(self.timeout * 1000)}",
+                    *stores_args,
                     code,
                 ]
 
@@ -135,7 +188,7 @@ class JavaScriptExecutor:
                 total_ms = (time.monotonic() - started) * 1000
                 if ran is None:
                     logging.warning(f"Deno process hit the {self.backstop}s backstop")
-                    return False, BACKSTOP_MESSAGE, None
+                    return ExecutionOutcome(False, BACKSTOP_MESSAGE)
                 stdout, stderr, returncode = ran
 
             stdout_text = stdout.decode("utf-8").strip() if stdout else ""
@@ -149,10 +202,9 @@ class JavaScriptExecutor:
                 parsed = None
             if not isinstance(parsed, dict):
                 # The executor failed before running user code (bad input, crash)
-                return (
+                return ExecutionOutcome(
                     False,
                     f"❌ JavaScript execution failed: {stderr_text or 'Unknown execution error'}",
-                    None,
                 )
 
             result = cast(_ExecutorOutput, parsed)
@@ -165,26 +217,36 @@ class JavaScriptExecutor:
             )
 
             if returncode == 0 and result.get("success"):
-                return True, result.get("output", ""), result.get("value")
-            return (
-                False,
-                self._error_message(result.get("kind"), result.get("error")),
-                None,
+                store = result.get("store")
+                return ExecutionOutcome(
+                    True,
+                    result.get("output", ""),
+                    result.get("value"),
+                    StoreTransaction(reads=store["reads"], writes=store["writes"])
+                    if store
+                    else None,
+                )
+            return ExecutionOutcome(
+                False, self._error_message(result.get("kind"), result.get("error"))
             )
 
         except FileNotFoundError:
-            return False, f"❌ Deno executable not found at: {self.deno_path}", None
+            return ExecutionOutcome(
+                False, f"❌ Deno executable not found at: {self.deno_path}"
+            )
         except (TypeError, ValueError) as e:
-            return False, f"❌ Failed to encode context as JSON: {e}", None
+            return ExecutionOutcome(False, f"❌ Failed to encode context as JSON: {e}")
         except Exception as e:
             logging.error(f"Unexpected error in JavaScript execution: {e}")
-            return False, f"❌ Unexpected execution error: {e}", None
+            return ExecutionOutcome(False, f"❌ Unexpected execution error: {e}")
 
     def _error_message(self, kind: ErrorType | None, error: str | None) -> str:
         """User-facing message for a failed execution."""
         error = error or "Unknown execution error"
         if kind == "timeout":
             return TIMEOUT_MESSAGE.format(limit=self.timeout)
+        elif kind == "busy":
+            return STORE_BUSY_MESSAGE
         elif kind == "output":
             return OUTPUT_MESSAGE
         elif kind == "memory":

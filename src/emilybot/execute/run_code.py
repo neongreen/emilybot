@@ -1,6 +1,9 @@
 """Command for executing JavaScript code directly."""
 
-from discord import Message
+import logging
+import uuid
+
+from discord import DMChannel, Message, Thread
 from emilybot.discord import EmilyContext
 from emilybot.execute.javascript_executor import (
     JavaScriptExecutor,
@@ -9,9 +12,19 @@ from emilybot.execute.javascript_executor import (
     CtxReplyTo,
     CtxUser,
     CtxServer,
+    CtxChannel,
 )
 from emilybot.command_query_service import CommandQueryService
 from emilybot.execute.admission import BUSY_MESSAGE, ExecutorBusy, get_admission
+from emilybot.atomic_json_db import DBSaveError
+from emilybot.execute.executor import STORE_BUSY_MESSAGE
+from emilybot.store import StoreConflict, StoreQuotaExceeded, StoreUnavailable
+
+__all__ = ["STORE_BUSY_MESSAGE", "run_code"]
+
+STORE_SAVE_FAILED_MESSAGE = (
+    "⚠️ Could not save this command's stored data. Nothing was changed; try again."
+)
 
 
 async def run_code(
@@ -81,11 +94,51 @@ async def _run_code(
             avatar_url=ctx.author.display_avatar.url,
         ),
         server=CtxServer(id=str(ctx.guild.id)) if ctx.guild else None,
+        channel=channel_context(ctx),
     )
 
-    # Execute JavaScript code with available commands
-    success, output, value = await js_executor.execute(
-        code, context, available_commands
-    )
+    server_id = ctx.guild.id if ctx.guild else None
+    db = ctx.bot.db
+    # Stores exist for server aliases only; in DMs `this.store` is undefined
+    stores = db.store.access(server_id) if server_id is not None else None
+    run_at_start = {c.get("id"): c["run"] for c in available_commands}
 
-    return success, output, value
+    outcome = await js_executor.run(code, context, available_commands, stores=stores)
+    if not outcome.success or outcome.store is None or server_id is None:
+        return outcome.success, outcome.output, outcome.value
+
+    # Commit before the caller shows any output: a run whose writes are refused shows nothing
+    def alias_unchanged(alias_id: uuid.UUID) -> bool:
+        entry = db.remember.get(alias_id)
+        return (
+            entry is not None
+            and entry.server_id == server_id
+            and entry.run == run_at_start.get(str(alias_id))
+        )
+
+    try:
+        db.store.commit(server_id, outcome.store, alias_unchanged)
+    except StoreConflict:
+        return False, STORE_BUSY_MESSAGE, None
+    except StoreQuotaExceeded as e:
+        return False, f"📦 {e}", None
+    except StoreUnavailable as e:
+        return False, f"⚠️ this.store is unavailable: {e}", None
+    except DBSaveError as e:
+        logging.error("Saving store.json failed", exc_info=e)
+        if e.file_state != "new":
+            return False, STORE_SAVE_FAILED_MESSAGE, None
+    return outcome.success, outcome.output, outcome.value
+
+
+def channel_context(ctx: EmilyContext) -> CtxChannel:
+    channel = ctx.channel
+    if isinstance(channel, DMChannel) or ctx.guild is None:
+        return CtxChannel(id=str(channel.id), name=None, parent_id=None)
+    parent_id = channel.parent_id if isinstance(channel, Thread) else None
+    name = getattr(channel, "name", None)
+    return CtxChannel(
+        id=str(channel.id),
+        name=name if isinstance(name, str) else None,
+        parent_id=str(parent_id) if parent_id is not None else None,
+    )

@@ -18,7 +18,7 @@ import { DEBUG_SYNC, newQuickJSWASMModule, RELEASE_SYNC } from "quickjs-emscript
 import { quickJsModuleLoader, quickJsModuleNormalizer } from "./imports.ts"
 import { debug } from "./logging.ts"
 import { wrapUserCode } from "./parse.ts"
-import type { CommandData, ErrorKind, ExecutionResult } from "./types.ts"
+import type { CommandData, ErrorKind, ExecutionResult, StoreLoad, StoreTransaction } from "./types.ts"
 
 /** Default elapsed-time budget for user code, including fetching its imports. */
 export const DEFAULT_TIMEOUT_MS = 5000
@@ -38,6 +38,11 @@ export type ExecuteOptions = {
   timeoutMs?: number
   /** Receives how long the trusted bootstrap and the user code took. */
   onTimings?: (timings: { bootstrapMs: number; userMs: number }) => void
+  /**
+   * Enables `this.store` and returns the store of the alias with this id (version 0 and no data if it has none),
+   * or an error when stores cannot be read. Called at most once per alias, on first use.
+   */
+  loadStore?: (aliasId: string) => StoreLoad
 }
 
 let quickJsModule: Promise<QuickJSWASMModule> | undefined
@@ -262,12 +267,39 @@ export async function execute(
         )
       }
     })
+    // Versions of the stores this run loaded: the read set the caller validates at commit.
+    const storeReads: Record<string, number> = {}
+    const hostStoreLoad = ctx.newFunction("__host_store_load", (idHandle) => {
+      const id = ctx.getString(idHandle)
+      let result: StoreLoad
+      try {
+        result = options.loadStore ? options.loadStore(id) : { error: "not available here" }
+      } catch (error) {
+        result = { error: error instanceof Error ? error.message : String(error) }
+      }
+      if ("busy" in result) {
+        // Ends the run even if user code catches the error below
+        stop("busy")
+        result = { error: "the stored data is being saved right now; try again" }
+      }
+      if ("version" in result) storeReads[id] = result.version
+      return ctx.newString(JSON.stringify(result))
+    })
     ctx.setProp(ctx.global, "__host_print", hostPrint)
     ctx.setProp(ctx.global, "__host_wrap", hostWrap)
+    ctx.setProp(ctx.global, "__host_store_load", hostStoreLoad)
     hostPrint.dispose()
     hostWrap.dispose()
+    hostStoreLoad.dispose()
 
-    const initJson = ctx.newString(JSON.stringify({ fields: fieldValues, commands, outputLimit: OUTPUT_LIMIT_BYTES }))
+    const initJson = ctx.newString(
+      JSON.stringify({
+        fields: fieldValues,
+        commands,
+        outputLimit: OUTPUT_LIMIT_BYTES,
+        storeEnabled: options.loadStore !== undefined,
+      }),
+    )
     ctx.setProp(ctx.global, "__init_json", initJson)
     initJson.dispose()
 
@@ -275,7 +307,8 @@ export async function execute(
     if (prelude.error) throw vmError(ctx, prelude.error)
     prelude.value.dispose()
     const encodeFn = ctx.getProp(ctx.global, "__encode")
-    ctx.unwrapResult(ctx.evalCode("delete globalThis.__encode")).dispose()
+    const storeFlushFn = ctx.getProp(ctx.global, "__store_flush")
+    ctx.unwrapResult(ctx.evalCode("delete globalThis.__encode; delete globalThis.__store_flush")).dispose()
     const usageHandle = runtime.computeMemoryUsage()
     const usage = ctx.dump(usageHandle)
     usageHandle.dispose()
@@ -320,8 +353,21 @@ export async function execute(
     encodeFn.dispose()
     if (stopKind) throw new ExecError(stopKind, "")
 
+    // Buffered store writes, for the caller to commit now that the run succeeded
+    let store: StoreTransaction | undefined
+    if (Object.keys(storeReads).length > 0) {
+      const flushed = ctx.callFunction(storeFlushFn, ctx.undefined)
+      if (flushed.error) throw vmError(ctx, flushed.error)
+      store = { reads: storeReads, writes: JSON.parse(ctx.getString(flushed.value)) }
+      flushed.value.dispose()
+      if (stopKind) throw new ExecError(stopKind, "")
+    }
+    storeFlushFn.dispose()
+
     options.onTimings?.({ bootstrapMs, userMs: performance.now() - startedAt - bootstrapMs })
-    return { success: true, output: output.join("\n"), value: inspected }
+    return store
+      ? { success: true, output: output.join("\n"), value: inspected, store }
+      : { success: true, output: output.join("\n"), value: inspected }
   } catch (error) {
     debug("execute failed:", error)
     const kind: ErrorKind = stopKind ?? (error instanceof ExecError ? error.kind : "runtime")
@@ -329,6 +375,8 @@ export async function execute(
       ? TIMEOUT_ERROR(timeoutMs)
       : kind === "output"
       ? OUTPUT_LIMIT_ERROR
+      : kind === "busy"
+      ? "The stored data was being saved while this run read it; nothing was saved, try again"
       : error instanceof Error
       ? error.message
       : String(error)

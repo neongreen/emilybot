@@ -24,7 +24,9 @@
     "uv.lock",
     ".kiro/",
     ".env.yaml",
-    "typings/"
+    "typings/",
+    // Deliberately malformed store files for js-executor tests
+    "js-executor/tests/fixtures/stores/"
   ],
   "plugins": [
     "https://plugins.dprint.dev/json-0.20.0.wasm",

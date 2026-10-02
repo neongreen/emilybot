@@ -2,9 +2,10 @@ from dataclasses import dataclass
 from datetime import datetime
 import uuid
 from pathlib import Path
-from typing import Optional, overload, Literal
+from typing import Any, Optional, overload, Literal
 import re
 from emilybot.atomic_json_db import AtomicJsonDB
+from emilybot.store import StoreDB
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,8 @@ class ActionDelete:
     kind: Literal["delete"]
     entry_id: uuid.UUID
     entry: Entry
+    store: Optional[dict[str, Any]] = None
+    """The alias's `this.store` data when it was deleted, if it had any"""
 
 
 @dataclass
@@ -97,6 +100,8 @@ class DB:
             Entry, data_dir / "remember.json", primary_key="id"
         )
         self.log = AtomicJsonDB[Action](Action, data_dir / "remember_log.json")
+        # Per-alias stores (`this.store`); see emilybot.store
+        self.store = StoreDB(data_dir / "store.json")
 
     @overload
     def find_alias(

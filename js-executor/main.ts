@@ -9,10 +9,11 @@ import { z, ZodError } from "zod/v4"
 import { getArgs } from "./cli.ts"
 import { execute } from "./executor.ts"
 import { LIB_NAMES } from "./lib.ts"
+import { storeLoaderFromFile } from "./stores.ts"
 import { validateCommands, validateFields } from "./types.ts"
 
 async function main() {
-  const { code, fieldsFile, commandsFile, timeoutMs } = getArgs()
+  const { code, fieldsFile, commandsFile, timeoutMs, storesFile, serverId, storesError } = getArgs()
 
   // console.debug("args", { code, fieldsFile, commandsFile })
 
@@ -43,7 +44,15 @@ async function main() {
   // Exit code 1 without JSON on stdout means the executor itself failed (bad input, crash).
   try {
     let timings
-    const result = await execute(fields, commands, code, { timeoutMs, onTimings: (t) => timings = t })
+    const result = await execute(fields, commands, code, {
+      timeoutMs,
+      onTimings: (t) => timings = t,
+      loadStore: storesError !== null
+        ? () => ({ error: storesError })
+        : storesFile && serverId
+        ? storeLoaderFromFile(storesFile, serverId)
+        : undefined,
+    })
     console.log(JSON.stringify({ ...result, timings }))
     Deno.exit(result.success ? 0 : 1)
   } catch (error) {

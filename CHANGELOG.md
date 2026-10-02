@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-02
+
+**JS execution:**
+
+- Aliases can save data between runs with `this.store` (see "Saving data between runs" in docs/JavaScript-API.md).
+  `.show` lists an alias's saved keys and size; `.rm` deletes them along with the alias.
+- `channel` (`id`, `name`, `parent_id`) tells code which channel or thread it was run in.
+
 ## 2026-10-01
 
 **JS execution:**

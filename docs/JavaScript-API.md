@@ -188,10 +188,46 @@ $.ctx.user.id // Discord user ID (string)
 $.ctx.user.name // User's display name
 $.ctx.server.id // Discord server ID (string, null in DMs)
 $.ctx.message.text // The original message content
+$.ctx.channel.id // Channel (or thread) the message was sent in (string)
+$.ctx.channel.name // Channel name (null in DMs)
+$.ctx.channel.parent_id // For a thread, the channel it belongs to; null otherwise
 ```
+
+`channel` is also available directly, like `user` and `message`. It is informational only.
 
 > **Implementation source**:
 > Context is passed as `fields` and duplicated as `ctx` in [`src/emilybot/execute/javascript_executor.py:119`](../src/emilybot/execute/javascript_executor.py#L119) and injected via `$[key] = $init__.fields[key]` in [`js-executor/executor.ts:59-61`](../js-executor/executor.ts#L59-L61)
+
+### Saving data between runs: `this.store`
+
+Inside an alias's own code, `this.store` keeps data between runs, for example game state or a leaderboard:
+
+```javascript
+// .set counter.run
+const n = this.store.get("count", 0) + 1 // second argument: value if the key is missing
+this.store.set("count", n)
+print(`Run ${n} times`)
+```
+
+- `this.store.get(key, fallback)`, `this.store.set(key, value)`, `this.store.delete(key)`, `this.store.keys()`.
+- Values must be JSON: `null`, booleans, finite numbers, strings, arrays and plain objects. Anything else (`undefined`,
+  `NaN`, dates, maps, functions, class instances, circular objects) is an error. `get` returns a copy, so changing the
+  returned object changes nothing until you `set` it again.
+- Keys are strings of 1 to 100 characters. A store holds at most 256 keys and 64 KiB (as UTF-8 JSON); all stores in a
+  server together hold at most 2 MiB. Going over a limit fails the run and saves nothing.
+- Changes are saved only if the run finishes without an error. If someone else ran the same alias and changed its data
+  at the same time, or the alias was edited or deleted while it ran, nothing is saved and the bot says it is busy; run
+  it again. The command's output is shown only after its data is saved.
+- Each alias has its own store, and `this.store` is the store of the alias whose code is running. Calling another
+  alias (`$other()`) runs it with its own store.
+- Stores exist only in servers. In DMs `this.store` is `undefined`. Code typed directly (`$ ...` or `.run`) also gets
+  `undefined`, so one-off code does not change saved data by accident.
+- `.show name` lists the store's keys and size, not the values. `.rm name` deletes the store with the alias; the
+  deletion record in the history keeps a copy.
+
+This is an honor system, not a lock. Stored data is shared like everything else: anyone who can edit an alias can
+change its code to print or rewrite its store, and code in the sandbox can reach any alias's store in its server.
+Do not store secrets.
 
 ### Utility Functions: `$.lib`
 
