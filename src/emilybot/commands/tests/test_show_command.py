@@ -1,5 +1,6 @@
 """Tests for `.show` source attachments and `.random`."""
 
+import dataclasses
 import io
 import json
 from collections.abc import Callable
@@ -34,9 +35,7 @@ def attachment_bytes(call: Any) -> dict[str, bytes]:
 def make_entry(
     entry_factory: Callable[..., Entry], ctx_guild_id: int, **kwargs: Any
 ) -> Entry:
-    entry = entry_factory(**kwargs)
-    entry.server_id = ctx_guild_id
-    return entry
+    return dataclasses.replace(entry_factory(**kwargs), server_id=ctx_guild_id)
 
 
 def new_ctx(make_ctx: MakeCtx, message: str) -> Any:

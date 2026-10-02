@@ -1,5 +1,6 @@
 """Command for setting attributes on existing entries."""
 
+from dataclasses import replace
 from datetime import datetime
 from discord.ext import commands
 from emilybot.discord import EmilyContext
@@ -80,7 +81,7 @@ async def cmd_set(
             old_run_value = entry.run
 
             # Update entry with JavaScript code
-            entry.run = code
+            entry = replace(entry, run=code)
             db.remember.update(entry)
 
             # Log the action as an edit

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime
 from discord.ext import commands
 import uuid
@@ -43,7 +44,7 @@ async def cmd_add(
         if entry:
             # Entry exists - append content with blank line
             old_content = entry.content
-            entry.content = f"{old_content}\n\n{content}"
+            entry = replace(entry, content=f"{old_content}\n\n{content}")
             db.remember.update(entry)
 
             action = Action(

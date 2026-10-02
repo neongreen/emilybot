@@ -1,8 +1,10 @@
 """EmilyBot Discord bot class."""
 
+import logging
 from discord.ext import commands
 from typing import Any
 
+from emilybot.atomic_json_db import DBSaveError
 from emilybot.database import DB
 from emilybot.discord.bot_context import EmilyContext
 
@@ -22,3 +24,24 @@ class EmilyBot(commands.Bot):
 
     async def get_context(self, *args: Any, **kwargs: Any) -> EmilyContext:
         return await super().get_context(*args, **kwargs, cls=EmilyContext)
+
+    async def on_command_error(
+        self, context: commands.Context[Any], exception: commands.CommandError
+    ) -> None:
+        original = getattr(exception, "original", None)
+        if isinstance(original, DBSaveError):
+            logging.error("Database save failed", exc_info=original)
+            await context.send(format_save_error(self.db, original))
+            return
+        await super().on_command_error(context, exception)
+
+
+def format_save_error(db: DB, error: DBSaveError) -> str:
+    """User-facing reply for a failed save. Commands save the alias table first, then the log."""
+    if error.path == db.log.file_path:
+        return "⚠️ The change was saved, but recording it in the history failed."
+    if error.file_state == "new":
+        return "⚠️ The change was written, but the disk did not confirm it was stored."
+    if error.file_state == "unknown":
+        return "❌ Saving failed partway, so the change was not kept. The next successful save rewrites the stored data."
+    return "❌ Saving failed, so nothing was changed."

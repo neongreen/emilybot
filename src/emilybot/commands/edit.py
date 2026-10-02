@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime
 from discord.ext import commands
 from emilybot.discord import EmilyContext
@@ -58,7 +59,7 @@ async def cmd_edit(
 
         # Update entry
         old_content = entry.content
-        entry.content = new_content
+        entry = replace(entry, content=new_content)
         db.remember.update(entry)
 
         action = Action(
