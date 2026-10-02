@@ -1,0 +1,4 @@
+612 540 0:62 / / rw,relatime master:322 - overlay overlay rw,lowerdir=/var/lib/docker/overlay2/l/ABC,upperdir=/var/lib/docker/overlay2/123/diff,workdir=/var/lib/docker/overlay2/123/work
+613 612 0:65 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+620 612 254:1 /data/coolify/applications/ww8o48sss8wcogg40g044g8w/remember.json /app/data/remember.json rw,relatime - ext4 /dev/vda1 rw
+621 612 254:1 /data/coolify/applications/ww8o48sss8wcogg40g044g8w/remember_log.json /app/data/remember_log.json rw,relatime - ext4 /dev/vda1 rw

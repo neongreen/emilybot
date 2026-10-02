@@ -25,6 +25,7 @@ Examples:
 """
 
 import logging
+import emilybot.persistence
 import uuid
 from dataclasses import replace
 from discord import Message
@@ -53,6 +54,17 @@ from emilybot.test_utils import (
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+
+
+@pytest.fixture(autouse=True)
+def _allow_any_test_storage(  # pyright: ignore[reportUnusedFunction]
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test databases live in temp dirs, which may be tmpfs; skip the persistence check.
+
+    Tests of the check pass their own mountinfo.
+    """
+    monkeypatch.setattr(emilybot.persistence, "MOUNTINFO", tmp_path / "no-mountinfo")
 
 
 @pytest.fixture
