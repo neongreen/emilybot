@@ -2,7 +2,9 @@
 
 import asyncio
 import zlib
-from html.parser import HTMLParser
+import json
+import re
+from typing import cast
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import aiohttp
@@ -10,6 +12,7 @@ import aiohttp
 MAX_BYTES = 256 * 1024
 HOSTS = frozenset(
     {
+        "api.github.com",
         "github.com",
         "raw.githubusercontent.com",
         "gist.github.com",
@@ -34,6 +37,12 @@ def checked_url(url: str) -> str:
             and parts.username is None
             and parts.password is None
         )
+        if parts.hostname == "api.github.com":
+            valid = (
+                valid
+                and bool(re.fullmatch(r"/gists/[0-9a-fA-F]{1,64}", parts.path))
+                and not parts.query
+            )
     except ValueError:
         valid = False
     if not valid:
@@ -62,21 +71,47 @@ def github_raw(url: str) -> str:
     return url
 
 
-class GistLinks(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.links: set[str] = set()
+def gist_api(url: str) -> str:
+    """Resolve a Gist page via its bounded JSON metadata, without fetching HTML."""
+    checked_url(url)
+    parts = urlsplit(url)
+    if parts.hostname != "gist.github.com" or parts.path.split("/")[3:4] == ["raw"]:
+        return url
+    match = re.fullmatch(r"/[^/]+/([0-9a-fA-F]{1,64})/?", parts.path)
+    if not match:
+        raise InstallError("Use a Gist file's raw link or a Gist page with one file.")
+    return checked_url(f"https://api.github.com/gists/{match[1]}")
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag == "a":
-            for name, value in attrs:
-                if name == "href" and value and "/raw/" in value:
-                    self.links.add(value)
+
+def gist_raw_url(body: bytes) -> str:
+    try:
+        metadata: object = json.loads(body)
+    except (ValueError, UnicodeDecodeError) as e:
+        raise InstallError(
+            "The Gist returned invalid file metadata. Use the file's raw link."
+        ) from e
+    if not isinstance(metadata, dict):
+        raise InstallError(
+            "The Gist returned invalid file metadata. Use the file's raw link."
+        )
+    files = cast(dict[str, object], metadata).get("files")
+    if not isinstance(files, dict) or len(cast(dict[str, object], files)) != 1:
+        raise InstallError(
+            "This Gist has no single unambiguous file. Use that file's raw link."
+        )
+    file = next(iter(cast(dict[str, object], files).values()))
+    raw_url = (
+        cast(dict[str, object], file).get("raw_url") if isinstance(file, dict) else None
+    )
+    if not isinstance(raw_url, str):
+        raise InstallError("The Gist has no raw file link. Use the file's raw link.")
+    # Always fetch raw bytes, even if the API includes (possibly truncated) content.
+    return checked_url(raw_url)
 
 
 async def _download(session: aiohttp.ClientSession, url: str) -> tuple[bytes, str]:
     for _ in range(6):
-        checked_url(url)
+        url = gist_api(url)
         async with session.get(url, allow_redirects=False) as response:
             if response.status in (301, 302, 303, 307, 308):
                 location = response.headers.get("Location")
@@ -129,20 +164,8 @@ async def fetch_source(url: str) -> bytes:
                 cookie_jar=aiohttp.DummyCookieJar(),
             ) as session:
                 body, final_url = await _download(session, url)
-                if (
-                    urlsplit(final_url).hostname == "gist.github.com"
-                    and "/raw" not in urlsplit(final_url).path
-                ):
-                    parser = GistLinks()
-                    parser.feed(body.decode("utf-8"))
-                    links = {
-                        checked_url(urljoin(final_url, link)) for link in parser.links
-                    }
-                    if len(links) != 1:
-                        raise InstallError(
-                            "This Gist has no single unambiguous file. Use that file's raw link."
-                        )
-                    body, _ = await _download(session, links.pop())
+                if urlsplit(final_url).hostname == "api.github.com":
+                    body, _ = await _download(session, gist_raw_url(body))
                 return body
     except (TimeoutError, aiohttp.ClientError, UnicodeDecodeError, zlib.error) as e:
         raise InstallError(

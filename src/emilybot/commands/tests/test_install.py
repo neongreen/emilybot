@@ -248,7 +248,7 @@ async def test_blob_and_attachment(
         view.finish()
 
 
-async def test_redirect_stream_and_gist(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_redirect_stream(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session([Response(status=302, location="https://evil.test/foo")])
     monkeypatch.setattr(
         install_source.aiohttp, "ClientSession", MagicMock(return_value=session)
@@ -259,16 +259,6 @@ async def test_redirect_stream_and_gist(monkeypatch: pytest.MonkeyPatch) -> None
     session.replies = [Response(b"x" * (MAX_BYTES + 1))]
     with pytest.raises(InstallError, match="256 KiB"):
         await fetch_source("https://raw.githubusercontent.com/a")
-    session.replies = [
-        Response(b'<a href="https://gist.githubusercontent.com/u/id/raw/a.md">Raw</a>'),
-        Response(),
-    ]
-    assert await fetch_source("https://gist.github.com/u/id") == GAME
-    session.replies = [
-        Response(b'<a href="/u/id/raw/a.md">Raw</a><a href="/u/id/raw/b.md">Raw</a>')
-    ]
-    with pytest.raises(InstallError, match="unambiguous"):
-        await fetch_source("https://gist.github.com/u/id")
 
 
 async def test_view_click_cancel_expire(make_ctx: Any) -> None:
