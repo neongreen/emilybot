@@ -11,6 +11,7 @@ from emilybot.database import Entry
 from emilybot.utils.list import first
 from emilybot.validation import validate_path, ValidationError
 from emilybot.utils.inflect import inflect
+from emilybot.suggestions import format_suggestion_lines
 
 
 def format_not_found_message(command: str, command_prefix: str) -> str:
@@ -217,7 +218,10 @@ async def cmd_show(ctx: EmilyContext, alias: str) -> None:
         if entry:
             await send_entry(entry, ctx)
         else:
-            await ctx.send(format_not_found_message(alias, command_prefix))
+            await ctx.send(
+                format_not_found_message(alias, command_prefix)
+                + format_suggestion_lines(ctx, alias)
+            )
 
 
 @commands.command(name="list")
@@ -259,7 +263,10 @@ async def cmd_random(ctx: EmilyContext, alias: str) -> None:
         entry = first(db.find_alias(alias, server_id=server_id, user_id=ctx.author.id))
 
         if not entry:
-            await ctx.send(format_not_found_message(alias, command_prefix))
+            await ctx.send(
+                format_not_found_message(alias, command_prefix)
+                + format_suggestion_lines(ctx, alias)
+            )
             return
 
         # Run

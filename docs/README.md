@@ -62,7 +62,7 @@ Emily:  2:30:45 PM
 
 | Command                  | What it does                | Example                                                     |
 | ------------------------ | --------------------------- | ----------------------------------------------------------- |
-| `.set [name].run [code]` or `$set [name].run [code]` | Add JavaScript to an alias  | `.set weather.run console.log("Today: " + context.content)` or `$set weather.run console.log("Today: " + context.content)` |
+| `.set [name].run [code]` or `$set [name].run [code]` | Add JavaScript to an alias  | `.set weather.run console.log("Today: " + this.content)` or `$set weather.run console.log("Today: " + this.content)` |
 | `.run [code]` or `$run [code]`            | Execute JavaScript directly | `.run console.log("Hello, world!")` or `$run console.log("Hello, world!")`                         |
 
 When you use an alias that has attribute `run`, instead of showing the text it will execute the code.
@@ -77,7 +77,7 @@ See [JavaScript execution](#javascript-execution) for more details, or see the c
 | `.promote [name]` or `$promote [name]` | Show the alias and its first line in help | `.promote docs` or `$promote docs`     |
 | `.demote [name]` or `$demote [name]`  | Don't list in help, only in `.list`       | `.demote old-stuff` or `$demote old-stuff` |
 | `.demote_all` or `$demote_all`     | Demote all aliases                        | `.demote_all` or `$demote_all`       |
-| `.help` or `$help`           | Show all commands and promoted aliases    | `.help` or `$help`             |
+| `.help [command]` or `$help [command]` | Show all commands and promoted aliases, or explain one command | `.help` or `.help set` |
 
 ## Anatomy of an alias
 
@@ -87,7 +87,7 @@ Each alias stores:
 | -------------- | -------------------------- | ------------------------------------- |
 | **name**       | The alias name (lowercase) | `weather`                             |
 | **content**    | The text you stored        | `Sunny, 75°F`                         |
-| **run**        | JavaScript code (optional) | `console.log("🌤️ " + context.content)` |
+| **run**        | JavaScript code (optional) | `console.log("🌤️ " + this.content)` |
 | **promoted**   | Show in help prominently?  | `true` or `false`                     |
 | **created_at** | When you made it           | `2025-01-29T12:00:00Z`                |
 | **user_id**    | Your Discord ID            | `123456789`                           |
@@ -137,7 +137,8 @@ Folders will still show up.
 
 #### .help
 
-Display all available commands, promoted aliases, and alias folders.
+Display a short example of making and changing a command, then promoted aliases, alias folders, and all built-in commands.
+`.help set`, `.help add`, `.help edit`, `.help show` and `.help [command]` for any other built-in explain one command.
 
 ## JavaScript execution
 
@@ -145,7 +146,7 @@ Add JavaScript to make aliases dynamic:
 
 ```
 .add weather Sunny, 75°F
-.set weather.run console.log("🌤️ Weather: " + context.content)
+.set weather.run console.log("🌤️ Weather: " + this.content)
 .weather
 # Shows: 🌤️ Weather: Sunny, 75°F
 ```
@@ -156,12 +157,13 @@ Add JavaScript to make aliases dynamic:
 
 Your JavaScript code has access to two main interfaces:
 
-**Legacy `context` object** (for `.alias.run` commands):
+**`this` and `args`** (inside an alias's code):
 
-| Property          | What it contains | Example         |
-| ----------------- | ---------------- | --------------- |
-| `context.content` | The alias text   | `"Sunny, 75°F"` |
-| `context.name`    | The alias name   | `"weather"`     |
+| Property       | What it contains                  | Example              |
+| -------------- | --------------------------------- | -------------------- |
+| `this.content` | The alias text                    | `"Sunny, 75°F"`      |
+| `this.name`    | The alias name                    | `"weather"`          |
+| `args`         | Words typed after the alias name  | `.weather a b` → `["a", "b"]` |
 
 **Modern `$` global object** (available everywhere):
 
@@ -202,20 +204,20 @@ If you have `docs/api` and `docs/install`, you can access them as:
 All of these work:
 
 ```
-.set weather.run console.log(context.content)
+.set weather.run console.log(this.content)
 ```
 
 ````
 .set weather.run
 ```
-console.log(context.content)
+console.log(this.content)
 ```
 ````
 
 ````
 .set weather.run
 ```js
-console.log(context.content)
+console.log(this.content)
 ```
 ````
 
@@ -225,9 +227,9 @@ console.log(context.content)
 
 | Step | Command                                | Result                                                 |
 | ---- | -------------------------------------- | ------------------------------------------------------ |
-| 1    | `.add manual https://docs.example.com` | ✅ Alias 'manual' stored successfully                  |
+| 1    | `.add manual https://docs.example.com` | Emily reacts with ✔️                                   |
 | 2    | `.manual`                              | `https://docs.example.com`                             |
-| 3    | `.add manual Also check the FAQ`       | ✅ Alias 'manual' updated successfully                 |
+| 3    | `.add manual Also check the FAQ`       | Emily reacts with ✔️                                   |
 | 4    | `.manual`                              | `https://docs.example.com`<br><br>`Also check the FAQ` |
 
 ### JavaScript enhancement
@@ -238,7 +240,7 @@ console.log(context.content)
 .add todo Buy milk
 Walk dog
 Finish project
-.set todo.run let items = context.content.split('\n'); console.log("📝 " + items.length + " tasks");
+.set todo.run let items = this.content.split('\n'); console.log("📝 " + items.length + " tasks");
 .todo
 # Shows: 📝 3 tasks
 ```
@@ -247,7 +249,7 @@ Finish project
 
 ```
 .add weather Sunny, 72°F
-.set weather.run console.log("🌤️ " + context.content)
+.set weather.run console.log("🌤️ " + this.content)
 .weather
 # Shows: 🌤️ Sunny, 72°F
 ```
@@ -258,7 +260,7 @@ Finish project
 .add quotes The best time to plant a tree was 20 years ago. The second best time is now.
 Life is what happens to you while you're busy making other plans.
 Be yourself; everyone else is already taken.
-.set quotes.run let lines = context.content.split('\n').filter(Boolean); console.log(lines[$.lib.random(0, lines.length - 1)]);
+.set quotes.run let lines = this.content.split('\n').filter(Boolean); console.log(lines[$.lib.random(0, lines.length - 1)]);
 .quotes
 # Shows: Be yourself; everyone else is already taken.
 # (or one of the other quotes, randomly chosen)
